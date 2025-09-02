@@ -4,6 +4,7 @@ import MainScreen from "../screens/MainScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import AuthOTPScreen from "../screens/AuthOTPScreen";
 import LoginScreen from "../screens/LoginScreen ";
+import HomeScreen from "../screens/HomeSrceen";
 
 const AuthStack = createStackNavigator();
 
@@ -14,6 +15,7 @@ const AuthNavigator = () => {
       <AuthStack.Screen name="Register" component={RegisterScreen} />
       <AuthStack.Screen name="AuthOTP" component={AuthOTPScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Home" component={HomeScreen} />
     </AuthStack.Navigator>
   );
 };
