@@ -3,6 +3,7 @@ import HomeScreen from '../screens/HomeScreen';
 import VideosScreen from '../screens/VideosScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import HomeStack from './HomeStack';
 
 import { AntDesign, Ionicons, MaterialIcons } from '@expo/vector-icons';
 
@@ -25,7 +26,7 @@ export default function AppTabs() {
             {/* Home Tab */}
             <Tab.Screen
                 name="HomeTab"
-                component={HomeScreen}
+                component={HomeStack}
                 options={{
                     title: 'Trang chủ',
                     tabBarIcon: ({ color }) => <AntDesign name="home" size={22} color={color}/>,
