@@ -15,9 +15,9 @@ export default function LoginScreen() {
   const onSubmit = async () => {
     const action = await dispatch(loginThunk({ phoneNumber, password }));
     if (loginThunk.fulfilled.match(action)) {
-      Alert.alert('Success', 'Logged in!');
+      Alert.alert('Thành công', 'Đã đăng nhập!');
     } else {
-      Alert.alert('Login failed', action.payload || 'Invalid credentials');
+      Alert.alert('Đăng nhập thất bại', action.payload || 'Thông tin đăng nhập không hợp lệ.');
     }
   };
 
