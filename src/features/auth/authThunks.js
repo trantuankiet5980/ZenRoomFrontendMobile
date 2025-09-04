@@ -32,7 +32,7 @@ export const loginThunk = createAsyncThunk(
 
       return { token, user };
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Login error';
+      const msg = err?.response?.data?.message || err?.message || 'Đăng nhập lỗi';
       return rejectWithValue(msg);
     }
   }

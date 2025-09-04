@@ -35,7 +35,7 @@ const authSlice = createSlice({
      })
      .addCase(loginThunk.rejected, (s, a) => {
         s.loading = false;
-        s.error = a.payload || 'Login failed';
+        s.error = a.payload || 'Đăng nhập thất bại';
      });
 
     b.addCase(logoutThunk.fulfilled, (s) => {
