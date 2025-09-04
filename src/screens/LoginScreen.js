@@ -34,8 +34,8 @@ export default function LoginScreen({navigation}) {
         <Text style={{fontSize: 14, color: '#666', paddingBottom: 10}}>
           Vui lòng thêm các thông tin dưới đây để đăng nhập vào App ZenRoom nhé!
         </Text>
-        <InputText label="Số điện thoại" value={phoneNumber} onChangeText={setPhone} placeholder="Nhập số điện thoại" keyboardType="phone-pad" />
-        <InputText label="Mật khẩu" value={password} onChangeText={setPass} placeholder="Nhập mật khẩu" secureTextEntry />
+        <InputText value={phoneNumber} onChangeText={setPhone} placeholder="Nhập số điện thoại" keyboardType="phone-pad" />
+        <InputText value={password} onChangeText={setPass} placeholder="Nhập mật khẩu" secureTextEntry />
         <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Chức năng quên mật khẩu chưa được hỗ trợ.')}>
           <Text style={{ color: '#FBB040', textAlign: 'left', fontWeight: '600' }}>Quên mật khẩu?</Text>
         </TouchableOpacity>
