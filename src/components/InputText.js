@@ -9,7 +9,7 @@ export default function InputText({ label, value, onChangeText, placeholder, sec
         placeholder={placeholder}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
-        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 12 }}
+        style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 15 }}
       />
     </View>
   );
