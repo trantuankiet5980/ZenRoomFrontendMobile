@@ -5,7 +5,7 @@ export default function ButtonPrimary({ title, onPress, disabled, style }) {
       onPress={onPress}
       disabled={disabled}
       style={[
-        { backgroundColor: '#2563EB', padding: 12, borderRadius: 10, alignItems: 'center', opacity: disabled ? 0.6 : 1 },
+        { backgroundColor: '#FBB040', padding: 17, borderRadius: 10, alignItems: 'center', opacity: disabled ? 0.6 : 1 },
         style,
       ]}
     >
