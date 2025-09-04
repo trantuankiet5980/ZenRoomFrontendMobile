@@ -6,7 +6,7 @@ import ButtonPrimary from '../components/ButtonPrimary';
 import InputText from '../components/InputText';
 import TypingText from '../hooks/TypingText';
 
-export default function LoginScreen() {
+export default function LoginScreen({navigation}) {
   const [phoneNumber, setPhone] = useState('');
   const [password, setPass] = useState('');
   const dispatch = useDispatch();
@@ -22,8 +22,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1}}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFE3B8'}}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFE3B8',padding: 10 }}>
         <Image source={require('../../assets/images/zenroom.png')} style={{ width: 200, height: 200, alignSelf: 'center', marginBottom: 20 }} />
         <View>
           <TypingText text="Chào bạn!" speed={150} pause={1000} style={{ fontSize: 35, fontWeight: 'bold', color: '#f36031' }} />
@@ -43,7 +43,7 @@ export default function LoginScreen() {
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, paddingTop: 20 }}>
           <Text style={{ color: '#666' }}>Bạn chưa có tài khoản?</Text>
-          <TouchableOpacity onPress={() => Alert.alert('Register', 'Chức năng đăng ký chưa được hỗ trợ.')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={{ color: '#FBB040', fontWeight: '600' }}>Đăng ký ngay</Text>
           </TouchableOpacity>
         </View>
