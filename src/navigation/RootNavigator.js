@@ -3,8 +3,7 @@ import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { navigationRef } from './NavigationService';
 import AuthStack from './AuthStack';
-import TenantTabs from './TenantTabs';
-import LandlordTabs from './LandlordTabs';
+import AppTabs from './AppTabs';
 import AdminBlockedScreen from '../screens/AdminBlockedScreen';
 import { loadSessionThunk } from '../features/auth/authThunks';
 import Loader from '../components/Loader';
@@ -31,10 +30,13 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {role === 'tenant' && <TenantTabs />}
-      {role === 'landlord' && <LandlordTabs />}
-      {role === 'admin' && <AdminBlockedScreen />}
-      {!role && <TenantTabs />}{/* fallback an toàn */}
+      {!token ? (
+        <AuthStack />
+      ) : role === 'admin' ? (
+        <AdminBlockedScreen />
+      ) : (
+        <AppTabs />
+      )}
     </NavigationContainer>
   );
 }

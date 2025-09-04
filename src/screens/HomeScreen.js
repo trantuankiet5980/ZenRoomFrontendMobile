@@ -14,8 +14,8 @@ export default function HomeScreen() {
       <Text style={{ fontSize:20, fontWeight:'bold' }}>Home</Text>
       <Text>Role hiện tại: {role}</Text>
 
-      <TenantOnly />
-      <LandlordOnly />
+      {/* <TenantOnly />
+      <LandlordOnly /> */}
 
       <ButtonPrimary title="Đăng xuất" onPress={() => dispatch(logoutThunk())} />
     </View>
