@@ -8,7 +8,9 @@ import TypingText from '../hooks/TypingText';
 
 export default function LoginScreen({navigation}) {
   const [phoneNumber, setPhone] = useState('');
-  const [password, setPass] = useState('');
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   const dispatch = useDispatch();
   const { loading } = useSelector((s) => s.auth);
 
@@ -35,7 +37,18 @@ export default function LoginScreen({navigation}) {
           Vui lòng thêm các thông tin dưới đây để đăng nhập vào App ZenRoom nhé!
         </Text>
         <InputText value={phoneNumber} onChangeText={setPhone} placeholder="Nhập số điện thoại" keyboardType="phone-pad" />
-        <InputText value={password} onChangeText={setPass} placeholder="Nhập mật khẩu" secureTextEntry />
+        <View style={{flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#ddd", borderRadius: 8, paddingHorizontal: 15, marginBottom: 15, backgroundColor: "#fff",}}>
+          <TextInput
+            style={{flex:1, paddingVertical: 15}}
+            placeholder="Mật khẩu"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Text style={{color: '#F05A28', fontWeight: "500"}}>{showPassword ? "Hide" : "Show"}</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Chức năng quên mật khẩu chưa được hỗ trợ.')}>
           <Text style={{ color: '#FBB040', textAlign: 'left', fontWeight: '600' }}>Quên mật khẩu?</Text>
         </TouchableOpacity>
