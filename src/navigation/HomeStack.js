@@ -24,16 +24,16 @@ export default function HomeStack() {
       <Stack.Screen name="SearchRooms" component={SearchPostScreen} options={{ title: 'Tìm kiếm tin đăng' }} />
 
       {/* Create */}
-      <Stack.Screen name="CreateBuilding" component={CreateBuilding} options={{ title: 'Tạo tòa nhà' }} />
-      <Stack.Screen name="CreateRoom" component={CreateRoom} options={{ title: 'Tạo phòng' }} />
-      <Stack.Screen name="CreatePost" component={CreatePost} options={{ title: 'Tạo bài viết' }} />
-      <Stack.Screen name="CreateContract" component={CreateContract} options={{ title: 'Tạo hợp đồng' }} />
+      <Stack.Screen name="CreateBuilding" component={CreateBuilding} options={{ title: 'Tạo tòa nhà', headerShown: false }} />
+      <Stack.Screen name="CreateRoom" component={CreateRoom} options={{ title: 'Tạo phòng', headerShown: false }} />
+      <Stack.Screen name="CreatePost" component={CreatePost} options={{ title: 'Tạo bài viết', headerShown: false }} />
+      <Stack.Screen name="CreateContract" component={CreateContract} options={{ title: 'Tạo hợp đồng', headerShown: false }} />
 
       {/* Manager */}
-      <Stack.Screen name="RoomsInventoryManager" component={RoomsInventoryManagerScreen} options={{ title: 'Quản lý phòng' }} />
-      <Stack.Screen name="PostsManager" component={PostManagerScreen} options={{ title: 'Quản lý tin đăng' }} />
-      <Stack.Screen name="TenantsManager" component={TenantsManagerScreen} options={{ title: 'Quản lý khách thuê' }} />
-      <Stack.Screen name="ContractsManager" component={ContractsManagerScreen} options={{ title: 'Quản lý hợp đồng' }} />
+      <Stack.Screen name="RoomsInventoryManager" component={RoomsInventoryManagerScreen} options={{ title: 'Quản lý phòng', headerShown: false }} />
+      <Stack.Screen name="PostsManager" component={PostManagerScreen} options={{ title: 'Quản lý tin đăng', headerShown: false }} />
+      <Stack.Screen name="TenantsManager" component={TenantsManagerScreen} options={{ title: 'Quản lý khách thuê', headerShown: false }} />
+      <Stack.Screen name="ContractsManager" component={ContractsManagerScreen} options={{ title: 'Quản lý hợp đồng', headerShown: false }} />
 
     </Stack.Navigator>
   );

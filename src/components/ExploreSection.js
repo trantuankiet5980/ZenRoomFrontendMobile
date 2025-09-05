@@ -22,7 +22,7 @@ export default function ExploreSection({
   return (
     <View style={{ marginTop: 8, marginRight: 20 }}>
       {/* Tiêu đề */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingLeft: 20 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingLeft: 20 }}>
         <Ionicons name={icon} size={22} color="#111827" />
         <Text style={{ marginLeft: 8, fontSize: 18, fontWeight: '700', color: '#111827' }}>
           {title}

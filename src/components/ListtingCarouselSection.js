@@ -9,7 +9,7 @@ export default function ListingCarouselSection({
   return (
     <View style={{ paddingTop: 8, marginRight: 20 }}>
       <View style={{ paddingHorizontal:20, marginBottom:10, flexDirection:'row',
-                     alignItems:'center', justifyContent:'space-between' }}>
+                     alignItems:'center', justifyContent:'space-between' , marginBottom: 20}}>
         <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
           <Ionicons name={icon} size={20} color="#111827" />
           <Text style={{ fontSize:18, fontWeight:'700' }}>{title}</Text>
