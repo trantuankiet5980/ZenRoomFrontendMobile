@@ -5,9 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 export default function ExploreSection({
   title = 'Khám phá',
   icon = 'business-outline',
-  items = [],              
-  gap = 12,                
-  itemSize = 86,           
+  items = [],
+  gap = 12,
+  itemSize = 86,
   onPressItem,
 }) {
   // Chia thành các "cột" — mỗi cột tối đa 2 item (trên/dưới)
@@ -56,10 +56,11 @@ export default function ExploreSection({
                     }}
                   >
                     {item.imageUri ? (
-                      <Image source={{ uri: item.imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      <Image source={item.imageUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                     ) : null}
+
                     <View style={{ position: 'absolute', bottom: 6, left: 6, right: 6, alignItems: 'center' }}>
-                      <Text numberOfLines={1} style={{ fontSize: 12, color: '#111827', fontWeight: '500' }}>
+                      <Text numberOfLines={1} style={{ fontSize: 15, color: '#fff', fontWeight: '500',fontWeight: '600' }}>
                         {item.label}
                       </Text>
                     </View>

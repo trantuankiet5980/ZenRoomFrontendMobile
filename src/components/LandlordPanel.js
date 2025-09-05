@@ -1,13 +1,18 @@
-import { View, Text } from "react-native";
+import { useState } from "react";
+import { View, Text, Modal, TouchableOpacity, FlatList } from "react-native";
 import { useSelector } from "react-redux";
 import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
 import SearchPostScreen from "../screens/SearchPostScreen";
 import { useNavigation } from "@react-navigation/native";
+// import { locations } from "../data/locationData";
+import SelectCityModal from "../components/modal/SelectCityModal";
 
 export default function LandlordPanel() {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
   if (role !== "landlord") return null;
+  const [selectedCity, setSelectedCity] = useState("Hồ Chí Minh");
+  const [cityModalVisible, setCityModalVisible] = useState(false);
 
   const navigation = useNavigation();
 
@@ -95,9 +100,14 @@ export default function LandlordPanel() {
           elevation: 2,
         }}
       >
+        <SelectCityModal
+          visible={cityModalVisible}
+          onClose={() => setCityModalVisible(false)}
+          onSelectCity={(city) => setSelectedCity(city)}
+        />
         <SearchPost
-          city="Hồ Chí Minh"
-          onPressCity={() => console.log("Chọn địa điểm")}
+          city={selectedCity}
+          onPressCity={() => setCityModalVisible(true)}
           onPressSearch={() => navigation.navigate("SearchRooms")}
         />
         <ActionGrid items={createActions} />
