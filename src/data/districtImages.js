@@ -1,4 +1,4 @@
-export const districtImages: Record<string, any> = {
+export const districtImages = {
   // Hà Nội
   "Ba Đình": require("../../assets/districts/ba_dinh.png"),
   "Hoàn Kiếm": require("../../assets/districts/hoan_kiem.png"),
