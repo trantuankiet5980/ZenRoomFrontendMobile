@@ -18,8 +18,8 @@ export default function PostsManagerScreen() {
 
   // demo data (có thể thay bằng API)
   const [posts] = useState([
-    // { id:'1', status:'pending', title:'Phòng Q.Gò Vấp 20m²', address:'Nguyễn Văn Nghi', price:'3.5tr/tháng', thumbnail:'https://picsum.photos/seed/p1/320/200' },
-    // { id:'2', status:'active',  title:'Căn hộ mini Tân Phú',   address:'Lũy Bán Bích',     price:'4.2tr/tháng', thumbnail:'https://picsum.photos/seed/p2/320/200' },
+    { id:'1', status:'pending', title:'Phòng Q.Gò Vấp 20m²', address:'Nguyễn Văn Nghi', price:'3.5tr/tháng', thumbnail:'https://picsum.photos/seed/p1/320/200' },
+    { id:'2', status:'active',  title:'Căn hộ mini Tân Phú',   address:'Lũy Bán Bích',     price:'4.2tr/tháng', thumbnail:'https://picsum.photos/seed/p2/320/200' },
   ]);
   const [tab, setTab] = useState('active'); // 'pending' | 'active'
   const [q, setQ] = useState('');
