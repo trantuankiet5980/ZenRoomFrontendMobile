@@ -20,7 +20,7 @@ export default function ExploreSection({
   }, [items]);
 
   return (
-    <View style={{ marginTop: 8 }}>
+    <View style={{ marginTop: 8, marginRight: 20 }}>
       {/* Tiêu đề */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingLeft: 20 }}>
         <Ionicons name={icon} size={22} color="#111827" />
