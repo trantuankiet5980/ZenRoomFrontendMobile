@@ -11,7 +11,7 @@ const ORANGE_SOFT = '#FEE6C9';
 const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
 
-export default function CreateRoom() {
+export default function CreateRoomScreen() {
     const nav = useNavigation();
     useHideTabBar();
 
@@ -378,12 +378,12 @@ function UploadBox({ title, subtitle, onPick, children }) {
       <Pressable
         onPress={onPick}
         style={{
-          height: 90, borderRadius: 12, borderWidth: 1, borderColor: GRAY,
+          height: 90, borderRadius: 12, borderWidth: 1, borderColor: ORANGE,
           backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center'
         }}
       >
-        <MaterialCommunityIcons name="image-plus" size={22} color={TEXT_MUTED} />
-        <Text style={{ color: TEXT_MUTED, fontSize: 12, marginTop: 4 }}>Chọn từ thư viện</Text>
+        <MaterialCommunityIcons name="image-plus" size={22} color={ORANGE} />
+        <Text style={{ color: ORANGE, fontSize: 12, marginTop: 4 }}>Chọn từ thư viện</Text>
       </Pressable>
       {children ? <View style={{ marginTop: 10 }}>{children}</View> : null}
     </View>
