@@ -3,10 +3,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import SearchPostScreen from '../screens/SearchPostScreen';
 
-import CreateBuilding from '../screens/CreateBuilding';
-import CreateRoom from '../screens/CreateRoom';
-import CreatePost from '../screens/CreatePost';
-import CreateContract from '../screens/CreateContract';
+import CreateBuilding from '../screens/CreateBuildingScreen';
+import CreateRoom from '../screens/CreateRoomScreen';
+import CreatePost from '../screens/CreatePostScreen';
+import CreateContract from '../screens/CreateContractScreen';
 
 import RoomsInventoryManagerScreen from '../screens/RoomsInventoryManagerScreen';
 import PostManagerScreen from '../screens/PostsManagerScreen';
