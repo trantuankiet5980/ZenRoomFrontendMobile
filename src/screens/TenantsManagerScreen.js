@@ -16,8 +16,8 @@ export default function TenantsManagerScreen() {
 
   // demo data (thay bằng API)
   const [tenants] = useState([
-    // { id:'1', status:'deposit',  name:'Nguyễn Văn A', phone:'0909 000 111', room:'P201 - Tòa A', when:'12/10/2025', note:'Cọc 2tr' },
-    // { id:'2', status:'renting', name:'Trần Thị B',    phone:'0912 333 444', room:'P305 - Tòa B', when:'01/10/2025', note:'Chu kỳ tháng' },
+    { id:'1', status:'deposit',  name:'Nguyễn Văn A', phone:'0909 000 111', room:'P201 - Tòa A', when:'12/10/2025', note:'Cọc 2tr' },
+    { id:'2', status:'renting', name:'Trần Thị B',    phone:'0912 333 444', room:'P305 - Tòa B', when:'01/10/2025', note:'Chu kỳ tháng' },
   ]);
 
   const [tab, setTab] = useState('deposit'); // 'deposit' | 'renting'
