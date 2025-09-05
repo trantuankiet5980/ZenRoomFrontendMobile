@@ -55,8 +55,14 @@ export default function HomeScreen() {
 
       </View>
       <View style={{ marginTop: -40 }}>
-        <LandlordPanel />
-        <TenantPanel />
+        <LandlordPanel
+          selectedCity={selectedCity}
+          setSelectedCity={setSelectedCity}
+        />
+        <TenantPanel
+        selectedCity={selectedCity}
+        setSelectedCity={setSelectedCity}
+      />
       </View>
       {/* component hiển thị panel theo role */}
       <ExploreSection

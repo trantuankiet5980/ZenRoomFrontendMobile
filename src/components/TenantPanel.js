@@ -1,18 +1,26 @@
-import React, { useState } from "react";
+import React, { useState,useEffect } from "react";
 import { View } from "react-native";
 import { useSelector } from "react-redux";
 import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
 import { useNavigation } from "@react-navigation/native";
 import SelectCityModal from "../components/modal/SelectCityModal";
+import { locations } from "../data/locationData";
 
-export default function TenantPanel() {
+export default function TenantPanel({ selectedCity, setSelectedCity }) {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
   if (role !== "tenant") return null;
 
-  const [selectedCity, setSelectedCity] = useState("Hồ Chí Minh");
   const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [districts, setDistricts] = useState(locations[selectedCity] || []);
+
+  // Update districts khi selectedCity thay đổi
+  useEffect(() => {
+    setDistricts(locations[selectedCity] || []);
+  }, [selectedCity]);
+
   const navigation = useNavigation();
+
   return (
     <View style={{ gap: 12 }}>
       <View
@@ -34,6 +42,7 @@ export default function TenantPanel() {
         />
         <SearchPost
           city={selectedCity}
+          districts={districts}
           onPressCity={() => setCityModalVisible(true)}
           onPressSearch={() => navigation.navigate("SearchRooms")}
         />
@@ -41,3 +50,4 @@ export default function TenantPanel() {
     </View>
   );
 }
+
