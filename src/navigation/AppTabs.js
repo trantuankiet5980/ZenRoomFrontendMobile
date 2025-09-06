@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/HomeScreen';
 import VideosScreen from '../screens/VideosScreen';
-import MessagesScreen from '../screens/MessagesScreen';
+import ChatStack from './ChatStack';
 import ProfileScreen from '../screens/ProfileScreen';
 import HomeStack from './HomeStack';
 
@@ -44,8 +44,8 @@ export default function AppTabs() {
             />
             {/* Messages Tab */}
             <Tab.Screen
-                name="Messages"
-                component={MessagesScreen}
+                name="Chat"
+                component={ChatStack}
                 options={{
                     title: 'Tin nhắn',
                     tabBarIcon: ({ color }) => <Ionicons name="chatbubble-ellipses" size={22} color={color} />,
