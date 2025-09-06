@@ -16,6 +16,7 @@ import ContractsManagerScreen from '../screens/ContractsManagerScreen';
 import InventoryBuildings from '../screens/InventoryBuildingsScreen';
 import InventoryRooms from '../screens/InventoryRoomsScreen';
 
+
 const Stack = createNativeStackNavigator();
 
 export default function HomeStack() {
@@ -39,6 +40,7 @@ export default function HomeStack() {
       <Stack.Screen name="PostsManager" component={PostManagerScreen} options={{ title: 'Quản lý tin đăng', headerShown: false }} />
       <Stack.Screen name="TenantsManager" component={TenantsManagerScreen} options={{ title: 'Quản lý khách thuê', headerShown: false }} />
       <Stack.Screen name="ContractsManager" component={ContractsManagerScreen} options={{ title: 'Quản lý hợp đồng', headerShown: false }} />
+
 
     </Stack.Navigator>
   );
