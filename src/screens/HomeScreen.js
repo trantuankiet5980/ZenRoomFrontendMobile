@@ -10,6 +10,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { locations } from '../data/locationData';
 import { districtImages } from '../data/districtImages';
 
+import RoomLists from "../components/RoomLists";
+import { uyTinRooms, cheapRooms } from "../data/rooms";
+
 export default function HomeScreen() {
   const user = useSelector((s) => s.auth.user);
   const name = user?.fullName || user?.name || "";
@@ -73,6 +76,7 @@ export default function HomeScreen() {
           navigation.navigate("SearchRooms", { district: item.label })
         }
       />
+      <RoomLists uyTinRooms={uyTinRooms} cheapRooms={cheapRooms}  />
     </ScrollView>
   );
 }

@@ -9,13 +9,36 @@ import {
     SafeAreaView,
 } from "react-native";
 import TypingText from '../hooks/TypingText';
+import { useDispatch } from "react-redux";
+import { registerThunk } from "../features/auth/authThunks";
+import { Alert } from "react-native";
+
 
 const RegisterScreen = ({ navigation }) => {
     const [role, setRole] = useState("tenant");
+    const dispatch = useDispatch();
+    const [fullName, setFullName] = useState("");
+    const [phoneNumber, setPhoneNumber] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    const onSubmit = async () => {
+        const payload = { fullName, phoneNumber, password, roles: [role] };
+        console.log('Register payload:', payload);
+        const action = await dispatch(registerThunk(payload));
+        console.log('Register action:', action);
+
+        if (registerThunk.fulfilled.match(action)) {
+            console.log("Register success, navigating to OTP...");
+            Alert.alert('Thành công', 'Đăng ký thành công! Vui lòng xác thực OTP được gửi qua số điện thoại.');
+            navigation.navigate('AuthOTP', { phoneNumber });
+        } else {
+            console.log("Register failed:", action.payload);
+            Alert.alert('Đăng ký thất bại', action.payload || 'Thông tin đăng ký không hợp lệ.');
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -64,16 +87,16 @@ const RegisterScreen = ({ navigation }) => {
 
                     <TouchableOpacity
                         style={styles.radioRow}
-                        onPress={() => setRole("owner")}
+                        onPress={() => setRole("landlord")}
                     >
                         <View
                             style={[
                                 styles.radioCircle,
-                                role === "owner" && styles.radioActive,
+                                role === "landlord" && styles.radioActive,
                             ]}
                         />
                         <Text
-                            style={role === "owner" ? styles.radioTextActive : styles.radioText}
+                            style={role === "landlord" ? styles.radioTextActive : styles.radioText}
                         >
                             Chủ nhà
                         </Text>
@@ -85,8 +108,15 @@ const RegisterScreen = ({ navigation }) => {
                     style={styles.input}
                     placeholder="Số điện thoại"
                     keyboardType="phone-pad"
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
                 />
-                <TextInput style={styles.input} placeholder="Họ và tên" />
+                <TextInput
+                    style={styles.input}
+                    placeholder="Họ và tên"
+                    value={fullName}
+                    onChangeText={setFullName}
+                />
 
                 {/* Password */}
                 <View style={styles.passwordWrapper}>
@@ -121,10 +151,7 @@ const RegisterScreen = ({ navigation }) => {
                 </View>
 
                 {/* Submit button */}
-                <TouchableOpacity
-                    style={styles.button}
-                    onPress={() => navigation.navigate("AuthOTP")}
-                >
+                <TouchableOpacity style={styles.button} onPress={onSubmit}>
                     <Text style={styles.buttonText}>Tiếp tục</Text>
                 </TouchableOpacity>
 
