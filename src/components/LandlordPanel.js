@@ -1,20 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, Modal, TouchableOpacity, FlatList } from "react-native";
 import { useSelector } from "react-redux";
 import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
 import SearchPostScreen from "../screens/SearchPostScreen";
 import { useNavigation } from "@react-navigation/native";
-// import { locations } from "../data/locationData";
+import { locations } from "../data/locationData";
 import SelectCityModal from "../components/modal/SelectCityModal";
 
-export default function LandlordPanel() {
+export default function LandlordPanel({ selectedCity, setSelectedCity }) {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
   if (role !== "landlord") return null;
-  const [selectedCity, setSelectedCity] = useState("Hồ Chí Minh");
+  
   const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [districts, setDistricts] = useState(locations[selectedCity] || []);
 
   const navigation = useNavigation();
+
+  // Update districts mỗi khi selectedCity thay đổi
+  useEffect(() => {
+    setDistricts(locations[selectedCity] || []);
+  }, [selectedCity]);
 
   const searchItem = {
     key: "search",
@@ -107,6 +113,7 @@ export default function LandlordPanel() {
         />
         <SearchPost
           city={selectedCity}
+          districts={districts}
           onPressCity={() => setCityModalVisible(true)}
           onPressSearch={() => navigation.navigate("SearchRooms")}
         />

@@ -43,3 +43,40 @@ export const logoutThunk = createAsyncThunk('auth/logout', async () => {
   await SecureStore.deleteItemAsync('userLogin');
   return true;
 });
+
+
+// API: Đăng ký tài khoản
+export const registerThunk = createAsyncThunk(
+  'auth/register',
+  async ({ fullName, phoneNumber, password, roles }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post('/auth/register', {
+        fullName,
+        phoneNumber,
+        password,
+        roles, 
+      });
+      return res.data; // { success, message, data }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Đăng ký thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+// API: Xác thực OTP
+export const verifyOtpThunk = createAsyncThunk(
+  'auth/verifyOtp',
+  async ({ phoneNumber, otp }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post('/auth/verify-otp-sns', {
+        phoneNumber,
+        otp,
+      });
+      return res.data; // { success, message }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Xác thực OTP thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);
