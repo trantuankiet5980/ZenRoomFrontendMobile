@@ -12,57 +12,37 @@ const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
 
 export default function CreateRoomScreen() {
-    const nav = useNavigation();
-    useHideTabBar();
+  const nav = useNavigation();
+  useHideTabBar();
 
-// state
-    const [roomName, setRoomName] = useState('');
-    const [addr, setAddr] = useState('');
-    const [price, setPrice] = useState('');
-    const [deposit, setDeposit] = useState('');
-    const [salePrice, setSalePrice] = useState('');
-    const [saleDuration, setSaleDuration] = useState('1');
-    const [floor, setFloor] = useState('');
-    const [capacity, setCapacity] = useState('');
-    const [parking, setParking] = useState('');
-    const [desc, setDesc] = useState('');
-    const [phone, setPhone] = useState('');
-    const [area, setArea] = useState('');
+  // state
+  const [roomName, setRoomName] = useState('');
+  const [addr, setAddr] = useState('');
+  const [price, setPrice] = useState('');
+  const [deposit, setDeposit] = useState('');
+  const [floor, setFloor] = useState('');
+  const [capacity, setCapacity] = useState('');
+  const [parking, setParking] = useState('');
+  const [desc, setDesc] = useState('');
+  const [phone, setPhone] = useState('');
+  const [area, setArea] = useState('');
 
-    const [roomTypes, setRoomTypes] = useState([]);     // mảng string
-    const [amenities, setAmenities] = useState([]);
-    const [furnitures, setFurnitures] = useState([]);
-    const [images, setImages] = useState([]);           // [{uri}]
-    const [video, setVideo] = useState(null);
+  const [images, setImages] = useState([]);           // [{uri}]
+  const [video, setVideo] = useState(null);
 
-    const toggle = (list, setList, val) => {
+  const toggle = (list, setList, val) => {
     setList(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-    };
+  };
 
 
-  const ROOM_TYPES = [
-    'Phòng trọ','Chung cư','Chung cư mini',
-    'Homestay','1 ngủ 1 khách','2 ngủ 1 khách',
-    '3 ngủ 1 khách','1 ngủ 1 bếp','2 ngủ 1 bếp','Khác'
-  ];
-  const AMENITIES = [
-    'Vệ sinh khép kín','Gác xép','Ban công','Ra vào vân tay',
-    'Không chung chủ','Nuôi pet','Giờ linh hoạt','Gửi xe điện'
-  ];
-  const FURNITURES = [
-    'Điều hòa','Nóng lạnh','Kệ bếp','Tủ lạnh','Giường ngủ','Máy giặt',
-    'Đồ dùng bếp','Bàn ghế','Đèn trang trí','Tranh trang trí','Cây cối trang trí',
-    'Chăn ga gối','Tủ quần áo','Nệm','Kệ giày dép','Rèm','Quạt trần','Gương toàn thân','Sofa'
-  ];
-
-const onSave = () => {
-  console.log('SAVE ROOM', {
-    roomName, addr, price, deposit, salePrice, saleDuration,
-    floor, capacity, parking, desc,
-    phone, area,    
-    roomTypes, amenities, furnitures, images, video
-  });
-};
+  const onSave = () => {
+    console.log('SAVE ROOM', {
+      roomName, addr, price, deposit, salePrice, saleDuration,
+      floor, capacity, parking, desc,
+      phone, area,
+      roomTypes, amenities, furnitures, images, video
+    });
+  };
 
   const onCreatePost = () => {
     console.log('CREATE POST WITH ROOM');
@@ -116,107 +96,26 @@ const onSave = () => {
           value={deposit}
           onChangeText={setDeposit}
         />
-        {/* Giá khuyến mãi */}
-        <Field
-          label="Giá khuyến mãi"
-          icon={<MaterialCommunityIcons name="sale" size={18} color={ORANGE} />}
-          placeholder="Nhập số tiền"
-          keyboardType="numeric"
-          value={salePrice}
-          onChangeText={setSalePrice}
-        />
-        <View style={{ marginTop: 8 }}>
-          <Text style={{ color: TEXT_MUTED, fontSize: 12, marginBottom: 6 }}>
-            Giá khuyến mãi là giá tiền của phòng sau khi được trừ khuyến mãi.
-          </Text>
-          <Text style={{ fontWeight: '600', marginBottom: 6 }}>Thời gian khuyến mãi</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', gap: 8,
-              borderBottomWidth: 1, borderColor: GRAY, paddingBottom: 6, flex: 0.35
-            }}>
-              <MaterialCommunityIcons name="calendar-clock" size={18} color={ORANGE} />
-              <TextInput
-                value={saleDuration}
-                onChangeText={setSaleDuration}
-                keyboardType="numeric"
-                placeholder="1"
-                style={{ flex: 1 }}
-              />
-            </View>
-            <Text style={{ color: TEXT_MUTED }}>Tháng</Text>
-          </View>
-          <Text style={{ color: TEXT_MUTED, fontSize: 12, marginTop: 6 }}>
-            Sau thời gian khuyến mãi, hóa đơn tiền phòng sẽ được tính theo giá gốc.
-          </Text>
-        </View>
-
-        {/* ========== Thông tin dịch vụ ========== */}
-        <SectionTitle title="Thông tin dịch vụ" />
-        <RowCard>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="card-outline" size={18} color={ORANGE} />
-            <Text style={{ fontWeight: '700' }}>Phí dịch vụ</Text>
-          </View>
-          <Pressable
-            onPress={() => {}}
-            style={{
-              marginTop: 10, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8,
-              backgroundColor: '#fff', borderWidth: 1, borderColor: GRAY, borderRadius: 999
-            }}>
-            <Text style={{ color: '#111' }}>+</Text>
-          </Pressable>
-        </RowCard>
-
-        {/* ========== Thông tin bài đăng ========== */}
-        <SectionTitle title="Thông tin bài đăng" subtitle="Chỉ bắt buộc các thông tin dưới đây nếu bạn đăng tin." />
-        <FieldLabel icon="apps" text="Loại phòng" />
-        <ChipGrid
-          data={ROOM_TYPES}
-          selected={roomTypes}
-          onToggle={(v) => toggle(roomTypes, setRoomTypes, v)}
-        />
-
-        <UploadBox
-          title="Ảnh tòa nhà"
-          subtitle="Tối đa 10 ảnh"
-          onPick={() => setImages(prev => [...prev, { uri: 'https://picsum.photos/seed/room/400/300' }].slice(0,10))}
-        >
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            {images.map((img, i) => (
-              <Image key={i} source={{ uri: img.uri }} style={{ width: 72, height: 72, borderRadius: 8 }} />
-            ))}
-          </View>
-        </UploadBox>
-
-        <UploadBox
-          title="Video tòa nhà"
-          onPick={() => setVideo({ uri: 'https://example.com/room.mp4' })}
-        >
-          {video ? <Text style={{ color: TEXT_MUTED }}>Đã chọn video.</Text> : <Text style={{ color: TEXT_MUTED }}>Chưa chọn video.</Text>}
-        </UploadBox>
-
-        {/* ========== Bổ sung ========== */}
         {/* Số điện thoại */}
         <Field
-        label="Số điện thoại"
-        required
-        icon={<Ionicons name="call" size={18} color={ORANGE} />}
-        placeholder="Nhập số điện thoại"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
+          label="Số điện thoại"
+          required
+          icon={<Ionicons name="call" size={18} color={ORANGE} />}
+          placeholder="Nhập số điện thoại"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
         />
 
         {/* Diện tích */}
         <Field
-        label="Diện tích (m²)"
-        required
-        icon={<MaterialCommunityIcons name="ruler-square" size={18} color={ORANGE} />}
-        placeholder="Nhập diện tích phòng"
-        keyboardType="numeric"
-        value={area}
-        onChangeText={setArea}
+          label="Diện tích (m²)"
+          required
+          icon={<MaterialCommunityIcons name="ruler-square" size={18} color={ORANGE} />}
+          placeholder="Nhập diện tích phòng"
+          keyboardType="numeric"
+          value={area}
+          onChangeText={setArea}
         />
         <Field
           label="Tầng"
@@ -242,42 +141,111 @@ const onSave = () => {
           value={parking}
           onChangeText={setParking}
         />
-        <Field
-          label="Mô tả" required
-          icon={<Ionicons name="pencil" size={18} color={ORANGE} />}
-          placeholder="Nhập mô tả"
-          value={desc}
-          onChangeText={setDesc}
-          multiline
+        <SectionTitle
+          title="TIÊU ĐỀ TIN ĐĂNG VÀ MÔ TẢ CHI TIẾT"
+          subtitle="Chỉ bắt buộc các thông tin dưới đây nếu bạn đăng tin."
         />
+        <Field
+          label="Tiêu đề tin đăng"
+          icon={<Ionicons name="document-text" size={18} color={ORANGE} />}
+          placeholder="Ví dụ: Phòng trọ mới xây, đầy đủ tiện nghi, giá tốt"
+          value={roomName ? `Phòng trọ ${roomName} - ${addr} - Giá ${price} triệu` : ''}
+          onChangeText={setRoomName}
+        />
+        {/* Mô tả */}
+        <View style={{ marginTop: 10 }}>
+          <Text style={{ fontWeight: '600', marginBottom: 6 }}>
+            Mô tả <Text style={{ color: ORANGE }}>*</Text>
+          </Text>
+          <View style={{
+            borderWidth: 1,
+            borderColor: GRAY,
+            borderRadius: 8,
+            padding: 8,
+            minHeight: 100,
+          }}>
+            <TextInput
+              placeholder="Nhập mô tả chi tiết về phòng trọ..."
+              placeholderTextColor={TEXT_MUTED}
+              value={desc}
+              onChangeText={setDesc}
+              multiline
+              style={{ flex: 1, textAlignVertical: 'top' }}
+            />
+          </View>
+        </View>
 
-        <FieldLabel icon="home-outline" text="Tiện nghi" />
-        <ChipGrid data={AMENITIES} selected={amenities} onToggle={(v)=>toggle(amenities,setAmenities,v)} />
+        <UploadBox
+          title="Ảnh phòng trọ"
+          subtitle="Tối đa 10 ảnh"
+          onPick={() => setImages(prev => [...prev, { uri: 'https://picsum.photos/seed/room/400/300' }].slice(0, 10))}
+        >
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {images.map((img, i) => (
+              <View key={i} style={{ position: 'relative' }}>
+                <Image source={{ uri: img.uri }} style={{ width: 72, height: 72, borderRadius: 8 }} />
+                <TouchableOpacity
+                  onPress={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                  style={{
+                    position: 'absolute', top: -6, right: -6,
+                    backgroundColor: '#f87171', borderRadius: 12, padding: 2
+                  }}
+                >
+                  <Ionicons name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </UploadBox>
 
-        <FieldLabel icon="cube-outline" text="Nội thất" />
-        <ChipGrid data={FURNITURES} selected={furnitures} onToggle={(v)=>toggle(furnitures,setFurnitures,v)} />
+        <UploadBox
+          title="Video phòng trọ"
+          onPick={() => setVideo({ uri: 'https://example.com/room.mp4' })}
+        >
+          {video ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: TEXT_MUTED }}>Đã chọn video.</Text>
+              <TouchableOpacity
+                onPress={() => setVideo(null)}
+                style={{
+                  backgroundColor: '#f87171', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 12 }}>Xóa</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={{ color: TEXT_MUTED }}>Chưa chọn video.</Text>
+          )}
+        </UploadBox>
       </ScrollView>
+
+
 
       {/* Thanh hành động cố định dưới đáy */}
       <View style={{
-            position: 'absolute',
-            bottom: 20, left: 0, right: 0,
-            backgroundColor: '#fff',
-            padding: 12,
-            borderTopWidth: 1, borderColor: '#E5E7EB'
-        }}>
+        position: 'absolute',
+        bottom: 20, left: 0, right: 0,
+        backgroundColor: '#fff',
+        padding: 12,
+        borderTopWidth: 1, borderColor: '#E5E7EB'
+      }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Pressable
             onPress={onSave}
-            style={{ flex: 1, height: 48, borderRadius: 12, backgroundColor: ORANGE,
-                     alignItems: 'center', justifyContent: 'center' }}
+            style={{
+              flex: 1, height: 48, borderRadius: 12, backgroundColor: ORANGE,
+              alignItems: 'center', justifyContent: 'center'
+            }}
           >
             <Text style={{ color: '#fff', fontWeight: '700' }}>Lưu phòng trọ</Text>
           </Pressable>
           <Pressable
             onPress={onCreatePost}
-            style={{ flex: 1, height: 48, borderRadius: 12, backgroundColor: '#ffa07a',
-                     alignItems: 'center', justifyContent: 'center' }}
+            style={{
+              flex: 1, height: 48, borderRadius: 12, backgroundColor: '#ffa07a',
+              alignItems: 'center', justifyContent: 'center'
+            }}
           >
             <Text style={{ color: '#fff', fontWeight: '700' }}>Tạo tin đăng</Text>
           </Pressable>

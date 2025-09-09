@@ -12,7 +12,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { verifyOtpThunk } from "../features/auth/authThunks";
 
 const AuthOTPScreen = ({ route, navigation }) => {
-  const { phoneNumber } = route.params || {}; // lấy số đt từ RegisterScreen
+  const { phoneNumber, mode } = route.params || {};
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(30);
   const [canResend, setCanResend] = useState(false);
@@ -44,20 +44,27 @@ const AuthOTPScreen = ({ route, navigation }) => {
   };
 
   const handleConfirm = async () => {
-    const code = otp.join("");
-    if (!phoneNumber) {
-      alert("Không tìm thấy số điện thoại để xác thực");
-      return;
-    }
+  const code = otp.join("");
+  if (!phoneNumber) {
+    alert("Không tìm thấy số điện thoại để xác thực");
+    return;
+  }
 
-    const result = await dispatch(verifyOtpThunk({ phoneNumber, otp: code }));
-    if (verifyOtpThunk.fulfilled.match(result)) {
-      // Xác thực thành công
+  const result = await dispatch(verifyOtpThunk({ phoneNumber, otp: code }));
+  if (verifyOtpThunk.fulfilled.match(result)) {
+    // Xác thực thành công
+    if (mode === 'register') {
       navigation.replace("Login");
+    } else if (mode === 'reset') {
+      navigation.replace("ResetPasswordScreen", { phoneNumber });
     } else {
-      alert(result.payload || "Xác thực OTP thất bại");
+      // Nếu chưa truyền mode thì chuyển về login để tránh lỗi
+      navigation.replace("Login");
     }
-  };
+  } else {
+    alert(result.payload || "Xác thực OTP thất bại");
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>

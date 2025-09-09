@@ -80,3 +80,35 @@ export const verifyOtpThunk = createAsyncThunk(
     }
   }
 );
+
+// Gửi OTP để reset password
+export const sendResetOtpThunk = createAsyncThunk(
+  'auth/sendResetOtp',
+  async ({ phoneNumber }, { rejectWithValue }) => {
+    try {
+      console.log('Gửi OTP cho số:', phoneNumber);
+      const res = await axiosInstance.post('/auth/send-reset-otp', { phoneNumber });
+      console.log('Response từ server:', res.data);
+      return res.data;
+    } catch (err) {
+      console.error('Lỗi gửi OTP:', err.response?.data || err.message);
+      const msg = err?.response?.data?.message || 'Gửi OTP thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+
+// Reset mật khẩu
+export const resetPasswordThunk = createAsyncThunk(
+  'auth/resetPassword',
+  async ({ phoneNumber, newPassword }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post('/auth/reset-password', { phoneNumber, newPassword });
+      return res.data; // { success, message }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Reset mật khẩu thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);

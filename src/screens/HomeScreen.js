@@ -11,9 +11,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { locations } from '../data/locationData';
 import { districtImages } from '../data/districtImages';
 
-import RoomLists from "../components/RoomLists";
-import { uyTinRooms, cheapRooms } from "../data/rooms";
-
 export default function HomeScreen() {
   const screenWidth = Dimensions.get("window").width;
   const user = useSelector((s) => s.auth.user);
