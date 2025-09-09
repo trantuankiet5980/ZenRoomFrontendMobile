@@ -3,7 +3,6 @@ import { View, Text, Modal, TouchableOpacity, FlatList } from "react-native";
 import { useSelector } from "react-redux";
 import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
-import SearchPostScreen from "../screens/SearchPostScreen";
 import { useNavigation } from "@react-navigation/native";
 import { locations } from "../data/locationData";
 import SelectCityModal from "../components/modal/SelectCityModal";
@@ -30,45 +29,7 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
     onPress: () => navigation.navigate("SearchRooms"), // TODO: tạo màn này
   };
 
-  const createActions = [
-    {
-      key: "building",
-      label: "Tạo tòa nhà",
-      icon: "building",
-      iconLib: "fa",
-      onPress: () => navigation.navigate("CreateBuilding"),
-    },
-    {
-      key: "create-room",
-      label: "Tạo phòng",
-      icon: "home",
-      iconLib: "ant",
-      onPress: () => navigation.navigate("CreateRoom"),
-    },
-    {
-      key: "create-post",
-      label: "Tạo bài đăng",
-      icon: "post-outline",
-      iconLib: "mc",
-      onPress: () => navigation.navigate("CreatePost"),
-    },
-    {
-      key: "create-contract",
-      label: "Tạo hợp đồng",
-      icon: "filetext1",
-      iconLib: "ant",
-      onPress: () => navigation.navigate("CreateContract"),
-    },
-  ];
-
   const manageActions = [
-    {
-      key: "manage-inventory",
-      label: "Quản lý kho phòng",
-      icon: "home-outline",
-      iconLib: "ion",
-      onPress: () => navigation.navigate("RoomsInventoryManager"),
-    },
     {
       key: "manage-posts",
       label: "Quản lý bài đăng",
@@ -89,6 +50,13 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
       icon: "filetext1",
       iconLib: "ant",
       onPress: () => navigation.navigate("ContractsManager"),
+    },
+    {
+      key: "create-contract",
+      label: "Tạo hợp đồng",
+      icon: "filetext1",
+      iconLib: "ant",
+      onPress: () => navigation.navigate("CreateContract"),
     },
   ];
 
@@ -117,7 +85,6 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
           onPressCity={() => setCityModalVisible(true)}
           onPressSearch={() => navigation.navigate("SearchRooms")}
         />
-        <ActionGrid items={createActions} />
       </View>
 
       <View

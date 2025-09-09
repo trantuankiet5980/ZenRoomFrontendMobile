@@ -33,7 +33,7 @@ const RegisterScreen = ({ navigation }) => {
         if (registerThunk.fulfilled.match(action)) {
             console.log("Register success, navigating to OTP...");
             Alert.alert('Thành công', 'Đăng ký thành công! Vui lòng xác thực OTP được gửi qua số điện thoại.');
-            navigation.navigate('AuthOTP', { phoneNumber });
+            navigation.navigate('AuthOTP', { phoneNumber, mode: 'register' });
         } else {
             console.log("Register failed:", action.payload);
             Alert.alert('Đăng ký thất bại', action.payload || 'Thông tin đăng ký không hợp lệ.');

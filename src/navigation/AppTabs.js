@@ -1,17 +1,18 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/HomeScreen';
-import VideosScreen from '../screens/VideosScreen';
+import CreatePostStack from '../navigation/CreatePostStack';
 import ChatStack from './ChatStack';
 import ProfileStack from './ProfileStack';
 import HomeStack from './HomeStack';
 
 import { AntDesign, Ionicons, MaterialIcons } from '@expo/vector-icons';
 
-import { View } from 'react-native';
+import { useRole } from '../hooks/useRole';
 
 const Tab = createBottomTabNavigator();
 
 export default function AppTabs() {
+    const { isLandlord } = useRole();
     return (
         <Tab.Navigator
             screenOptions={{
@@ -29,19 +30,21 @@ export default function AppTabs() {
                 component={HomeStack}
                 options={{
                     title: 'Trang chủ',
-                    tabBarIcon: ({ color }) => <AntDesign name="home" size={22} color={color}/>,
+                    tabBarIcon: ({ color }) => <AntDesign name="home" size={22} color={color} />,
                 }}
             />
 
-            {/* Video Tab */}
-            <Tab.Screen
-                name="Videos"
-                component={VideosScreen}
-                options={{
-                    title: 'Lướt video',
-                    tabBarIcon: ({ color }) => <MaterialIcons name="video-library" size={22} color={color} />,
-                }}
-            />
+            {/* Tạo bài đăng Tab */}
+            {isLandlord && (
+                <Tab.Screen
+                    name="Tạo bài đăng"
+                    component={CreatePostStack}
+                    options={{
+                        title: 'Tạo bài đăng',
+                        tabBarIcon: ({ color }) => <MaterialIcons name="create" size={22} color={color} />,
+                    }}
+                />
+            )}
             {/* Messages Tab */}
             <Tab.Screen
                 name="Chat"

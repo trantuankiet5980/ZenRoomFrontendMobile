@@ -49,7 +49,7 @@ export default function LoginScreen({navigation}) {
             <Text style={{color: '#F05A28', fontWeight: "500"}}>{showPassword ? "Hide" : "Show"}</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Chức năng quên mật khẩu chưa được hỗ trợ.')}>
+        <TouchableOpacity onPress={() => navigation.navigate('ForgotPasswordScreen')} style={{ alignSelf: 'flex-end', marginBottom: 20 }}>
           <Text style={{ color: '#FBB040', textAlign: 'left', fontWeight: '600' }}>Quên mật khẩu?</Text>
         </TouchableOpacity>
         <ButtonPrimary title={loading ? 'Logging in...' : 'Login'} onPress={onSubmit} />
