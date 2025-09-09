@@ -2,10 +2,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import HomeScreen from '../screens/HomeScreen';
 import SearchPostScreen from '../screens/SearchPostScreen';
-
-import CreateBuilding from '../screens/CreateBuildingScreen';
-import CreateRoom from '../screens/CreateRoomScreen';
-import CreatePost from '../screens/CreatePostScreen';
 import CreateContract from '../screens/CreateContractScreen';
 
 import RoomsInventoryManagerScreen from '../screens/RoomsInventoryManagerScreen';
@@ -28,9 +24,6 @@ export default function HomeStack() {
       <Stack.Screen name="SearchRooms" component={SearchPostScreen} options={{ title: 'Tìm kiếm tin đăng' }} />
 
       {/* Create */}
-      <Stack.Screen name="CreateBuilding" component={CreateBuilding} options={{ title: 'Tạo tòa nhà', headerShown: false }} />
-      <Stack.Screen name="CreateRoom" component={CreateRoom} options={{ title: 'Tạo phòng', headerShown: false }} />
-      <Stack.Screen name="CreatePost" component={CreatePost} options={{ title: 'Tạo bài viết', headerShown: false }} />
       <Stack.Screen name="CreateContract" component={CreateContract} options={{ title: 'Tạo hợp đồng', headerShown: false }} />
 
       {/* Manager */}
