@@ -1,7 +1,6 @@
 import React, { useState,useEffect } from "react";
 import { View } from "react-native";
 import { useSelector } from "react-redux";
-import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
 import { useNavigation } from "@react-navigation/native";
 import SelectCityModal from "../components/modal/SelectCityModal";

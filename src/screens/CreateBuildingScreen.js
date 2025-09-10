@@ -7,6 +7,8 @@ import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchFurnishings } from "../features/furnishings/furnishingsThunks";
+import { fetchRoomTypes } from '../features/room-type/roomTypesThunks';
+
 
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
@@ -28,7 +30,7 @@ export default function CreateBuildingScreen() {
   const [phone, setPhone] = useState('');
   const [desc, setDesc] = useState('');
   const [furnitures, setFurnitures] = useState([]);
-  const [images, setImages] = useState([]);        
+  const [images, setImages] = useState([]);
   const [video, setVideo] = useState(null);
   const [aptType, setAptType] = useState('');
   const [showTypeModal, setShowTypeModal] = useState(false);
@@ -46,11 +48,13 @@ export default function CreateBuildingScreen() {
     dispatch(fetchFurnishings({ page: 0, size: 50 }));
   }, [dispatch]);
 
-  const FURNITURES = [
-    { id: "eeec9487-85db-4d54-a5dc-8ac424bbf36f", label: "Điều hòa" },
-    { id: "abc9487-85db-4d54-a5dc-8ah324bbf36f", label: "Nóng lạnh" },
-    { id: "xyz9487-85db-4d54-a5dc-8ah324bbf36f", label: "Kệ bếp" },
-  ];
+const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
+  state => state.roomTypes || {}
+);
+
+  useEffect(() => {
+    dispatch(fetchRoomTypes());
+  }, [dispatch]);
 
   const toggleFurniture = (item) => {
     setFurnitures(prev =>
@@ -59,10 +63,6 @@ export default function CreateBuildingScreen() {
         : [...prev, { id: item.furnishingId, label: item.furnishingName, quantity: 1 }]
     );
   };
-  const APT_TYPES = [
-    'Chung cư', 'Duplex', 'Penthouse', 'Căn hộ dịch vụ', 'Mini', 'Tập thể', 'Cư xá'
-  ];
-
   const onSave = () => {
     const payload = {
       propertyType: "BUILDING",
@@ -209,18 +209,18 @@ export default function CreateBuildingScreen() {
         </View>
         {/* Nội thất */}
         <FieldLabel icon="cube-outline" text="Nội thất" />
-      {loading ? (
-        <Text style={{ color: TEXT_MUTED, marginTop: 8 }}>Đang tải...</Text>
-      ) : (
-        <ChipGrid
-          data={furnishingsFromApi.map(f => ({ id: f.furnishingId, label: f.furnishingName }))}
-          selected={furnitures.map(f => f.id)}
-          onToggle={(id) => {
-            const item = furnishingsFromApi.find(f => f.furnishingId === id);
-            if (item) toggleFurniture(item);
-          }}
-        />
-      )}
+        {loading ? (
+          <Text style={{ color: TEXT_MUTED, marginTop: 8 }}>Đang tải...</Text>
+        ) : (
+          <ChipGrid
+            data={furnishingsFromApi.map(f => ({ id: f.furnishingId, label: f.furnishingName }))}
+            selected={furnitures.map(f => f.id)}
+            onToggle={(id) => {
+              const item = furnishingsFromApi.find(f => f.furnishingId === id);
+              if (item) toggleFurniture(item);
+            }}
+          />
+        )}
         {/* Mô tả */}
         <View style={{ marginTop: 10 }}>
           <Text style={{ fontWeight: '600', marginBottom: 6 }}>
@@ -321,21 +321,28 @@ export default function CreateBuildingScreen() {
             backgroundColor: '#fff', borderRadius: 12, padding: 20, width: '80%'
           }}>
             <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 10 }}>Chọn loại căn hộ</Text>
-            {APT_TYPES.map((t, i) => (
-              <Pressable
-                key={i}
-                onPress={() => {
-                  setAptType(t);
-                  setShowTypeModal(false);
-                }}
-                style={{
-                  paddingVertical: 10, borderBottomWidth: i === APT_TYPES.length - 1 ? 0 : 1,
-                  borderColor: GRAY
-                }}
-              >
-                <Text style={{ color: '#111' }}>{t}</Text>
-              </Pressable>
-            ))}
+
+            {roomTypesLoading ? (
+              <Text>Đang tải...</Text>
+            ) : (
+              roomTypes.map((t, i) => (
+                <Pressable
+                  key={t.roomTypeId}
+                  onPress={() => {
+                    setAptType(t.typeName);
+                    setShowTypeModal(false);
+                  }}
+                  style={{
+                    paddingVertical: 10,
+                    borderBottomWidth: i === roomTypes.length - 1 ? 0 : 1,
+                    borderColor: GRAY
+                  }}
+                >
+                  <Text style={{ color: '#111' }}>{t.typeName}</Text>
+                </Pressable>
+              ))
+            )}
+
             <Pressable
               onPress={() => setShowTypeModal(false)}
               style={{ marginTop: 12, alignSelf: 'flex-end' }}
@@ -344,7 +351,7 @@ export default function CreateBuildingScreen() {
             </Pressable>
           </View>
         </View>
-      )}
+      )} 
     </View>
   );
 }
