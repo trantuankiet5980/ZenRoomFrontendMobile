@@ -1,10 +1,12 @@
-import React, { use, useState } from 'react';
+import React, { use, useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TextInput, Pressable, Image,TouchableOpacity
+  View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
+import { useDispatch, useSelector } from "react-redux";
+import { fetchFurnishings } from "../features/furnishings/furnishingsThunks";
 
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
@@ -15,17 +17,18 @@ export default function CreateBuildingScreen() {
   useHideTabBar();
 
   const nav = useNavigation();
+  const dispatch = useDispatch();
 
+  const [title, setTitle] = useState('');
   const [name, setName] = useState('');
   const [addr, setAddr] = useState('');
   const [price, setPrice] = useState('');
+  const [area, setArea] = useState('');
   const [deposit, setDeposit] = useState('');
   const [phone, setPhone] = useState('');
   const [desc, setDesc] = useState('');
-  const [roomTypes, setRoomTypes] = useState([]);   // chips
-  const [amenities, setAmenities] = useState([]);
   const [furnitures, setFurnitures] = useState([]);
-  const [images, setImages] = useState([]);         // [{uri}]
+  const [images, setImages] = useState([]);        
   const [video, setVideo] = useState(null);
   const [aptType, setAptType] = useState('');
   const [showTypeModal, setShowTypeModal] = useState(false);
@@ -37,28 +40,50 @@ export default function CreateBuildingScreen() {
   const [floor, setFloor] = useState('');
   const [roomNo, setRoomNo] = useState('');
 
-  const toggle = (list, setList, val) => {
-    setList(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-  };
+  const { items: furnishingsFromApi, loading } = useSelector(state => state.furnishings);
 
-  const AMENITIES = [
-    'Vệ sinh khép kín', 'Gác xép', 'Ban công', 'Ra vào vân tay',
-    'Không chung chủ', 'Nuôi pet', 'Giờ linh hoạt', 'Gửi xe điện'
-  ];
+  useEffect(() => {
+    dispatch(fetchFurnishings({ page: 0, size: 50 }));
+  }, [dispatch]);
+
   const FURNITURES = [
-    'Điều hòa', 'Nóng lạnh', 'Kệ bếp', 'Tủ lạnh', 'Giường ngủ', 'Máy giặt',
-    'Đồ dùng bếp', 'Bàn ghế', 'Đèn trang trí', 'Tranh trang trí', 'Cây cối trang trí',
-    'Chăn ga gối', 'Tủ quần áo', 'Nệm', 'Kệ giày dép', 'Rèm', 'Quạt trần', 'Gương toàn thân', 'Sofa'
+    { id: "eeec9487-85db-4d54-a5dc-8ac424bbf36f", label: "Điều hòa" },
+    { id: "abc9487-85db-4d54-a5dc-8ah324bbf36f", label: "Nóng lạnh" },
+    { id: "xyz9487-85db-4d54-a5dc-8ah324bbf36f", label: "Kệ bếp" },
   ];
+
+  const toggleFurniture = (item) => {
+    setFurnitures(prev =>
+      prev.find(f => f.id === item.furnishingId)
+        ? prev.filter(f => f.id !== item.furnishingId)
+        : [...prev, { id: item.furnishingId, label: item.furnishingName, quantity: 1 }]
+    );
+  };
   const APT_TYPES = [
     'Chung cư', 'Duplex', 'Penthouse', 'Căn hộ dịch vụ', 'Mini', 'Tập thể', 'Cư xá'
   ];
+
   const onSave = () => {
-    // validate + dispatch API
-    console.log('SAVE BUILDING', {
-      name, addr, phone, desc, roomTypes, amenities, furnitures, images, video,
-    });
-    // nav.goBack();
+    const payload = {
+      propertyType: "BUILDING",
+      landlord: { userId: "bc647ad1-55f1-4869-84ba-cf28ecc9ef84" }, // TODO: lấy từ token login
+      address: { addressFull: addr },
+      title,
+      description: desc,
+      buildingName: name,
+      apartmentCategory: aptType,
+      bedrooms: parseInt(numRooms || "0"),
+      bathrooms: parseInt(numBaths || "0"),
+      floorNo: parseInt(floor || "0"),
+      roomNumber: roomNo,
+      area: parseFloat(area || "0"),
+      price: parseFloat(price || "0"),
+      deposit: parseFloat(deposit || "0"),
+      furnishings: furnitures.map(f => ({ furnishingId: f.id, quantity: f.quantity })),
+    };
+
+    console.log("SAVE BUILDING", payload);
+    // TODO: call API
   };
 
   return (
@@ -72,16 +97,27 @@ export default function CreateBuildingScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 130 }}>
-        {/* ========== Thông tin tòa nhà ========== */}
-        <SectionTitle title="Thông tin tòa nhà" />
+        {/* ========== Thông tin căn hộ ========== */}
+        <SectionTitle title="Thông tin căn hộ" />
+        {/* Tiêu đề bài đăng */}
         <Field
-          label="Tên tòa nhà"
+          label="Tiêu đề bài đăng"
+          required
+          icon={<Ionicons name="document-text" size={18} color={ORANGE} />}
+          placeholder="VD: Căn hộ Sunrise full nội thất"
+          value={title}
+          onChangeText={setTitle}
+        />
+        {/* Tên căn hộ */}
+        <Field
+          label="Tên căn hộ"
           required
           icon={<Ionicons name="home" size={18} color={ORANGE} />}
-          placeholder="Nhập tên tòa nhà"
+          placeholder="Nhập tên căn hộ"
           value={name}
           onChangeText={setName}
         />
+        {/* Địa chỉ */}
         <Field
           label="Địa chỉ"
           required
@@ -89,6 +125,16 @@ export default function CreateBuildingScreen() {
           placeholder="Nhập địa chỉ"
           value={addr}
           onChangeText={setAddr}
+        />
+        {/* Diện tích */}
+        <Field
+          label="Diện tích (m²)"
+          required
+          icon={<MaterialCommunityIcons name="square-foot" size={18} color={ORANGE} />}
+          placeholder="VD: 65"
+          keyboardType="numeric"
+          value={area}
+          onChangeText={setArea}
         />
         {/* Giá phòng */}
         <Field
@@ -161,22 +207,20 @@ export default function CreateBuildingScreen() {
           <CounterSelect label="Số phòng vệ sinh" value={numBaths} setValue={setNumBaths} />
 
         </View>
-
-        {/* Tiện nghi */}
-        <FieldLabel icon="sparkles-outline" text="Tiện nghi" />
-        <ChipGrid
-          data={AMENITIES}
-          selected={amenities}
-          onToggle={(v) => toggle(amenities, setAmenities, v)}
-        />
-
         {/* Nội thất */}
         <FieldLabel icon="cube-outline" text="Nội thất" />
+      {loading ? (
+        <Text style={{ color: TEXT_MUTED, marginTop: 8 }}>Đang tải...</Text>
+      ) : (
         <ChipGrid
-          data={FURNITURES}
-          selected={furnitures}
-          onToggle={(v) => toggle(furnitures, setFurnitures, v)}
+          data={furnishingsFromApi.map(f => ({ id: f.furnishingId, label: f.furnishingName }))}
+          selected={furnitures.map(f => f.id)}
+          onToggle={(id) => {
+            const item = furnishingsFromApi.find(f => f.furnishingId === id);
+            if (item) toggleFurniture(item);
+          }}
         />
+      )}
         {/* Mô tả */}
         <View style={{ marginTop: 10 }}>
           <Text style={{ fontWeight: '600', marginBottom: 6 }}>
@@ -339,17 +383,6 @@ function Field({ label, required, icon, placeholder, value, onChangeText, keyboa
   );
 }
 
-function RowCard({ children }) {
-  return (
-    <View style={{
-      backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12,
-      borderWidth: 1, borderColor: GRAY, marginTop: 12
-    }}>
-      {children}
-    </View>
-  );
-}
-
 function FieldLabel({ icon, text }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 }}>
@@ -379,8 +412,13 @@ function Chip({ label, active, onPress }) {
 function ChipGrid({ data, selected, onToggle }) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-      {data.map((x, i) => (
-        <Chip key={i} label={x} active={selected.includes(x)} onPress={() => onToggle(x)} />
+      {data.map((item) => (
+        <Chip
+          key={item.id}
+          label={item.label}
+          active={selected.includes(item.id)}
+          onPress={() => onToggle(item.id)}
+        />
       ))}
     </View>
   );
@@ -407,9 +445,13 @@ function UploadBox({ title, subtitle, onPick, children }) {
 }
 
 function CounterSelect({ label, value, setValue, min = 0, max = 10 }) {
-  const decrease = () => {
-    const num = parseInt(value || "0");
-    if (num > min) setValue(String(num - 1));
+  const onChange = (text) => {
+    const num = parseInt(text || "0");
+    if (!isNaN(num) && num >= min && num <= max) {
+      setValue(String(num));
+    } else if (text === "") {
+      setValue("");
+    }
   };
 
   const increase = () => {
@@ -417,35 +459,71 @@ function CounterSelect({ label, value, setValue, min = 0, max = 10 }) {
     if (num < max) setValue(String(num + 1));
   };
 
+  const decrease = () => {
+    const num = parseInt(value || "0");
+    if (num > min) setValue(String(num - 1));
+  };
+
   return (
     <View style={{ flex: 1 }}>
-      <Text style={{ fontWeight: '600', marginBottom: 4 }}>{label}</Text>
+      <Text style={{ fontWeight: "600", marginBottom: 4 }}>{label}</Text>
       <View
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: "row",
+          alignItems: "center",
           borderWidth: 1,
-          borderColor: GRAY,
-          borderRadius: 8,
-          paddingVertical: 6,
-          paddingHorizontal: 10,
+          borderColor: "#E5E7EB",
+          borderRadius: 6,
+          overflow: "hidden",
+          width: 120,
+          height: 36,
         }}
       >
-        <Pressable onPress={decrease} style={{ padding: 6 }}>
-          <Ionicons name="remove-circle-outline" size={22} color={ORANGE} />
-        </Pressable>
-
-        <Text style={{ fontSize: 16, fontWeight: '600' }}>
-          {value || "0"}
-        </Text>
-
-        <Pressable onPress={increase} style={{ padding: 6 }}>
-          <Ionicons name="add-circle-outline" size={22} color={ORANGE} />
-        </Pressable>
+        <TextInput
+          style={{
+            flex: 1,
+            textAlign: "center",
+            fontSize: 14,
+            paddingVertical: 0,
+          }}
+          keyboardType="numeric"
+          value={value}
+          onChangeText={onChange}
+        />
+        <View
+          style={{
+            flexDirection: "column",
+            borderLeftWidth: 1,
+            borderColor: "#E5E7EB",
+          }}
+        >
+          <Pressable
+            onPress={increase}
+            style={{
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="chevron-up" size={14} color="#333" />
+          </Pressable>
+          <Pressable
+            onPress={decrease}
+            style={{
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="chevron-down" size={14} color="#333" />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
 }
+
 
 
