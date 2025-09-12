@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity
+  View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity, Alert
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
+import { useDispatch, useSelector } from "react-redux";
+import { createProperty } from "../features/properties/propertiesThunks";
+import { resetStatus } from "../features/properties/propertiesSlice";
+import * as ImagePicker from "expo-image-picker";
 
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
@@ -12,11 +16,11 @@ const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
 
 export default function CreateRoomScreen() {
-  const nav = useNavigation();
+  const navigation = useNavigation();
   useHideTabBar();
 
   // state
-  const [roomName, setRoomName] = useState('');
+  const [title, setTitle] = useState('');
   const [addr, setAddr] = useState('');
   const [price, setPrice] = useState('');
   const [deposit, setDeposit] = useState('');
@@ -24,11 +28,38 @@ export default function CreateRoomScreen() {
   const [capacity, setCapacity] = useState('');
   const [parking, setParking] = useState('');
   const [desc, setDesc] = useState('');
-  const [phone, setPhone] = useState('');
+  // const [phone, setPhone] = useState('');
+
   const [area, setArea] = useState('');
 
-  const [images, setImages] = useState([]);           // [{uri}]
+  const [images, setImages] = useState([]);
   const [video, setVideo] = useState(null);
+
+  const dispatch = useDispatch();
+  const { loading, error, success } = useSelector(state => state.properties);
+  const userId = useSelector(state => state.auth.user?.userId);
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setImages(prev => [...prev, ...result.assets].slice(0, 10)); // tối đa 10 ảnh
+    }
+  };
+  const pickVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setVideo(result.assets[0]);
+    }
+  };
 
   const toggle = (list, setList, val) => {
     setList(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
@@ -37,10 +68,7 @@ export default function CreateRoomScreen() {
 
   const onSave = () => {
     console.log('SAVE ROOM', {
-      roomName, addr, price, deposit, salePrice, saleDuration,
-      floor, capacity, parking, desc,
-      phone, area,
-      roomTypes, amenities, furnitures, images, video
+      title, addr, price, deposit, price, floor, capacity, parking, desc, phone, area, images, video
     });
   };
 
@@ -48,11 +76,73 @@ export default function CreateRoomScreen() {
     console.log('CREATE POST WITH ROOM');
   };
 
+  const handleSubmit = () => {
+    if (!title || !price || !addr) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập đầy đủ tiêu đề, giá và địa chỉ!");
+      return;
+    }
+
+    const payload = {
+      propertyType: "ROOM",
+      landlord: { userId },
+      address: { addressFull: addr },
+      title: title,
+      description: desc,
+      area: Number(area),
+      floorNo: Number(floor),
+      capacity: Number(capacity),
+      parkingSlots: Number(parking),
+      price: Number(price),
+      deposit: Number(deposit),
+      furnishings: []
+    };
+
+    dispatch(createProperty(payload))
+      .unwrap()
+      .then(() => {
+        Alert.alert("Thành công", "Đăng phòng thành công!");
+      })
+      .catch((err) => {
+        Alert.alert("Lỗi", err.message || "Đăng phòng thất bại");
+      });
+  };
+
+
+  // useEffect(() => {
+  //   if (success) {
+  //     alert("Tạo phòng thành công!");
+  //     dispatch(resetStatus());
+  //     navigation.goBack();
+  //   }
+  // }, [success]);
+
+  useEffect(() => {
+    if (success) {
+      Alert.alert("Thành công", "Đăng phòng thành công!");
+
+      // reset form fields
+      setTitle('');
+      setAddr('');
+      setPrice('');
+      setDeposit('');
+      setFloor('');
+      setCapacity('');
+      setParking('');
+      setDesc('');
+      setArea('');
+      setImages([]);
+      setVideo(null);
+
+      dispatch(resetStatus());
+      navigation.goBack();
+    }
+  }, [success]);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Header*/}
       <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginTop: 30 }}>
-        <Pressable onPress={() => nav.goBack()} style={{ padding: 8, marginRight: 4 }}>
+        <Pressable onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
           <Ionicons name="chevron-back" size={24} color="#111" />
         </Pressable>
         <Text style={{ fontSize: 18, fontWeight: '700' }}>Thêm phòng trọ</Text>
@@ -68,8 +158,8 @@ export default function CreateRoomScreen() {
           label="Số/Tên phòng" required
           icon={<Ionicons name="home" size={18} color={ORANGE} />}
           placeholder="Nhập số/tên phòng"
-          value={roomName}
-          onChangeText={setRoomName}
+          value={title}
+          onChangeText={setTitle}
         />
         <Field
           label="Địa chỉ" required
@@ -95,16 +185,6 @@ export default function CreateRoomScreen() {
           keyboardType="numeric"
           value={deposit}
           onChangeText={setDeposit}
-        />
-        {/* Số điện thoại */}
-        <Field
-          label="Số điện thoại"
-          required
-          icon={<Ionicons name="call" size={18} color={ORANGE} />}
-          placeholder="Nhập số điện thoại"
-          keyboardType="phone-pad"
-          value={phone}
-          onChangeText={setPhone}
         />
 
         {/* Diện tích */}
@@ -149,8 +229,8 @@ export default function CreateRoomScreen() {
           label="Tiêu đề tin đăng"
           icon={<Ionicons name="document-text" size={18} color={ORANGE} />}
           placeholder="Ví dụ: Phòng trọ mới xây, đầy đủ tiện nghi, giá tốt"
-          value={roomName ? `Phòng trọ ${roomName} - ${addr} - Giá ${price} triệu` : ''}
-          onChangeText={setRoomName}
+          value={title ? `Phòng trọ ${title} - ${addr} - Giá ${price} triệu` : ''}
+          onChangeText={setTitle}
         />
         {/* Mô tả */}
         <View style={{ marginTop: 10 }}>
@@ -178,7 +258,7 @@ export default function CreateRoomScreen() {
         <UploadBox
           title="Ảnh phòng trọ"
           subtitle="Tối đa 10 ảnh"
-          onPick={() => setImages(prev => [...prev, { uri: 'https://picsum.photos/seed/room/400/300' }].slice(0, 10))}
+          onPick={pickImages}  
         >
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             {images.map((img, i) => (
@@ -200,11 +280,11 @@ export default function CreateRoomScreen() {
 
         <UploadBox
           title="Video phòng trọ"
-          onPick={() => setVideo({ uri: 'https://example.com/room.mp4' })}
+          onPick={pickVideo}   
         >
           {video ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: TEXT_MUTED }}>Đã chọn video.</Text>
+              <Text style={{ color: TEXT_MUTED }}>{video.uri.split('/').pop()}</Text>
               <TouchableOpacity
                 onPress={() => setVideo(null)}
                 style={{
@@ -218,6 +298,7 @@ export default function CreateRoomScreen() {
             <Text style={{ color: TEXT_MUTED }}>Chưa chọn video.</Text>
           )}
         </UploadBox>
+
       </ScrollView>
 
 
@@ -231,24 +312,15 @@ export default function CreateRoomScreen() {
         borderTopWidth: 1, borderColor: '#E5E7EB'
       }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Pressable
-            onPress={onSave}
+          <TouchableOpacity
+            onPress={handleSubmit}
             style={{
               flex: 1, height: 48, borderRadius: 12, backgroundColor: ORANGE,
               alignItems: 'center', justifyContent: 'center'
             }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Lưu phòng trọ</Text>
-          </Pressable>
-          <Pressable
-            onPress={onCreatePost}
-            style={{
-              flex: 1, height: 48, borderRadius: 12, backgroundColor: '#ffa07a',
-              alignItems: 'center', justifyContent: 'center'
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Tạo tin đăng</Text>
-          </Pressable>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Đăng phòng</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -291,27 +363,6 @@ function Field({ label, required, icon, placeholder, value, onChangeText, keyboa
   );
 }
 
-function RowCard({ children }) {
-  return (
-    <View style={{
-      backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12,
-      borderWidth: 1, borderColor: GRAY, marginTop: 12
-    }}>
-      {children}
-    </View>
-  );
-}
-
-function FieldLabel({ icon, text }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 }}>
-      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: ORANGE_SOFT, alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={16} color={ORANGE} />
-      </View>
-      <Text style={{ fontWeight: '700' }}>{text}</Text>
-    </View>
-  );
-}
 
 function Chip({ label, active, onPress }) {
   return (

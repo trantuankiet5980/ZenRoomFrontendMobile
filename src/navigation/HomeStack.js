@@ -12,6 +12,8 @@ import ContractsManagerScreen from '../screens/ContractsManagerScreen';
 import InventoryBuildings from '../screens/InventoryBuildingsScreen';
 import InventoryRooms from '../screens/InventoryRoomsScreen';
 
+import PropertyDetailScreen from '../screens/PropertyDetailScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -35,6 +37,8 @@ export default function HomeStack() {
       <Stack.Screen name="ContractsManager" component={ContractsManagerScreen} options={{ title: 'Quản lý hợp đồng', headerShown: false }} />
 
 
+      {/* Detail */}
+      <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} options={{ title: 'Chi tiết bất động sản', headerShown: false }} />
     </Stack.Navigator>
   );
 }
