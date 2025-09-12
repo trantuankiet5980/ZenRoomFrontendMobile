@@ -35,10 +35,10 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    // nếu API chấp nhận type param — gọi 2 lần để phân biệt ROOM & BUILDING
-    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM" }));
-    dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING" }));
+    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
+    dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
   }, [dispatch]);
+
 
   if (loading) return <Text>Đang tải phòng...</Text>;
 
@@ -120,7 +120,7 @@ export default function HomeScreen() {
               shadowRadius: 3,
               elevation: 3,
             }}
-            onPress={() => navigation.navigate('PropertyDetail', { id: item.propertyId })}
+            onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
             <Image
               source={{ uri: item.media?.[0]?.url || "https://picsum.photos/seed/room/600/400" }}
@@ -177,7 +177,7 @@ export default function HomeScreen() {
               shadowRadius: 3,
               elevation: 3,
             }}
-            onPress={() => navigation.navigate('PropertyDetail', { id: item.propertyId })}
+            onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
             <Image
               source={{ uri: item.media?.[0]?.url || "https://picsum.photos/seed/building/600/400" }}

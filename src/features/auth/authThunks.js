@@ -24,6 +24,7 @@ export const loginThunk = createAsyncThunk(
         role: data?.role || null,
         userId: data?.userId || null,
         fullName: data?.fullName || '',
+        phoneNumber: data?.phoneNumber || '',
         expiresAt: data?.expiresAt || null,
       };
 
