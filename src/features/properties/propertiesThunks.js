@@ -26,3 +26,16 @@ export const createProperty = createAsyncThunk(
     }
   }
 );
+
+// Lấy chi tiết 1 property (room hoặc apartment)
+export const fetchPropertyDetail = createAsyncThunk(
+  "properties/fetchPropertyDetail",
+  async (propertyId, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.get(`/properties/${propertyId}`);
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);

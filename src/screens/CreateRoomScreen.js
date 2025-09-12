@@ -10,6 +10,7 @@ import { createProperty } from "../features/properties/propertiesThunks";
 import { resetStatus } from "../features/properties/propertiesSlice";
 import * as ImagePicker from "expo-image-picker";
 
+
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
 const GRAY = '#E5E7EB';

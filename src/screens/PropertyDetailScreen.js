@@ -11,19 +11,43 @@ import {
     Linking,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { axiosInstance } from "../api/axiosInstance";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchPropertyDetail } from "../features/properties/propertiesThunks";
+import { resetProperty } from "../features/properties/propertiesSlice";
+import useHideTabBar from '../hooks/useHideTabBar';
 
 const PropertyDetailScreen = ({ route, navigation }) => {
+    useHideTabBar();
     const { propertyId } = route.params;
-    const [property, setProperty] = useState(null);
     const [liked, setLiked] = useState(false);
+    const dispatch = useDispatch();
+    const { current: property, loading, error } = useSelector(
+        (state) => state.properties
+    );
+
 
     useEffect(() => {
-        axiosInstance
-            .get(`/properties/${propertyId}`)
-            .then((res) => setProperty(res.data))
-            .catch((err) => console.error("Error:", err));
-    }, [propertyId]);
+        dispatch(fetchPropertyDetail(propertyId));
+        return () => {
+            dispatch(resetProperty());
+        };
+    }, [dispatch, propertyId]);
+
+    if (loading) {
+        return (
+            <View style={styles.center}>
+                <Text>Đang tải...</Text>
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.center}>
+                <Text style={{ color: "red" }}>Lỗi: {error}</Text>
+            </View>
+        );
+    }
 
     if (!property) {
         return (
@@ -148,9 +172,19 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 {property.furnishings?.length > 0 && (
                     <>
                         <Text style={styles.sectionTitle}>Nội thất</Text>
-                        <View style={styles.infoRow}>
+                        <View style={styles.furnishingGrid}>
                             {property.furnishings.map((f, idx) => (
-                                <Text key={idx}>• {f}</Text>
+                                <View key={idx} style={styles.furnishingItem}>
+                                    <Icon
+                                        name={f.furnishingId?.icon || "sofa"} 
+                                        size={28}
+                                        color="#111"
+                                    />
+                                    <Text style={styles.furnishingLabel}>
+                                        {f.furnishingId?.furnishingName || "Nội thất"}
+                                        {f.quantity > 1 ? ` x${f.quantity}` : ""}
+                                    </Text>
+                                </View>
                             ))}
                         </View>
                     </>
@@ -283,8 +317,24 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         paddingHorizontal: 12,
     },
-
-
+    furnishingGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        paddingHorizontal: 12,
+        marginTop: 6,
+    },
+    furnishingItem: {
+        width: "30%", // 3 item / hàng
+        alignItems: "center",
+        marginVertical: 10,
+    },
+    furnishingLabel: {
+        fontSize: 13,
+        color: "#444",
+        marginTop: 6,
+        textAlign: "center",
+    },
     bottomBar: {
         position: "absolute",
         bottom: 0,
@@ -298,8 +348,16 @@ const styles = StyleSheet.create({
         borderTopColor: "#ddd",
         backgroundColor: "#fff",
     },
-    lightBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12 },
-    lightBtnText: { marginLeft: 6, color: "#f36031", fontWeight: "600" },
+    lightBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 12
+    },
+    lightBtnText: {
+        marginLeft: 6,
+        color: "#f36031",
+        fontWeight: "600"
+    },
     primaryBtn: {
         flexDirection: "row",
         alignItems: "center",
@@ -308,5 +366,9 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
     },
-    primaryBtnText: { marginLeft: 6, color: "#fff", fontWeight: "700" },
+    primaryBtnText: {
+        marginLeft: 6,
+        color: "#fff",
+        fontWeight: "700"
+    },
 });

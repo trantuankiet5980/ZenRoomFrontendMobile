@@ -1,68 +1,68 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, FlatList, Image, ScrollView
+  View, Text, TextInput, Pressable, FlatList, Image, ScrollView, TouchableOpacity
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useDispatch, useSelector } from "react-redux";
+import { fetchProperties } from "../features/properties/propertiesThunks";
 import SortModal from "../components/modal/SortModal";
 import PriceRangeModal from "../components/modal/PriceRangeModal";
+import useHideTabBar from '../hooks/useHideTabBar';
+import { useNavigation } from "@react-navigation/native";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
-
-const mockData = [
-  {
-    id: '1',
-    title: 'PHÒNG CHO THUÊ DẠNG CHUNG CƯ GIÁ RẺ TẠI GÒ VẤP',
-    price: 3500000,
-    address: '12, Nguyễn Văn Nghi, Quận Gò Vấp',
-    remain: 'Còn trống: 1 phòng',
-    image: 'https://picsum.photos/seed/room1/400/300',
-  },
-  {
-    id: '2',
-    title: 'PHÒNG NGUYÊN CĂN GIÁ RẺ TẠI BÌNH THẠNH',
-    price: 5500000,
-    address: '45, Bạch Đằng, Quận Bình Thạnh',
-    remain: 'Còn trống: 2 phòng',
-    image: 'https://picsum.photos/seed/room2/400/300',
-  },
-  {
-    id: '3',
-    title: 'CĂN HỘ MINI FULL NỘI THẤT QUẬN 1',
-    price: 12000000,
-    address: '34, Lê Lợi, Quận 1',
-    remain: 'Còn trống: 1 phòng',
-    image: 'https://picsum.photos/seed/room3/400/300',
-  },
-  {
-    id: '4',
-    title: 'PHÒNG TRỌ SINH VIÊN GIÁ RẺ QUẬN 9',
-    price: 2000000,
-    address: '78, Đỗ Xuân Hợp, TP Thủ Đức',
-    remain: 'Còn trống: 3 phòng',
-    image: 'https://picsum.photos/seed/room4/400/300',
-  },
-];
 
 export default function SearchPostScreen() {
   const [activeType, setActiveType] = useState('Phòng trọ');
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [priceRange, setPriceRange] = useState([0, 15000000]);
-  const [data, setData] = useState(mockData);
+  useHideTabBar();
+  const navigation = useNavigation();
+
+  const [searchKeyword, setSearchKeyword] = useState("");
+
+
+  const dispatch = useDispatch();
+  const { rooms, buildings, loading } = useSelector((state) => state.properties);
+
+  // fetch lần đầu
+  useEffect(() => {
+    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
+  }, [dispatch]);
+
+  // chọn loại (ROOM / BUILDING) dựa vào activeType
+  useEffect(() => {
+    if (activeType === "Phòng trọ") {
+      dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
+    } else if (activeType === "Nguyên căn" || activeType === "Chung cư") {
+      dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
+    }
+  }, [activeType, dispatch]);
+
+  // chọn data theo loại
+  const data = activeType === "Phòng trọ" ? rooms : buildings;
 
   const renderItem = ({ item }) => (
-    <View style={{
-      backgroundColor: '#fff',
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: GRAY,
-      overflow: 'hidden',
-      flex: 1,
-      margin: 6,
-    }}>
-      <Image source={{ uri: item.image }} style={{ height: 120, width: '100%' }} />
+    <TouchableOpacity
+      onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
+      style={{
+        width: '48%',
+        margin: 6,
+        borderWidth: 1,
+        borderColor: GRAY,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        overflow: 'hidden',
+      }}
+    >
+      <Image
+        source={{ uri: item.media?.[0]?.url || "https://picsum.photos/seed/building/600/400" }}
+        style={{ width: "100%", height: 120 }}
+        resizeMode="cover"
+      />
       <View style={{ padding: 8 }}>
         <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
           {item.title}
@@ -73,70 +73,72 @@ export default function SearchPostScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
           <Ionicons name="location" size={14} color={ORANGE} />
           <Text style={{ fontSize: 11, color: '#111', marginLeft: 4 }} numberOfLines={1}>
-            {item.address}
+            {item.address?.addressFull || "Đang cập nhật"}
           </Text>
         </View>
-        <Text style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 4 }}>
-          {item.remain}
-        </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   // Lọc theo khoảng giá
   const filteredData = data.filter(
-    (item) => item.price >= priceRange[0] && item.price <= priceRange[1]
+    (item) => item.price >= priceRange[0] && item.price <= priceRange[1] && item.title.toLowerCase().includes(searchKeyword.toLowerCase())
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* Search box */}
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        margin: 12,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-        backgroundColor: '#f5f5f5',
-        height: 40,
-      }}>
-        <Ionicons name="search" size={20} color={TEXT_MUTED} />
-        <TextInput
-          placeholder="Nhập tiêu đề tin đăng"
-          placeholderTextColor={TEXT_MUTED}
-          style={{ flex: 1, marginLeft: 8 }}
-        />
-      </View>
+      <View style={{ marginHorizontal: 12, marginTop: 12 }}>
+        {/* Search box */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          margin: 12,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+          backgroundColor: '#f5f5f5',
+          height: 40,
+        }}>
+          <Ionicons name="search" size={20} color={TEXT_MUTED} />
+          <TextInput
+            placeholder="Nhập tiêu đề tin đăng"
+            placeholderTextColor={TEXT_MUTED}
+            style={{ flex: 1, marginLeft: 8 }}
+            value={searchKeyword}
+            onChangeText={setSearchKeyword}
+          />
 
-      {/* Filter row */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, alignItems: 'center', height: 35 }}
-      >
-        <Pressable
-          onPress={() => setSortModalVisible(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+        </View>
+
+        {/* Filter row */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 12, alignItems: 'center', height: 35 }}
         >
-          <Text style={{ fontWeight: '600' }}>Sắp xếp theo</Text>
-          <Ionicons name="chevron-down" size={16} />
-        </Pressable>
-        <Pressable
-          onPress={() => setPriceModalVisible(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
-        >
-          <Text style={{ fontWeight: '600' }}>Khoảng giá</Text>
-          <Ionicons name="chevron-down" size={16} />
-        </Pressable>
-        <Pressable style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-          <Ionicons name="filter" size={16} />
-          <Text style={{ fontWeight: '600', marginLeft: 4 }}>Lọc</Text>
-        </Pressable>
-      </ScrollView>
+          <Pressable
+            onPress={() => setSortModalVisible(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+          >
+            <Text style={{ fontWeight: '600' }}>Sắp xếp theo</Text>
+            <Ionicons name="chevron-down" size={16} />
+          </Pressable>
+          <Pressable
+            onPress={() => setPriceModalVisible(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+          >
+            <Text style={{ fontWeight: '600' }}>Khoảng giá</Text>
+            <Ionicons name="chevron-down" size={16} />
+          </Pressable>
+          <Pressable style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+            <Ionicons name="filter" size={16} />
+            <Text style={{ fontWeight: '600', marginLeft: 4 }}>Lọc</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
 
       {/* Types */}
       <View style={{ flexDirection: 'row', marginHorizontal: 12, marginTop: 10, marginBottom: 6 }}>
-        {['Phòng trọ', 'Nguyên căn', 'Chung cư'].map((t) => (
+        {['Phòng trọ', 'Căn hộ'].map((t) => (
           <Pressable
             key={t}
             onPress={() => setActiveType(t)}
@@ -154,24 +156,27 @@ export default function SearchPostScreen() {
         ))}
       </View>
 
-      {/* Location */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', margin: 12 }}>
-        <Ionicons name="location-sharp" size={16} color={ORANGE} />
-        <Text style={{ fontWeight: '600', marginLeft: 4 }}>Khu vực: Thành phố Hồ Chí Minh</Text>
-        <Ionicons name="chevron-down" size={16} />
-      </View>
-
       {/* List */}
-      <FlatList
-        data={filteredData}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={{ paddingHorizontal: 6, paddingBottom: 80 }}
-      />
+      {
+        loading ? (
+          <Text style={{ textAlign: "center", marginTop: 20 }}>Đang tải...</Text>
+        ) : (
+          <FlatList
+            data={filteredData}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.propertyId}
+            numColumns={2}
+            contentContainerStyle={{
+              paddingHorizontal: 6,
+              paddingBottom: 80,
+              flexGrow: 1,
+            }}
+          />
+        )
+      }
 
       {/* Map button */}
-      <Pressable
+      <TouchableOpacity
         style={{
           position: 'absolute',
           bottom: 30,
@@ -189,7 +194,7 @@ export default function SearchPostScreen() {
       >
         <Ionicons name="map" size={18} color={ORANGE} />
         <Text style={{ color: ORANGE, fontWeight: '700' }}>Bản đồ</Text>
-      </Pressable>
+      </TouchableOpacity>
 
       {/* Modals */}
       <SortModal
@@ -211,6 +216,6 @@ export default function SearchPostScreen() {
         priceRange={priceRange}
         setPriceRange={setPriceRange}
       />
-    </View>
+    </View >
   );
 }

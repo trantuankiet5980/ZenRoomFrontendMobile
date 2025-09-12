@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchProperties,createProperty } from "./propertiesThunks";
+import { fetchProperties,createProperty,fetchPropertyDetail } from "./propertiesThunks";
 
 
 
@@ -17,7 +17,12 @@ const propertiesSlice = createSlice({
       state.loading = false;
       state.error = null;
       state.success = false;
-    }
+    },
+    resetProperty(state) {
+      state.current = null;
+      state.loading = false;
+      state.error = null;
+    },
   },
   extraReducers: builder => {
     builder
@@ -57,13 +62,22 @@ const propertiesSlice = createSlice({
           state.buildings.push(action.payload);
         }
       })
-      .addCase(createProperty.rejected, (state, action) => {
+
+      
+      .addCase(fetchPropertyDetail.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPropertyDetail.fulfilled, (state, action) => {
         state.loading = false;
-        state.error = action.payload || action.error.message;
-        state.success = false;
+        state.current = action.payload;
+      })
+      .addCase(fetchPropertyDetail.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
   }
 });
 
-export const { resetStatus } = propertiesSlice.actions;
+export const { resetStatus,resetProperty } = propertiesSlice.actions;
 export default propertiesSlice.reducer;
