@@ -112,13 +112,8 @@ export default function HomeScreen() {
               borderRadius: 12,
               overflow: "hidden",
               marginBottom: 12,
-              flex: 1,
+              width: "48%",  
               marginHorizontal: 4,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 3,
-              elevation: 3,
             }}
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
@@ -169,13 +164,8 @@ export default function HomeScreen() {
               borderRadius: 12,
               overflow: "hidden",
               marginBottom: 12,
-              flex: 1,
+              width: "48%",   
               marginHorizontal: 4,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 3,
-              elevation: 3,
             }}
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
