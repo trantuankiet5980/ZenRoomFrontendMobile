@@ -77,7 +77,7 @@ export default function CreateRoomScreen() {
   };
 
   const handleSubmit = () => {
-    if (!title || !price || !addr) {
+    if (!title || !price || !addr || !area || !floor || !capacity || !parking) {
       Alert.alert("Thiếu thông tin", "Vui lòng nhập đầy đủ tiêu đề, giá và địa chỉ!");
       return;
     }
@@ -108,13 +108,6 @@ export default function CreateRoomScreen() {
   };
 
 
-  // useEffect(() => {
-  //   if (success) {
-  //     alert("Tạo phòng thành công!");
-  //     dispatch(resetStatus());
-  //     navigation.goBack();
-  //   }
-  // }, [success]);
 
   useEffect(() => {
     if (success) {
