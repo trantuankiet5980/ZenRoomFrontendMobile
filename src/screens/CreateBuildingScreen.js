@@ -1,13 +1,16 @@
 import React, { use, useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity
+  View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity, Alert
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchFurnishings } from "../features/furnishings/furnishingsThunks";
-import { fetchRoomTypes } from '../features/room-type/roomTypesThunks';
+import { createProperty } from "../features/properties/propertiesThunks";
+import { resetStatus } from "../features/properties/propertiesSlice";
+import * as ImagePicker from "expo-image-picker";
+import { fetchApartmentCategories } from '../features/apartmentCategory/apartmentThunks';
 
 
 const ORANGE = '#f36031';
@@ -22,12 +25,11 @@ export default function CreateBuildingScreen() {
   const dispatch = useDispatch();
 
   const [title, setTitle] = useState('');
-  const [name, setName] = useState('');
+  const [buildingName, setBuildingName] = useState('');
   const [addr, setAddr] = useState('');
   const [price, setPrice] = useState('');
   const [area, setArea] = useState('');
   const [deposit, setDeposit] = useState('');
-  const [phone, setPhone] = useState('');
   const [desc, setDesc] = useState('');
   const [furnitures, setFurnitures] = useState([]);
   const [images, setImages] = useState([]);
@@ -35,25 +37,26 @@ export default function CreateBuildingScreen() {
   const [aptType, setAptType] = useState('');
   const [showTypeModal, setShowTypeModal] = useState(false);
 
-  const [numRooms, setNumRooms] = useState('');
-  const [numBaths, setNumBaths] = useState('');
-  const [numBeds, setNumBeds] = useState('');
+  const [bedrooms, setBedrooms] = useState('');
+  const [bathrooms, setBathrooms] = useState('');
 
   const [floor, setFloor] = useState('');
   const [roomNo, setRoomNo] = useState('');
 
   const { items: furnishingsFromApi, loading } = useSelector(state => state.furnishings);
+  const { loadings, success, error } = useSelector(state => state.properties);
 
   useEffect(() => {
     dispatch(fetchFurnishings({ page: 0, size: 50 }));
   }, [dispatch]);
 
-const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
-  state => state.roomTypes || {}
+
+  const { categories: apartmentCategories = [], loading: apartmentLoading } = useSelector(
+  state => state.apartment || {}
 );
 
   useEffect(() => {
-    dispatch(fetchRoomTypes());
+    dispatch(fetchApartmentCategories());
   }, [dispatch]);
 
   const toggleFurniture = (item) => {
@@ -63,27 +66,88 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
         : [...prev, { id: item.furnishingId, label: item.furnishingName, quantity: 1 }]
     );
   };
+  const userId = useSelector(state => state.auth.user?.userId);
   const onSave = () => {
+
+    if (!title || !buildingName || !addr || !price || !area || !aptType) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ các trường bắt buộc.');
+      return;
+    }
+
     const payload = {
       propertyType: "BUILDING",
-      landlord: { userId: "bc647ad1-55f1-4869-84ba-cf28ecc9ef84" }, // TODO: lấy từ token login
+      landlord: { userId: userId },
       address: { addressFull: addr },
       title,
       description: desc,
-      buildingName: name,
+      buildingName: buildingName,
       apartmentCategory: aptType,
-      bedrooms: parseInt(numRooms || "0"),
-      bathrooms: parseInt(numBaths || "0"),
+      bedrooms: parseInt(bedrooms || "0"),
+      bathrooms: parseInt(bathrooms || "0"),
       floorNo: parseInt(floor || "0"),
       roomNumber: roomNo,
       area: parseFloat(area || "0"),
       price: parseFloat(price || "0"),
       deposit: parseFloat(deposit || "0"),
-      furnishings: furnitures.map(f => ({ furnishingId: f.id, quantity: f.quantity })),
+      furnishings: furnitures.map(f => ({
+        furnishingId: f.id,
+        quantity: f.quantity,
+      })),
     };
+    dispatch(createProperty(payload))
+      .unwrap()
+      .then(() => {
+        Alert.alert('Thành công', 'Tạo tòa nhà thành công!')
+      })
+      .catch(() => {
+        Alert.alert('Lỗi', error || 'Tạo tòa nhà thất bại!')
+      });
+  };
+  useEffect(() => {
+    if (success) {
+      Alert.alert('Thành công', 'Tạo tòa nhà thành công!');
+      setTitle('');
+      setBuildingName('');
+      setAddr('');
+      setPrice('');
+      setArea('');
+      setDeposit('');
+      setDesc('');
+      setFurnitures([]);
+      setImages([]);
+      setVideo(null);
+      setAptType('');
+      setBedrooms('');
+      setBathrooms('');
+      setFloor('');
+      setRoomNo('');
 
-    console.log("SAVE BUILDING", payload);
-    // TODO: call API
+
+      dispatch(resetStatus());
+      nav.goBack();
+    }
+  }, [success]);
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setImages(prev => [...prev, ...result.assets].slice(0, 10)); // tối đa 10 ảnh
+    }
+  };
+  const pickVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setVideo(result.assets[0]);
+    }
   };
 
   return (
@@ -114,8 +178,8 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
           required
           icon={<Ionicons name="home" size={18} color={ORANGE} />}
           placeholder="Nhập tên căn hộ"
-          value={name}
-          onChangeText={setName}
+          value={buildingName}
+          onChangeText={setBuildingName}
         />
         {/* Địa chỉ */}
         <Field
@@ -154,17 +218,6 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
           value={deposit}
           onChangeText={setDeposit}
         />
-        {/* Số điện thoại */}
-        <Field
-          label="Số điện thoại"
-          required
-          icon={<Ionicons name="call" size={18} color={ORANGE} />}
-          placeholder="Nhập số điện thoại"
-          keyboardType="phone-pad"
-          value={phone}
-          onChangeText={setPhone}
-        />
-
         <SectionTitle title="Vị trí căn hộ" />
         {/* Vị trí */}
         <Field
@@ -203,8 +256,8 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
 
         {/* Số phòng / vệ sinh / ngủ */}
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
-          <CounterSelect label="Số phòng ngủ" value={numRooms} setValue={setNumRooms} />
-          <CounterSelect label="Số phòng vệ sinh" value={numBaths} setValue={setNumBaths} />
+          <CounterSelect label="Số phòng ngủ" value={bedrooms} setValue={setBedrooms} />
+          <CounterSelect label="Số phòng vệ sinh" value={bathrooms} setValue={setBathrooms} />
 
         </View>
         {/* Nội thất */}
@@ -248,7 +301,7 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
         <UploadBox
           title="Ảnh tòa nhà"
           subtitle="Tối đa 10 ảnh"
-          onPick={() => setImages(prev => [...prev, { uri: 'https://picsum.photos/seed/room/400/300' }].slice(0, 10))}
+          onPick={pickImages}
         >
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             {images.map((img, i) => (
@@ -270,7 +323,7 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
 
         <UploadBox
           title="Video tòa nhà"
-          onPick={() => setVideo({ uri: 'https://example.com/room.mp4' })}
+          onPick={pickVideo}
         >
           {video ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -297,7 +350,7 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
         padding: 12,
         borderTopWidth: 1, borderColor: '#E5E7EB',
       }}>
-        <Pressable
+        <TouchableOpacity
           onPress={onSave}
           style={{
             height: 48,
@@ -308,7 +361,7 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
           }}
         >
           <Text style={{ color: '#fff', fontWeight: '700' }}>Lưu tòa nhà</Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       {/* Modal chọn loại căn hộ */}
@@ -322,23 +375,25 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
           }}>
             <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 10 }}>Chọn loại căn hộ</Text>
 
-            {roomTypesLoading ? (
+            {apartmentLoading ? (
               <Text>Đang tải...</Text>
             ) : (
-              roomTypes.map((t, i) => (
+              apartmentCategories.map((cat, i) => (
                 <Pressable
-                  key={t.roomTypeId}
+                  key={cat}
                   onPress={() => {
-                    setAptType(t.typeName);
+                    setAptType(cat);
                     setShowTypeModal(false);
                   }}
                   style={{
                     paddingVertical: 10,
-                    borderBottomWidth: i === roomTypes.length - 1 ? 0 : 1,
+                    borderBottomWidth: i === apartmentCategories.length - 1 ? 0 : 1,
                     borderColor: GRAY
                   }}
                 >
-                  <Text style={{ color: '#111' }}>{t.typeName}</Text>
+                  <Text style={{ color: '#111' }}>
+                    {cat === "CHUNG_CU" ? "Chung cư" : cat === "DUPLEX" ? "Duplex" : "Penthouse"}
+                  </Text>
                 </Pressable>
               ))
             )}
@@ -351,7 +406,7 @@ const { items: roomTypes = [], loading: roomTypesLoading } = useSelector(
             </Pressable>
           </View>
         </View>
-      )} 
+      )}
     </View>
   );
 }
