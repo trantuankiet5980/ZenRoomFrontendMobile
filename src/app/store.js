@@ -6,6 +6,7 @@ import roomsReducer from '../features/rooms/roomsSlice';
 import buildingReducer from '../features/building/buildingSlice';
 import propertiesReducer from '../features/properties/propertiesSlice';
 import apartmentReducer from '../features/apartmentCategory/apartmentSlice';
+import FavoritesReducer from '../features/favorites/favoritesSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     properties: propertiesReducer,
     building: buildingReducer,
     apartment: apartmentReducer,
+    favorites: FavoritesReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });

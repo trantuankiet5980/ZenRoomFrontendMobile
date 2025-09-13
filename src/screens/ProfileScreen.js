@@ -13,6 +13,7 @@ export default function ProfileScreen() {
   const nav = useNavigation();
   const dispatch = useDispatch();
   const user = useSelector(s => s.auth.user);
+  console.log(user);
   const name  = user?.fullName || user?.name || 'Người dùng';
   const phone = user?.phoneNumber || user?.phone || '—';
 
@@ -47,7 +48,7 @@ export default function ProfileScreen() {
         <MenuItem
           icon="key-outline"
           label="Đổi mật khẩu"
-          onPress={() => console.log('Go change password')}
+          onPress={() => nav.navigate('ResetPasswordScreen')}
         />
         <MenuItem
           icon="exit-outline"
