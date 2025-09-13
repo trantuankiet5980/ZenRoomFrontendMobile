@@ -15,6 +15,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchPropertyDetail } from "../features/properties/propertiesThunks";
 import { resetProperty } from "../features/properties/propertiesSlice";
 import useHideTabBar from '../hooks/useHideTabBar';
+import { Ionicons } from "@expo/vector-icons";
+import { addFavorite, removeFavorite } from "../features/favorites/favoritesThunks";
 
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
@@ -24,6 +26,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
     );
+
+    const favorites = useSelector((state) => state.favorites.items);
+    useEffect(() => {
+        if (property) {
+            const isFav = favorites.some((f) => f.property.propertyId === property.propertyId);
+            setLiked(isFav);
+        }
+    }, [favorites, property]);
 
 
     useEffect(() => {
@@ -80,16 +90,47 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     Chi tiết phòng
                 </Text>
 
-                <TouchableOpacity
-                    style={styles.headerBtn}
-                    onPress={() => setLiked((v) => !v)}
-                >
-                    <Icon
-                        name={liked ? "heart" : "heart-outline"}
-                        size={24}
-                        color="#f36031"
-                    />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row" }}>
+                    {/* Nút Share */}
+                    <TouchableOpacity
+                        style={styles.headerBtn}
+                        onPress={() => {
+                            // TODO: mở share sheet
+                            console.log("Share property", propertyId);
+                        }}
+                    >
+                        <Icon name="share-variant" size={22} color="#111" />
+                    </TouchableOpacity>
+
+                    {/* Nút Yêu thích */}
+                    <TouchableOpacity
+                        style={styles.headerBtn}
+                        onPress={async () => {
+                            if (liked) {
+                                const fav = favorites.find((f) => f.property.propertyId === property.propertyId);
+                                if (fav) {
+                                    try {
+                                        await dispatch(removeFavorite(property.propertyId)).unwrap();
+                                        setLiked(false);
+                                    } catch (error) {
+                                        console.warn("Xoá yêu thích thất bại:", error?.message || error);
+                                        alert("Không thể xóa khỏi danh sách yêu thích");
+                                    }
+
+                                }
+                            } else {
+                                try {
+                                    await dispatch(addFavorite(property.propertyId)).unwrap();
+                                    setLiked(true);
+                                } catch (error) {
+                                    alert(error?.message || "Không thể thêm vào danh sách yêu thích");
+                                }
+                            }
+                        }}
+                    >
+                        <Icon name={liked ? "heart" : "heart-outline"} size={24} color="#f36031" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView
@@ -134,7 +175,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 : "Thỏa thuận"}
                         </Text>
                     </View>
-                    <Text style={styles.subText}>📍 {addressFormatted}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
+                        <Text style={styles.subText}> {addressFormatted}</Text>
+                    </View>
                 </View>
                 {/* Thông tin chi tiết */}
                 <Text style={styles.sectionTitle}>Thông tin chi tiết</Text>
@@ -176,7 +220,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             {property.furnishings.map((f, idx) => (
                                 <View key={idx} style={styles.furnishingItem}>
                                     <Icon
-                                        name={f.furnishingId?.icon || "sofa"} 
+                                        name={f.furnishingId?.icon || "sofa"}
                                         size={28}
                                         color="#111"
                                     />
@@ -196,21 +240,16 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     <Text>👤 {property.landlord?.fullName || "Ẩn danh"}</Text>
                     {property.landlord?.phoneNumber && (
                         <TouchableOpacity
-                            onPress={() =>
-                                Linking.openURL(
-                                    `tel:${property.landlord.phoneNumber}`
-                                )
-                            }
+                            onPress={() => Linking.openURL(`tel:${property.landlord.phoneNumber}`)}
                         >
-                            <Text style={{ color: "#f36031" }}>
-                                📞 {property.landlord.phoneNumber}
-                            </Text>
+                            <Text style={{ color: "#f36031" }}>📞 {property.landlord.phoneNumber}</Text>
                         </TouchableOpacity>
                     )}
                     {property.landlord?.email && (
                         <Text>✉️ {property.landlord.email}</Text>
                     )}
                 </View>
+
 
                 {/* Mô tả */}
                 <Text style={styles.sectionTitle}>Mô tả</Text>

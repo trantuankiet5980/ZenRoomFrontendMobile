@@ -4,6 +4,7 @@ import CreatePostStack from '../navigation/CreatePostStack';
 import ChatStack from './ChatStack';
 import ProfileStack from './ProfileStack';
 import HomeStack from './HomeStack';
+import FavoritesStack from './FactorityStack';
 
 import { AntDesign, Ionicons, MaterialIcons } from '@expo/vector-icons';
 
@@ -12,7 +13,7 @@ import { useRole } from '../hooks/useRole';
 const Tab = createBottomTabNavigator();
 
 export default function AppTabs() {
-    const { isLandlord } = useRole();
+    const { isLandlord,isTenant } = useRole();
     return (
         <Tab.Navigator
             screenOptions={{
@@ -34,6 +35,17 @@ export default function AppTabs() {
                 }}
             />
 
+            {/*tạo lưu bài yêu thích tab*/}
+            {isTenant &&
+            <Tab.Screen
+                name="Yêu thích"
+                component={FavoritesStack}
+                options={{
+                    title: 'Yêu thích',
+                    tabBarIcon: ({ color }) => <AntDesign name="hearto" size={22} color={color} />,
+                }}
+            />
+            }
             {/* Tạo bài đăng Tab */}
             {isLandlord && (
                 <Tab.Screen
