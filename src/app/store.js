@@ -7,6 +7,7 @@ import buildingReducer from '../features/building/buildingSlice';
 import propertiesReducer from '../features/properties/propertiesSlice';
 import apartmentReducer from '../features/apartmentCategory/apartmentSlice';
 import FavoritesReducer from '../features/favorites/favoritesSlice';
+import propertyMediaReducer from "../features/propertyMedia/propertyMediaSlice";
 
 export const store = configureStore({
   reducer: {
@@ -18,6 +19,7 @@ export const store = configureStore({
     building: buildingReducer,
     apartment: apartmentReducer,
     favorites: FavoritesReducer,
+    propertyMedia: propertyMediaReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });

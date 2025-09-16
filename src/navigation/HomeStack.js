@@ -13,7 +13,7 @@ import InventoryBuildings from '../screens/InventoryBuildingsScreen';
 import InventoryRooms from '../screens/InventoryRoomsScreen';
 
 import PropertyDetailScreen from '../screens/PropertyDetailScreen';
-import FavoritesScreen from '../screens/FavoritesScreen';
+import CreatePostStack from './CreatePostStack';
 
 
 const Stack = createNativeStackNavigator();
@@ -41,6 +41,8 @@ export default function HomeStack() {
       {/* Detail */}
       <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} options={{ title: 'Chi tiết bất động sản', headerShown: false }} />
 
+      {/* Create Post */}
+      <Stack.Screen name="CreatePostStack" component={CreatePostStack} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

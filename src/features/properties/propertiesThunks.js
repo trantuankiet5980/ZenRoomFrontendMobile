@@ -39,3 +39,27 @@ export const fetchPropertyDetail = createAsyncThunk(
     }
   }
 );
+
+export const fetchPropertiesByLandlord = createAsyncThunk(
+  "properties/fetchPropertiesByLandlord",
+  async ({ page = 0, size = 20, type, postStatus, landlordId }) => {
+    const params = { page, size, type, postStatus, landlordId };
+    const response = await axiosInstance.get("/properties", { params });
+
+    return {
+      type,
+      data: response.data.content
+    };
+  }
+);
+
+export const updateProperty = createAsyncThunk(
+  "properties/updateProperty",
+  async ({ id, data }) => {
+    const res = await api.put(`/properties/${id}`, data);
+    return res.data;
+  }
+);
+
+
+

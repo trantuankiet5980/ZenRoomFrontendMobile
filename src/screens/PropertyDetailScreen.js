@@ -17,6 +17,7 @@ import { resetProperty } from "../features/properties/propertiesSlice";
 import useHideTabBar from '../hooks/useHideTabBar';
 import { Ionicons } from "@expo/vector-icons";
 import { addFavorite, removeFavorite } from "../features/favorites/favoritesThunks";
+import { useRole } from "../hooks/useRole";
 
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
@@ -26,7 +27,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
     );
-
+    const { role, isTenant, isLandlord } = useRole();
+    const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
     useEffect(() => {
         if (property) {
@@ -102,34 +104,39 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Icon name="share-variant" size={22} color="#111" />
                     </TouchableOpacity>
 
-                    {/* Nút Yêu thích */}
-                    <TouchableOpacity
-                        style={styles.headerBtn}
-                        onPress={async () => {
-                            if (liked) {
-                                const fav = favorites.find((f) => f.property.propertyId === property.propertyId);
-                                if (fav) {
-                                    try {
-                                        await dispatch(removeFavorite(property.propertyId)).unwrap();
-                                        setLiked(false);
-                                    } catch (error) {
-                                        console.warn("Xoá yêu thích thất bại:", error?.message || error);
-                                        alert("Không thể xóa khỏi danh sách yêu thích");
+                    {/* Nút Yêu thích - chỉ hiện với Tenant */}
+                    {isTenant && (
+                        <TouchableOpacity
+                            style={styles.headerBtn}
+                            onPress={async () => {
+                                if (liked) {
+                                    const fav = favorites.find((f) => f.property.propertyId === property.propertyId);
+                                    if (fav) {
+                                        try {
+                                            await dispatch(removeFavorite(property.propertyId)).unwrap();
+                                            setLiked(false);
+                                        } catch (error) {
+                                            console.warn("Xoá yêu thích thất bại:", error?.message || error);
+                                            alert("Không thể xóa khỏi danh sách yêu thích");
+                                        }
                                     }
-
+                                } else {
+                                    try {
+                                        await dispatch(addFavorite(property.propertyId)).unwrap();
+                                        setLiked(true);
+                                    } catch (error) {
+                                        alert(error?.message || "Không thể thêm vào danh sách yêu thích");
+                                    }
                                 }
-                            } else {
-                                try {
-                                    await dispatch(addFavorite(property.propertyId)).unwrap();
-                                    setLiked(true);
-                                } catch (error) {
-                                    alert(error?.message || "Không thể thêm vào danh sách yêu thích");
-                                }
-                            }
-                        }}
-                    >
-                        <Icon name={liked ? "heart" : "heart-outline"} size={24} color="#f36031" />
-                    </TouchableOpacity>
+                            }}
+                        >
+                            <Icon
+                                name={liked ? "heart" : "heart-outline"}
+                                size={24}
+                                color="#f36031"
+                            />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
@@ -259,20 +266,48 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             </ScrollView>
 
             {/* Thanh Action */}
-            <View style={styles.bottomBar}>
-                <TouchableOpacity style={styles.lightBtn}>
-                    <Icon name="flag-outline" size={18} color="#f36031" />
-                    <Text style={styles.lightBtnText}>Báo cáo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.lightBtn}>
-                    <Icon name="message-text-outline" size={18} color="#f36031" />
-                    <Text style={styles.lightBtnText}>Chat</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn}>
-                    <Icon name="calendar-check" size={18} color="#fff" />
-                    <Text style={styles.primaryBtnText}>Đặt phòng</Text>
-                </TouchableOpacity>
-            </View>
+            {isTenant ? (
+                // Người thuê -> báo cáo, chat, đặt phòng
+                <View style={styles.bottomBar}>
+                    <TouchableOpacity style={styles.lightBtn}>
+                        <Icon name="flag-outline" size={18} color="#f36031" />
+                        <Text style={styles.lightBtnText}>Báo cáo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.lightBtn}>
+                        <Icon name="message-text-outline" size={18} color="#f36031" />
+                        <Text style={styles.lightBtnText}>Chat</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.primaryBtn}>
+                        <Icon name="calendar-check" size={18} color="#fff" />
+                        <Text style={styles.primaryBtnText}>Đặt phòng</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : String(property.landlord?.userId) === String(currentUser?.userId) ? (
+                // Chủ nhà -> nếu là phòng của chính mình
+                <View style={styles.bottomBar}>
+                    <TouchableOpacity
+                        style={styles.primaryBtn}
+                        onPress={() => {
+                            if (property.propertyType === "ROOM") {
+                                navigation.navigate("CreatePostStack", {
+                                    screen: "CreateRoom",
+                                    params: { mode: "update", property: property  }
+                                });
+
+                            } else if (property.propertyType === "BUILDING") {
+                                navigation.navigate("CreatePostStack", {
+                                    screen: "CreateBuilding",
+                                    params: { mode: "update", property: property  }
+                                });
+                            }
+                        }}
+                    >
+                        <Icon name="pencil" size={18} color="#fff" />
+                        <Text style={styles.primaryBtnText}>Cập nhật</Text>
+                    </TouchableOpacity>
+
+                </View>
+            ) : null}
         </SafeAreaView>
     );
 };
@@ -376,13 +411,13 @@ const styles = StyleSheet.create({
     },
     bottomBar: {
         position: "absolute",
-        bottom: 0,
+        bottom: 10,
         left: 0,
         right: 0,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-around",
-        padding: 12,
+        padding: 15,
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: "#ddd",
         backgroundColor: "#fff",
