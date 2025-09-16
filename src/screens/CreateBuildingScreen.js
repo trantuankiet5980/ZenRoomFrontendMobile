@@ -1,4 +1,4 @@
-import React, { use, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity, Alert
 } from 'react-native';
@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchFurnishings } from "../features/furnishings/furnishingsThunks";
-import { createProperty } from "../features/properties/propertiesThunks";
+import { createProperty,updateProperty } from "../features/properties/propertiesThunks";
 import { resetStatus } from "../features/properties/propertiesSlice";
 import * as ImagePicker from "expo-image-picker";
 import { fetchApartmentCategories } from '../features/apartmentCategory/apartmentThunks';
@@ -23,6 +23,8 @@ export default function CreateBuildingScreen() {
 
   const nav = useNavigation();
   const dispatch = useDispatch();
+  const { route } = props;
+  const { mode, property } = route.params || {};
 
   const [title, setTitle] = useState('');
   const [buildingName, setBuildingName] = useState('');
@@ -52,8 +54,8 @@ export default function CreateBuildingScreen() {
 
 
   const { categories: apartmentCategories = [], loading: apartmentLoading } = useSelector(
-  state => state.apartment || {}
-);
+    state => state.apartment || {}
+  );
 
   useEffect(() => {
     dispatch(fetchApartmentCategories());
@@ -148,6 +150,12 @@ export default function CreateBuildingScreen() {
     if (!result.canceled) {
       setVideo(result.assets[0]);
     }
+  };
+
+  const catMap = {
+    CHUNG_CU: "Chung cư",
+    DUPLEX: "Duplex",
+    PENTHOUSE: "Penthouse"
   };
 
   return (
@@ -360,7 +368,7 @@ export default function CreateBuildingScreen() {
             justifyContent: 'center',
           }}
         >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Lưu tòa nhà</Text>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Đăng tòa nhà</Text>
         </TouchableOpacity>
       </View>
 
@@ -391,9 +399,7 @@ export default function CreateBuildingScreen() {
                     borderColor: GRAY
                   }}
                 >
-                  <Text style={{ color: '#111' }}>
-                    {cat === "CHUNG_CU" ? "Chung cư" : cat === "DUPLEX" ? "Duplex" : "Penthouse"}
-                  </Text>
+                  <Text>{catMap[cat] || cat}</Text>
                 </Pressable>
               ))
             )}

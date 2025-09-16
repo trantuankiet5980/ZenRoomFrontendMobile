@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchProperties,createProperty,fetchPropertyDetail } from "./propertiesThunks";
+import { fetchProperties, createProperty, fetchPropertyDetail, fetchPropertiesByLandlord,updateProperty } from "./propertiesThunks";
 
 
 
@@ -12,7 +12,7 @@ const propertiesSlice = createSlice({
     error: null,
     success: false,
   },
-   reducers: {
+  reducers: {
     resetStatus: (state) => {
       state.loading = false;
       state.error = null;
@@ -45,7 +45,7 @@ const propertiesSlice = createSlice({
         state.error = action.error.message;
       })
 
-       // create
+      // create
       .addCase(createProperty.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -62,8 +62,6 @@ const propertiesSlice = createSlice({
           state.buildings.push(action.payload);
         }
       })
-
-      
       .addCase(fetchPropertyDetail.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -75,9 +73,54 @@ const propertiesSlice = createSlice({
       .addCase(fetchPropertyDetail.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      });
+      })
+      .addCase(fetchPropertiesByLandlord.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPropertiesByLandlord.fulfilled, (state, action) => {
+        state.loading = false;
+        const { type, data } = action.payload;
+        if (type === "ROOM") {
+          state.rooms = data;
+        } else if (type === "BUILDING") {
+          state.buildings = data;
+        }
+      })
+      .addCase(fetchPropertiesByLandlord.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
+      })
+      .addCase(updateProperty.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(updateProperty.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+
+        // Cập nhật vào list rooms/buildings
+        const updated = action.payload;
+        if (updated.propertyType === "ROOM") {
+          state.rooms = state.rooms.map(r => r.propertyId === updated.propertyId ? updated : r);
+        } else if (updated.propertyType === "BUILDING") {
+          state.buildings = state.buildings.map(b => b.propertyId === updated.propertyId ? updated : b);
+        }
+
+        // Cập nhật chi tiết nếu đang mở
+        if (state.current?.propertyId === updated.propertyId) {
+          state.current = updated;
+        }
+      })
+      .addCase(updateProperty.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
+      })
+      ;
+
   }
 });
 
-export const { resetStatus,resetProperty } = propertiesSlice.actions;
+export const { resetStatus, resetProperty } = propertiesSlice.actions;
 export default propertiesSlice.reducer;
