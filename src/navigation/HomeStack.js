@@ -15,6 +15,7 @@ import InventoryRooms from '../screens/InventoryRoomsScreen';
 import PropertyDetailScreen from '../screens/PropertyDetailScreen';
 import CreatePostStack from './CreatePostStack';
 
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -43,6 +44,9 @@ export default function HomeStack() {
 
       {/* Create Post */}
       <Stack.Screen name="CreatePostStack" component={CreatePostStack} options={{ headerShown: false }} />
+
+      {/* Notifications */}
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Thông báo' }} />
     </Stack.Navigator>
   );
 }
