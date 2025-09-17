@@ -8,6 +8,7 @@ import propertiesReducer from '../features/properties/propertiesSlice';
 import apartmentReducer from '../features/apartmentCategory/apartmentSlice';
 import FavoritesReducer from '../features/favorites/favoritesSlice';
 import propertyMediaReducer from "../features/propertyMedia/propertyMediaSlice";
+import notificationReducer from '../features/notifications/notificationsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -20,6 +21,7 @@ export const store = configureStore({
     apartment: apartmentReducer,
     favorites: FavoritesReducer,
     propertyMedia: propertyMediaReducer,
+    notifications: notificationReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
