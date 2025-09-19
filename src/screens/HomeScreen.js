@@ -15,10 +15,14 @@ import S3Image from "../components/S3Image";
 export default function HomeScreen() {
   const screenWidth = Dimensions.get("window").width;
   const user = useSelector((s) => s.auth.user);
+  const token = useSelector(s => s.auth.accessToken);
+  const role = (user?.role || user?.roleName || "").toLowerCase();
+  const unread = useSelector(s => s.notifications?.unreadCount ?? 0);
   const name = user?.fullName || user?.name || "";
   const [selectedCity, setSelectedCity] = useState("Hồ Chí Minh");
 
   const navigation = useNavigation();
+
   const dispatch = useDispatch();
   const { rooms = [], buildings = [], loading } = useSelector(state => state.properties || {});
 
@@ -55,14 +59,31 @@ export default function HomeScreen() {
       }}
     >
       <View style={{ backgroundColor: "#f36031", height: 150, paddingTop: 50 }}>
-        <TouchableOpacity>
-          <Ionicons
-            name="notifications"
-            size={30}
-            color="#fff"
-            style={{ alignSelf: "flex-end", paddingHorizontal: 20 }}
-          />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
+            <Ionicons
+              name="notifications"
+              size={30}
+              color="#fff"
+              style={{ alignSelf: "flex-end", paddingHorizontal: 20 }}
+            />
+            {unread > 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 14,
+                  backgroundColor: "red",
+                  borderRadius: 10,
+                  paddingHorizontal: 6,
+                  paddingVertical: 1,
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 10 }}>
+                  {unread > 99 ? "99+" : unread}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         <View style={{ paddingLeft: 20, paddingBottom: 10, flexDirection: "row" }}>
           <TypingText
             text={`Xin chào, ${name}`}
