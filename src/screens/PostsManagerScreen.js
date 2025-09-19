@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, Image
 } from 'react-native';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchPropertiesByLandlord } from "../features/properties/propertiesThunks";
+import S3Image from '../components/S3Image';
 
 const ORANGE = '#f36031';
 const MUTED = '#9CA3AF';
@@ -23,10 +24,15 @@ export default function PostsManagerScreen() {
   useHideTabBar();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-
   const dispatch = useDispatch();
+
   const { rooms, buildings, roomsPending, buildingsPending, loading } = useSelector((s) => s.properties);
   const user = useSelector((s) => s.auth.user);
+
+  const [posts, setPosts] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [tab, setTab] = useState('active'); // 'pending' | 'active'
+  const [q, setQ] = useState('');
 
   // fetch cả ROOM + BUILDING cho cả APPROVED và PENDING
   useEffect(() => {
@@ -38,48 +44,54 @@ export default function PostsManagerScreen() {
     }
   }, [dispatch, user?.userId]);
 
-const posts = useMemo(() => {
-  const approved = [
-    ...(rooms || []).map(p => ({ ...p, propertyType: "ROOM" })),
-    ...(buildings || []).map(p => ({ ...p, propertyType: "BUILDING" }))
-  ];
-  const pending = [
-    ...(roomsPending || []).map(p => ({ ...p, propertyType: "ROOM" })),
-    ...(buildingsPending || []).map(p => ({ ...p, propertyType: "BUILDING" }))
-  ];
+  // Map dữ liệu thành posts
+  useEffect(() => {
+    const approved = [
+      ...(rooms || []).map(p => ({ ...p, propertyType: "ROOM" })),
+      ...(buildings || []).map(p => ({ ...p, propertyType: "BUILDING" }))
+    ];
+    const pending = [
+      ...(roomsPending || []).map(p => ({ ...p, propertyType: "ROOM" })),
+      ...(buildingsPending || []).map(p => ({ ...p, propertyType: "BUILDING" }))
+    ];
 
-  return [...approved, ...pending].map(p => ({
-    id: p.id || p.propertyId,
-    status: p.postStatus
-      ? (p.postStatus === "APPROVED" ? "active" : p.postStatus.toLowerCase())
-      : "active",
-    title: p.title || p.name || "Không có tiêu đề",
-    address: typeof p.address === "string"
-      ? formatAddress(p.address)
-      : formatAddress(p.address?.addressFull || ""),
-    price: p.price ? `Từ ${formatPrice(p.price)}đ/tháng` : "Giá liên hệ",
-    thumbnail: p.media?.[0]?.url ||
-      (p.propertyType === "ROOM"
-        ? "https://picsum.photos/seed/room/600/400"
-        : "https://picsum.photos/seed/building/600/400"),
-    propertyType: p.propertyType,
-  }));
-}, [rooms, buildings, roomsPending, buildingsPending]);
+    const allPosts = [...approved, ...pending].map(p => ({
+      id: p.id || p.propertyId,
+      status: p.postStatus
+        ? (p.postStatus === "APPROVED" ? "active" : p.postStatus.toLowerCase())
+        : "active",
+      title: p.title || p.name || "Không có tiêu đề",
+      address: typeof p.address === "string"
+        ? formatAddress(p.address)
+        : formatAddress(p.address?.addressFull || ""),
+      price: p.price ? `Từ ${formatPrice(p.price)}đ/tháng` : "Giá liên hệ",
+      propertyType: p.propertyType,
+      media: p.media || [],        // giữ ảnh
+      updatedAt: p.updatedAt || "", // giữ cache
+    }));
+
+    setPosts(allPosts);
+  }, [rooms, buildings, roomsPending, buildingsPending]);
 
 
-  const [tab, setTab] = useState('active'); // 'pending' | 'active'
-  const [q, setQ] = useState('');
-
-  // lọc theo tab + search
-  const filtered = useMemo(() => {
-    const list = posts.filter(p => p.status === tab);
-    if (!q) return list;
+  // Filter posts theo tab và search
+  const filterPosts = useCallback(() => {
+    let list = posts.filter(p => p.status === tab);
+    if (!q) {
+      setFiltered(list);
+      return;
+    }
     const needle = q.toLowerCase();
-    return list.filter(p =>
+    list = list.filter(p =>
       (p.title || '').toLowerCase().includes(needle) ||
       (p.address || '').toLowerCase().includes(needle)
     );
+    setFiltered(list);
   }, [posts, tab, q]);
+
+  useEffect(() => {
+    filterPosts();
+  }, [filterPosts]);
 
   const pendingCount = posts.filter(p => p.status === 'pending').length;
   const activeCount = posts.filter(p => p.status === 'active').length;
@@ -94,7 +106,7 @@ const posts = useMemo(() => {
           <Ionicons name="chevron-back" size={24} color="#111" />
         </TouchableOpacity>
         <Text style={{ fontSize: 18, fontWeight: '700', flex: 1 }}>Bài đăng cho thuê</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('CreatePost')} style={{ padding: 6 }}>
+        <TouchableOpacity onPress={() => navigation.navigate('CreatePostStack')} style={{ padding: 6 }}>
           <Ionicons name="add" size={22} color="#111" />
         </TouchableOpacity>
       </View>
@@ -182,7 +194,17 @@ function PostCard({ item }) {
     <View style={{
       borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: 'hidden', marginBottom: 12
     }}>
-      <Image source={{ uri: item.thumbnail }} style={{ width: '100%', height: 160 }} />
+      <S3Image
+  src={
+    item.media?.[0]?.url 
+    || item.rooms?.[0]?.media?.[0]?.url
+  }
+  cacheKey={item.updatedAt}
+  style={{ width: "100%", height: 120, borderRadius: 8 }}
+  alt={item.title}
+/>
+
+
       <View style={{ padding: 12 }}>
         {/* Loại bài đăng */}
         <Text style={{

@@ -3,6 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
+    Image,
     ScrollView,
     TouchableOpacity,
     FlatList,
@@ -17,9 +18,6 @@ import useHideTabBar from '../hooks/useHideTabBar';
 import { Ionicons } from "@expo/vector-icons";
 import { addFavorite, removeFavorite } from "../features/favorites/favoritesThunks";
 import { useRole } from "../hooks/useRole";
-import { Video } from "expo-av";
-import S3Image from "../components/S3Image";
-import { resolveAssetUrl } from "../utils/cdn";
 
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
@@ -29,10 +27,9 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
     );
-    const { isTenant } = useRole();
+    const { role, isTenant, isLandlord } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
-
     useEffect(() => {
         if (property) {
             const isFav = favorites.some((f) => f.property.propertyId === property.propertyId);
@@ -40,18 +37,13 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         }
     }, [favorites, property]);
 
+
     useEffect(() => {
         dispatch(fetchPropertyDetail(propertyId));
         return () => {
             dispatch(resetProperty());
         };
     }, [dispatch, propertyId]);
-
-    useEffect(() => {
-        if (property?.media) {
-            console.log("MEDIA LIST:", property.media);
-        }
-    }, [property]);
 
     if (loading) {
         return (
@@ -82,17 +74,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
     const mediaList =
         property.media && property.media.length > 0
-            ? property.media.map((m) => ({
-                ...m,
-                fullUrl: resolveAssetUrl(m.url),
-                poster: m.posterUrl ? resolveAssetUrl(m.posterUrl) : null,
-            }))
-            : [
-                {
-                    fullUrl: "https://picsum.photos/600/400",
-                    mediaType: "IMAGE",
-                },
-            ];
+            ? property.media
+            : [{ url: "https://picsum.photos/600/400" }];
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -110,50 +93,39 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 </Text>
 
                 <View style={{ flexDirection: "row" }}>
-                    {/* Share */}
+                    {/* Nút Share */}
                     <TouchableOpacity
                         style={styles.headerBtn}
-                        onPress={() => console.log("Share property", propertyId)}
+                        onPress={() => {
+                            // TODO: mở share sheet
+                            console.log("Share property", propertyId);
+                        }}
                     >
                         <Icon name="share-variant" size={22} color="#111" />
                     </TouchableOpacity>
 
-                    {/* Yêu thích */}
+                    {/* Nút Yêu thích - chỉ hiện với Tenant */}
                     {isTenant && (
                         <TouchableOpacity
                             style={styles.headerBtn}
                             onPress={async () => {
                                 if (liked) {
-                                    const fav = favorites.find(
-                                        (f) =>
-                                            f.property.propertyId ===
-                                            property.propertyId
-                                    );
+                                    const fav = favorites.find((f) => f.property.propertyId === property.propertyId);
                                     if (fav) {
                                         try {
-                                            await dispatch(
-                                                removeFavorite(property.propertyId)
-                                            ).unwrap();
+                                            await dispatch(removeFavorite(property.propertyId)).unwrap();
                                             setLiked(false);
                                         } catch (error) {
-                                            console.warn(
-                                                "Xoá yêu thích thất bại:",
-                                                error?.message || error
-                                            );
+                                            console.warn("Xoá yêu thích thất bại:", error?.message || error);
                                             alert("Không thể xóa khỏi danh sách yêu thích");
                                         }
                                     }
                                 } else {
                                     try {
-                                        await dispatch(
-                                            addFavorite(property.propertyId)
-                                        ).unwrap();
+                                        await dispatch(addFavorite(property.propertyId)).unwrap();
                                         setLiked(true);
                                     } catch (error) {
-                                        alert(
-                                            error?.message ||
-                                                "Không thể thêm vào danh sách yêu thích"
-                                        );
+                                        alert(error?.message || "Không thể thêm vào danh sách yêu thích");
                                     }
                                 }
                             }}
@@ -173,36 +145,23 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 contentContainerStyle={{ paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Media gallery */}
+                {/* Ảnh */}
                 <FlatList
                     horizontal
                     data={mediaList}
-                    keyExtractor={(item, index) =>
-                        item.mediaId || index.toString()
-                    }
-                    renderItem={({ item }) =>
-                        item.mediaType === "VIDEO" ? (
-                            <Video
-                                source={{ uri: item.fullUrl }}
-                                style={styles.mainImage}
-                                useNativeControls
-                                resizeMode="cover"
-                                posterSource={
-                                    item.poster ? { uri: item.poster } : null
-                                }
-                                posterStyle={styles.mainImage}
-                                onError={(e) =>
-                                    console.warn("VIDEO ERROR:", e)
-                                }
-                            />
-                        ) : (
-                            <S3Image
-                                src={item.fullUrl}
-                                style={styles.mainImage}
-                                alt={item.mediaId}
-                            />
-                        )
-                    }
+                    keyExtractor={(item, index) => item.mediaId || index.toString()}
+                    renderItem={({ item }) => (
+                        <Image
+                            source={{
+                                uri:
+                                    item.url ||
+                                    item.posterUrl ||
+                                    "https://picsum.photos/seed/room/600/400",
+                            }}
+                            style={styles.mainImage}
+                            resizeMode="cover"
+                        />
+                    )}
                     showsHorizontalScrollIndicator={false}
                     pagingEnabled
                 />
@@ -223,19 +182,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.price}>
                             {property.price
                                 ? `${Number(property.price).toLocaleString(
-                                      "vi-VN"
-                                  )} đ/tháng`
+                                    "vi-VN"
+                                )} đ/tháng`
                                 : "Thỏa thuận"}
                         </Text>
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Ionicons
-                            name="location-outline"
-                            size={14}
-                            color="#555"
-                            style={{ marginRight: 4 }}
-                        />
-                        <Text style={styles.subText}>{addressFormatted}</Text>
+                        <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
+                        <Text style={styles.subText}> {addressFormatted}</Text>
                     </View>
                 </View>
                 {/* Thông tin chi tiết */}

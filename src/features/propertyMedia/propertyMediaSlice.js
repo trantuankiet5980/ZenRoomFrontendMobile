@@ -1,12 +1,18 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { uploadPropertyImages, uploadPropertyVideo } from "./propertyMediaThunks";
+import {
+  uploadPropertyImages,
+  uploadPropertyVideo,
+  fetchPropertyMedia,
+  makeMediaCover,
+  removeMedia,
+} from "./propertyMediaThunks";
 
 const propertyMediaSlice = createSlice({
   name: "propertyMedia",
   initialState: {
     uploading: false,
     error: null,
-    uploaded: [], // media đã upload
+    uploaded: [],
   },
   reducers: {
     clearMediaState: (state) => {
@@ -17,7 +23,7 @@ const propertyMediaSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // IMAGE
+      // Upload Images 
       .addCase(uploadPropertyImages.pending, (state) => {
         state.uploading = true;
         state.error = null;
@@ -30,7 +36,7 @@ const propertyMediaSlice = createSlice({
         state.uploading = false;
         state.error = action.payload;
       })
-      // VIDEO
+      //Upload Video
       .addCase(uploadPropertyVideo.pending, (state) => {
         state.uploading = true;
         state.error = null;
@@ -42,6 +48,32 @@ const propertyMediaSlice = createSlice({
       .addCase(uploadPropertyVideo.rejected, (state, action) => {
         state.uploading = false;
         state.error = action.payload;
+      })
+      // Fetch Media
+      .addCase(fetchPropertyMedia.pending, (state) => {
+        state.uploading = true;
+        state.error = null;
+      })
+      .addCase(fetchPropertyMedia.fulfilled, (state, action) => {
+        state.uploading = false;
+        state.uploaded = action.payload;
+      })
+      .addCase(fetchPropertyMedia.rejected, (state, action) => {
+        state.uploading = false;
+        state.error = action.payload;
+      })
+      //Set Cover
+      .addCase(makeMediaCover.fulfilled, (state, action) => {
+        const mediaId = action.payload;
+        state.uploaded = state.uploaded.map((m) => ({
+          ...m,
+          cover: m.id === mediaId,
+        }));
+      })
+      // Delete Media
+      .addCase(removeMedia.fulfilled, (state, action) => {
+        const mediaId = action.payload;
+        state.uploaded = state.uploaded.filter((m) => m.id !== mediaId);
       });
   },
 });
