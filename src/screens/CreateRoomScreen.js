@@ -6,20 +6,18 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
-import { createProperty, updateProperty } from "../features/properties/propertiesThunks";
+import { createProperty } from "../features/properties/propertiesThunks";
 import { resetStatus } from "../features/properties/propertiesSlice";
 import * as ImagePicker from "expo-image-picker";
-
-
+import { uploadPropertyImages, uploadPropertyVideo } from "../features/propertyMedia/propertyMediaThunks";
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
 const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
 
-export default function CreateRoomScreen({ route }) {
+export default function CreateRoomScreen() {
   const navigation = useNavigation();
   useHideTabBar();
-  const { mode, property } = route.params || {};
 
   // state
   const [title, setTitle] = useState('');
@@ -30,6 +28,7 @@ export default function CreateRoomScreen({ route }) {
   const [capacity, setCapacity] = useState('');
   const [parking, setParking] = useState('');
   const [desc, setDesc] = useState('');
+  // const [phone, setPhone] = useState('');
 
   const [area, setArea] = useState('');
 
@@ -48,7 +47,7 @@ export default function CreateRoomScreen({ route }) {
     });
 
     if (!result.canceled) {
-      setImages(prev => [...prev, ...result.assets].slice(0, 10)); // tối đa 10 ảnh
+      setImages(prev => [...prev, ...result.assets].slice(0, 10));
     }
   };
   const pickVideo = async () => {
@@ -58,26 +57,14 @@ export default function CreateRoomScreen({ route }) {
     });
 
     if (!result.canceled) {
-      setVideo(result.assets[0]);
+      const video = result.assets[0];
+      if (video.fileSize && video.fileSize > 25 * 1024 * 1024) {
+        Alert.alert("Lỗi", "Video quá lớn, vui lòng chọn file dưới 50MB");
+        return;
+      }
+      setVideo(video);
     }
   };
-
-  useEffect(() => {
-    if (mode === "update" && property) {
-      setTitle(property.title || '');
-      setAddr(property.address?.addressFull || '');
-      setPrice(String(property.price || ''));
-      setDeposit(String(property.deposit || ''));
-      setFloor(String(property.floorNo || ''));
-      setCapacity(String(property.capacity || ''));
-      setParking(String(property.parkingSlots || ''));
-      setArea(String(property.area || ''));
-      setDesc(property.description || '');
-      setImages(property.media?.map(m => ({ uri: m.posterUrl || m.url })) || []);
-      setVideo(property.video ? { uri: property.video.url } : null);
-    }
-  },
-    [mode, property]);
 
   const handleSubmit = () => {
     if (!title || !price || !addr || !area || !floor || !capacity || !parking) {
@@ -100,230 +87,252 @@ export default function CreateRoomScreen({ route }) {
       furnishings: []
     };
 
-    if (mode === "update" && property?.propertyId) {
-      dispatch(updateProperty({ id: property.propertyId, data: payload }))
-        .unwrap()
-        .then(() => Alert.alert("Thành công", "Cập nhật phòng thành công!"))
-        .catch(error => Alert.alert("Lỗi", error.message || "Cập nhật thất bại"));
-} else {
-  dispatch(createProperty(payload))
-    .unwrap()
-    .then(() => Alert.alert("Thành công", "Đăng phòng thành công!"))
-    .catch(error => Alert.alert("Lỗi", error.message || "Đăng phòng thất bại"));
-}
+    dispatch(createProperty(payload))
+      .unwrap()
+      .then((newProperty) => {
+        console.log("New property response:", newProperty); 
+        const propertyId = newProperty.id || newProperty.propertyId;
+        if (!propertyId) {
+          throw new Error("Property ID is missing in response");
+        }
+
+        // Upload images if any
+        if (images.length > 0) {
+          dispatch(uploadPropertyImages({ propertyId, images }))
+            .unwrap()
+            .catch(err => {
+              console.error("Upload ảnh thất bại", err);
+              Alert.alert("Lỗi", "Không thể tải lên ảnh: " + (err.message || "Lỗi không xác định"));
+            });
+        }
+
+        // Upload video if any
+        if (video) {
+          dispatch(uploadPropertyVideo({ propertyId, video }))
+            .unwrap()
+            .catch(err => {
+              console.error("Upload video thất bại", err);
+              Alert.alert("Lỗi", "Không thể tải lên video: " + (err.message || "Lỗi không xác định"));
+            });
+        }
+
+        Alert.alert("Thành công", "Đăng phòng thành công!");
+        navigation.navigate("PostsManager");
+      })
+      .catch((err) => {
+        console.error("Create property failed:", err);
+        Alert.alert("Lỗi", err.message || "Đăng phòng thất bại");
+      });
   };
 
 
 
-useEffect(() => {
-  if (success) {
-    Alert.alert("Thành công", "Đăng phòng thành công!");
+  useEffect(() => {
+    if (success) {
+      setTitle('');
+      setAddr('');
+      setPrice('');
+      setDeposit('');
+      setFloor('');
+      setCapacity('');
+      setParking('');
+      setDesc('');
+      setArea('');
+      setImages([]);
+      setVideo(null);
 
-    // reset form fields
-    setTitle('');
-    setAddr('');
-    setPrice('');
-    setDeposit('');
-    setFloor('');
-    setCapacity('');
-    setParking('');
-    setDesc('');
-    setArea('');
-    setImages([]);
-    setVideo(null);
+      dispatch(resetStatus());
+      navigation.navigate('PostsManager');
+    }
+  }, [success]);
 
-    dispatch(resetStatus());
-    navigation.goBack();
-  }
-}, [success]);
-
-return (
-  <View style={{ flex: 1, backgroundColor: '#fff' }}>
-    {/* Header*/}
-    <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginTop: 30 }}>
-      <Pressable onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
-        <Ionicons name="chevron-back" size={24} color="#111" />
-      </Pressable>
-      <Text style={{ fontSize: 18, fontWeight: '700' }}>Thêm phòng trọ</Text>
-    </View>
-
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 180 }}
-    >
-      {/* ========== Thông tin phòng ========== */}
-      <SectionTitle title="Thông tin phòng" />
-      <Field
-        label="Số/Tên phòng" required
-        icon={<Ionicons name="home" size={18} color={ORANGE} />}
-        placeholder="Nhập số/tên phòng"
-        value={title}
-        onChangeText={setTitle}
-      />
-      <Field
-        label="Địa chỉ" required
-        icon={<Ionicons name="location" size={18} color={ORANGE} />}
-        placeholder="Nhập địa chỉ"
-        value={addr}
-        onChangeText={setAddr}
-      />
-      {/* Giá phòng */}
-      <Field
-        label="Giá phòng" required
-        icon={<MaterialCommunityIcons name="cash-multiple" size={18} color={ORANGE} />}
-        placeholder="Nhập giá phòng"
-        keyboardType="numeric"
-        value={price}
-        onChangeText={setPrice}
-      />
-      {/* Tiền cọc */}
-      <Field
-        label="Tiền cọc"
-        icon={<MaterialCommunityIcons name="cash-lock" size={18} color={ORANGE} />}
-        placeholder="Nhập tiền đặt cọc"
-        keyboardType="numeric"
-        value={deposit}
-        onChangeText={setDeposit}
-      />
-
-      {/* Diện tích */}
-      <Field
-        label="Diện tích (m²)"
-        required
-        icon={<MaterialCommunityIcons name="ruler-square" size={18} color={ORANGE} />}
-        placeholder="Nhập diện tích phòng"
-        keyboardType="numeric"
-        value={area}
-        onChangeText={setArea}
-      />
-      <Field
-        label="Tầng"
-        icon={<MaterialCommunityIcons name="stairs-up" size={18} color={ORANGE} />}
-        placeholder="Nhập tầng"
-        keyboardType="numeric"
-        value={floor}
-        onChangeText={setFloor}
-      />
-      <Field
-        label="Sức chứa (Người/phòng)"
-        icon={<Ionicons name="people-outline" size={18} color={ORANGE} />}
-        placeholder="Nhập số Người/Phòng"
-        keyboardType="numeric"
-        value={capacity}
-        onChangeText={setCapacity}
-      />
-      <Field
-        label="Số chỗ đỗ xe"
-        icon={<MaterialCommunityIcons name="numeric" size={18} color={ORANGE} />}
-        placeholder="Nhập số chỗ để xe"
-        keyboardType="numeric"
-        value={parking}
-        onChangeText={setParking}
-      />
-      <SectionTitle
-        title="TIÊU ĐỀ TIN ĐĂNG VÀ MÔ TẢ CHI TIẾT"
-        subtitle="Chỉ bắt buộc các thông tin dưới đây nếu bạn đăng tin."
-      />
-      <Field
-        label="Tiêu đề tin đăng"
-        icon={<Ionicons name="document-text" size={18} color={ORANGE} />}
-        placeholder="Ví dụ: Phòng trọ mới xây, đầy đủ tiện nghi, giá tốt"
-        value={title ? `Phòng trọ ${title} - ${addr} - Giá ${price} triệu` : ''}
-        onChangeText={setTitle}
-      />
-      {/* Mô tả */}
-      <View style={{ marginTop: 10 }}>
-        <Text style={{ fontWeight: '600', marginBottom: 6 }}>
-          Mô tả <Text style={{ color: ORANGE }}>*</Text>
-        </Text>
-        <View style={{
-          borderWidth: 1,
-          borderColor: GRAY,
-          borderRadius: 8,
-          padding: 8,
-          minHeight: 100,
-        }}>
-          <TextInput
-            placeholder="Nhập mô tả chi tiết về phòng trọ..."
-            placeholderTextColor={TEXT_MUTED}
-            value={desc}
-            onChangeText={setDesc}
-            multiline
-            style={{ flex: 1, textAlignVertical: 'top' }}
-          />
-        </View>
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      {/* Header*/}
+      <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginTop: 30 }}>
+        <Pressable onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
+          <Ionicons name="chevron-back" size={24} color="#111" />
+        </Pressable>
+        <Text style={{ fontSize: 18, fontWeight: '700' }}>Thêm phòng trọ</Text>
       </View>
 
-      <UploadBox
-        title="Ảnh phòng trọ"
-        subtitle="Tối đa 10 ảnh"
-        onPick={pickImages}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 180 }}
       >
-        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-          {images.map((img, i) => (
-            <View key={i} style={{ position: 'relative' }}>
-              <Image source={{ uri: img.uri }} style={{ width: 72, height: 72, borderRadius: 8 }} />
+        {/* ========== Thông tin phòng ========== */}
+        <SectionTitle title="Thông tin phòng" />
+        <Field
+          label="Số/Tên phòng" required
+          icon={<Ionicons name="home" size={18} color={ORANGE} />}
+          placeholder="Nhập số/tên phòng"
+          value={title}
+          onChangeText={setTitle}
+        />
+        <Field
+          label="Địa chỉ" required
+          icon={<Ionicons name="location" size={18} color={ORANGE} />}
+          placeholder="Nhập địa chỉ"
+          value={addr}
+          onChangeText={setAddr}
+        />
+        {/* Giá phòng */}
+        <Field
+          label="Giá phòng" required
+          icon={<MaterialCommunityIcons name="cash-multiple" size={18} color={ORANGE} />}
+          placeholder="Nhập giá phòng"
+          keyboardType="numeric"
+          value={price}
+          onChangeText={setPrice}
+        />
+        {/* Tiền cọc */}
+        <Field
+          label="Tiền cọc"
+          icon={<MaterialCommunityIcons name="cash-lock" size={18} color={ORANGE} />}
+          placeholder="Nhập tiền đặt cọc"
+          keyboardType="numeric"
+          value={deposit}
+          onChangeText={setDeposit}
+        />
+
+        {/* Diện tích */}
+        <Field
+          label="Diện tích (m²)"
+          required
+          icon={<MaterialCommunityIcons name="ruler-square" size={18} color={ORANGE} />}
+          placeholder="Nhập diện tích phòng"
+          keyboardType="numeric"
+          value={area}
+          onChangeText={setArea}
+        />
+        <Field
+          label="Tầng"
+          icon={<MaterialCommunityIcons name="stairs-up" size={18} color={ORANGE} />}
+          placeholder="Nhập tầng"
+          keyboardType="numeric"
+          value={floor}
+          onChangeText={setFloor}
+        />
+        <Field
+          label="Sức chứa (Người/phòng)"
+          icon={<Ionicons name="people-outline" size={18} color={ORANGE} />}
+          placeholder="Nhập số Người/Phòng"
+          keyboardType="numeric"
+          value={capacity}
+          onChangeText={setCapacity}
+        />
+        <Field
+          label="Số chỗ đỗ xe"
+          icon={<MaterialCommunityIcons name="numeric" size={18} color={ORANGE} />}
+          placeholder="Nhập số chỗ để xe"
+          keyboardType="numeric"
+          value={parking}
+          onChangeText={setParking}
+        />
+        <SectionTitle
+          title="TIÊU ĐỀ TIN ĐĂNG VÀ MÔ TẢ CHI TIẾT"
+          subtitle="Chỉ bắt buộc các thông tin dưới đây nếu bạn đăng tin."
+        />
+        <Field
+          label="Tiêu đề tin đăng"
+          icon={<Ionicons name="document-text" size={18} color={ORANGE} />}
+          placeholder="Ví dụ: Phòng trọ mới xây, đầy đủ tiện nghi, giá tốt"
+          value={title ? `Phòng trọ ${title} - ${addr} - Giá ${price} triệu` : ''}
+          onChangeText={setTitle}
+        />
+        {/* Mô tả */}
+        <View style={{ marginTop: 10 }}>
+          <Text style={{ fontWeight: '600', marginBottom: 6 }}>
+            Mô tả <Text style={{ color: ORANGE }}>*</Text>
+          </Text>
+          <View style={{
+            borderWidth: 1,
+            borderColor: GRAY,
+            borderRadius: 8,
+            padding: 8,
+            minHeight: 100,
+          }}>
+            <TextInput
+              placeholder="Nhập mô tả chi tiết về phòng trọ..."
+              placeholderTextColor={TEXT_MUTED}
+              value={desc}
+              onChangeText={setDesc}
+              multiline
+              style={{ flex: 1, textAlignVertical: 'top' }}
+            />
+          </View>
+        </View>
+
+        <UploadBox
+          title="Ảnh phòng trọ"
+          subtitle="Tối đa 10 ảnh"
+          onPick={pickImages}
+        >
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {images.map((img, i) => (
+              <View key={i} style={{ position: 'relative' }}>
+                <Image source={{ uri: img.uri }} style={{ width: 72, height: 72, borderRadius: 8 }} />
+                <TouchableOpacity
+                  onPress={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                  style={{
+                    position: 'absolute', top: -6, right: -6,
+                    backgroundColor: '#f87171', borderRadius: 12, padding: 2
+                  }}
+                >
+                  <Ionicons name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </UploadBox>
+
+        <UploadBox
+          title="Video phòng trọ"
+          onPick={pickVideo}
+        >
+          {video ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: TEXT_MUTED }}>{video.uri.split('/').pop()}</Text>
               <TouchableOpacity
-                onPress={() => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                onPress={() => setVideo(null)}
                 style={{
-                  position: 'absolute', top: -6, right: -6,
-                  backgroundColor: '#f87171', borderRadius: 12, padding: 2
+                  backgroundColor: '#f87171', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4
                 }}
               >
-                <Ionicons name="close" size={14} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 12 }}>Xóa</Text>
               </TouchableOpacity>
             </View>
-          ))}
+          ) : (
+            <Text style={{ color: TEXT_MUTED }}>Chưa chọn video.</Text>
+          )}
+        </UploadBox>
+
+      </ScrollView>
+
+
+
+      {/* Thanh hành động cố định dưới đáy */}
+      <View style={{
+        position: 'absolute',
+        bottom: 20, left: 0, right: 0,
+        backgroundColor: '#fff',
+        padding: 12,
+        borderTopWidth: 1, borderColor: '#E5E7EB'
+      }}>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity
+            onPress={handleSubmit}
+            style={{
+              flex: 1, height: 48, borderRadius: 12, backgroundColor: ORANGE,
+              alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Đăng phòng</Text>
+          </TouchableOpacity>
         </View>
-      </UploadBox>
-
-      <UploadBox
-        title="Video phòng trọ"
-        onPick={pickVideo}
-      >
-        {video ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={{ color: TEXT_MUTED }}>{video.uri.split('/').pop()}</Text>
-            <TouchableOpacity
-              onPress={() => setVideo(null)}
-              style={{
-                backgroundColor: '#f87171', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4
-              }}
-            >
-              <Text style={{ color: '#fff', fontSize: 12 }}>Xóa</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <Text style={{ color: TEXT_MUTED }}>Chưa chọn video.</Text>
-        )}
-      </UploadBox>
-
-    </ScrollView>
-
-
-
-    {/* Thanh hành động cố định dưới đáy */}
-    <View style={{
-      position: 'absolute',
-      bottom: 20, left: 0, right: 0,
-      backgroundColor: '#fff',
-      padding: 12,
-      borderTopWidth: 1, borderColor: '#E5E7EB'
-    }}>
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <TouchableOpacity
-          onPress={handleSubmit}
-          style={{
-            flex: 1, height: 48, borderRadius: 12, backgroundColor: ORANGE,
-            alignItems: 'center', justifyContent: 'center'
-          }}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}> {mode === "update" ? "Cập nhật phòng" : "Đăng phòng"} </Text>
-        </TouchableOpacity>
       </View>
     </View>
-  </View>
-);
+  );
 }
 
 /* ---------- Sub components (reuse CreateBuilding style) ---------- */

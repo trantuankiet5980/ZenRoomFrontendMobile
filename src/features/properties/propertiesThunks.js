@@ -20,6 +20,7 @@ export const createProperty = createAsyncThunk(
   async (payload, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post("/properties", payload);
+      console.log("createProperty response:", response.data);
       return response.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);

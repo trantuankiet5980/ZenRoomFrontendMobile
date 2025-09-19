@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TextInput, Pressable, Image, TouchableOpacity, Alert
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchFurnishings } from "../features/furnishings/furnishingsThunks";
-import { createProperty,updateProperty } from "../features/properties/propertiesThunks";
+import { createProperty, updateProperty } from "../features/properties/propertiesThunks";
 import { resetStatus } from "../features/properties/propertiesSlice";
 import * as ImagePicker from "expo-image-picker";
 import { fetchApartmentCategories } from '../features/apartmentCategory/apartmentThunks';
-
+import { uploadPropertyImages, uploadPropertyVideo } from "../features/propertyMedia/propertyMediaThunks";
 
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
@@ -23,8 +23,8 @@ export default function CreateBuildingScreen() {
 
   const nav = useNavigation();
   const dispatch = useDispatch();
-  const { route } = props;
-  const { mode, property } = route.params || {};
+  // const { route } = props;
+  // const { mode, property } = route.params || {};
 
   const [title, setTitle] = useState('');
   const [buildingName, setBuildingName] = useState('');
@@ -57,6 +57,32 @@ export default function CreateBuildingScreen() {
     state => state.apartment || {}
   );
 
+    const pickImages = async () => {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 1,
+      });
+  
+      if (!result.canceled) {
+        setImages(prev => [...prev, ...result.assets].slice(0, 10));
+      }
+    };
+    const pickVideo = async () => {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        quality: 1,
+      });
+  
+      if (!result.canceled) {
+        const video = result.assets[0];
+        if (video.fileSize && video.fileSize > 25 * 1024 * 1024) {
+          Alert.alert("Lỗi", "Video quá lớn, vui lòng chọn file dưới 50MB");
+          return;
+        }
+        setVideo(video);
+      }
+    };
   useEffect(() => {
     dispatch(fetchApartmentCategories());
   }, [dispatch]);
@@ -97,17 +123,44 @@ export default function CreateBuildingScreen() {
       })),
     };
     dispatch(createProperty(payload))
-      .unwrap()
-      .then(() => {
-        Alert.alert('Thành công', 'Tạo tòa nhà thành công!')
-      })
-      .catch(() => {
-        Alert.alert('Lỗi', error || 'Tạo tòa nhà thất bại!')
-      });
+          .unwrap()
+          .then((newProperty) => {
+            console.log("New property response:", newProperty); 
+            const propertyId = newProperty.id || newProperty.propertyId;
+            if (!propertyId) {
+              throw new Error("Property ID is missing in response");
+            }
+    
+            // Upload images if any
+            if (images.length > 0) {
+              dispatch(uploadPropertyImages({ propertyId, images }))
+                .unwrap()
+                .catch(err => {
+                  console.error("Upload ảnh thất bại", err);
+                  Alert.alert("Lỗi", "Không thể tải lên ảnh: " + (err.message || "Lỗi không xác định"));
+                });
+            }
+    
+            // Upload video if any
+            if (video) {
+              dispatch(uploadPropertyVideo({ propertyId, video }))
+                .unwrap()
+                .catch(err => {
+                  console.error("Upload video thất bại", err);
+                  Alert.alert("Lỗi", "Không thể tải lên video: " + (err.message || "Lỗi không xác định"));
+                });
+            }
+    
+            Alert.alert("Thành công", "Đăng căn hộ thành công!");
+            nav.navigate("PostsManager");
+          })
+          .catch((err) => {
+            console.error("Create property failed:", err);
+            Alert.alert("Lỗi", err.message || "Đăng căn hộ thất bại");
+          });
   };
   useEffect(() => {
     if (success) {
-      Alert.alert('Thành công', 'Tạo tòa nhà thành công!');
       setTitle('');
       setBuildingName('');
       setAddr('');
@@ -126,31 +179,9 @@ export default function CreateBuildingScreen() {
 
 
       dispatch(resetStatus());
-      nav.goBack();
+      nav.navigate('PostsManager');
     }
   }, [success]);
-
-  const pickImages = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setImages(prev => [...prev, ...result.assets].slice(0, 10)); // tối đa 10 ảnh
-    }
-  };
-  const pickVideo = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setVideo(result.assets[0]);
-    }
-  };
 
   const catMap = {
     CHUNG_CU: "Chung cư",
@@ -202,7 +233,7 @@ export default function CreateBuildingScreen() {
         <Field
           label="Diện tích (m²)"
           required
-          icon={<MaterialCommunityIcons name="square-foot" size={18} color={ORANGE} />}
+          icon={<MaterialIcons name="square-foot" size={18} color={ORANGE} />}
           placeholder="VD: 65"
           keyboardType="numeric"
           value={area}

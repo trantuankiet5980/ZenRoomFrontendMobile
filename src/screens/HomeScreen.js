@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { locations } from '../data/locationData';
 import { districtImages } from '../data/districtImages';
 import { fetchProperties } from "../features/properties/propertiesThunks";
+import S3Image from "../components/S3Image";
 
 export default function HomeScreen() {
   const screenWidth = Dimensions.get("window").width;
@@ -19,7 +20,6 @@ export default function HomeScreen() {
 
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  // expecting state.properties = { rooms: [], buildings: [], loading: boolean }
   const { rooms = [], buildings = [], loading } = useSelector(state => state.properties || {});
 
   const districtItems = (locations[selectedCity] || []).map((district, index) => ({
@@ -28,12 +28,10 @@ export default function HomeScreen() {
     imageUri: districtImages[district],
   }));
 
-  // helper format tiền
   const formatPrice = (p) => {
     const n = Number(p);
     return Number.isFinite(n) ? n.toLocaleString("vi-VN") : p;
   };
-
   useEffect(() => {
     dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
     dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
@@ -112,16 +110,18 @@ export default function HomeScreen() {
               borderRadius: 12,
               overflow: "hidden",
               marginBottom: 12,
-              width: "48%",  
+              width: "48%",
               marginHorizontal: 4,
             }}
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
-            <Image
-              source={{ uri: item.media?.[0]?.url || "https://picsum.photos/seed/room/600/400" }}
-              style={{ width: "100%", height: 120 }}
-              resizeMode="cover"
+            <S3Image
+              src={item.media?.[0]?.url}
+              cacheKey={item.updatedAt}
+              style={{ width: "100%", height: 120, borderRadius: 8 }}
+              alt={item.title}
             />
+
             <View style={{ padding: 8 }}>
               <Text style={{ fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{item.title}</Text>
 
@@ -164,15 +164,16 @@ export default function HomeScreen() {
               borderRadius: 12,
               overflow: "hidden",
               marginBottom: 12,
-              width: "48%",   
+              width: "48%",
               marginHorizontal: 4,
             }}
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
-            <Image
-              source={{ uri: item.media?.[0]?.url || "https://picsum.photos/seed/building/600/400" }}
-              style={{ width: "100%", height: 120 }}
-              resizeMode="cover"
+            <S3Image
+              src={item.media?.[0]?.url}
+              cacheKey={item.updatedAt}
+              style={{ width: "100%", height: 120, borderRadius: 8 }}
+              alt={item.title}
             />
             <View style={{ padding: 8 }}>
               <Text style={{ fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{item.title}</Text>
