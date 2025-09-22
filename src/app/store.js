@@ -10,6 +10,7 @@ import FavoritesReducer from '../features/favorites/favoritesSlice';
 import propertyMediaReducer from "../features/propertyMedia/propertyMediaSlice";
 import userReducer from "../features/user/userSlice";
 import notificationReducer from '../features/notifications/notificationsSlice';
+import chatReducer from '../features/chat/chatSlice';
 
 export const store = configureStore({
   reducer: {
@@ -24,6 +25,7 @@ export const store = configureStore({
     propertyMedia: propertyMediaReducer,
     user: userReducer,
     notifications: notificationReducer,
+    chat: chatReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
