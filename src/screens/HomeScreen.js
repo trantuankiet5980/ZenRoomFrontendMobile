@@ -191,7 +191,7 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
             <S3Image
-              src={item.media?.[0]?.url}
+              src={item.media?.[0]?.url || "https://picsum.photos/seed/c673bf07-8669-11f0-9f5e-d8bbc1740476b/800/600"}
               cacheKey={item.updatedAt}
               style={{ width: "100%", height: 120, borderRadius: 8 }}
               alt={item.title}

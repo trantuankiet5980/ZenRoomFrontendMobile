@@ -8,7 +8,7 @@ import {
   fetchUnreadCount,
   setTab as setTabAction,
   setSearch as setSearchAction,
-} from "../features/chat/chatSlice";
+} from "../features/chat/chatThunks";
 
 const ORANGE = "#f36031", MUTED = "#9CA3AF", BORDER = "#E5E7EB", GREEN = "#CBE7A7";
 
