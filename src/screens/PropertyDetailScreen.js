@@ -20,6 +20,7 @@ import { useRole } from "../hooks/useRole";
 import { Video } from "expo-av";
 import S3Image from "../components/S3Image";
 import { resolveAssetUrl } from "../utils/cdn";
+import { startConversation } from "../features/chat/chatThunks";
 
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
@@ -152,7 +153,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                     } catch (error) {
                                         alert(
                                             error?.message ||
-                                                "Không thể thêm vào danh sách yêu thích"
+                                            "Không thể thêm vào danh sách yêu thích"
                                         );
                                     }
                                 }
@@ -223,8 +224,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.price}>
                             {property.price
                                 ? `${Number(property.price).toLocaleString(
-                                      "vi-VN"
-                                  )} đ/tháng`
+                                    "vi-VN"
+                                )} đ/tháng`
                                 : "Thỏa thuận"}
                         </Text>
                     </View>
@@ -324,10 +325,27 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Icon name="flag-outline" size={18} color="#f36031" />
                         <Text style={styles.lightBtnText}>Báo cáo</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.lightBtn}>
+                    <TouchableOpacity
+                        style={styles.lightBtn}
+                        onPress={async () => {
+                            try {
+                                const conversation = await dispatch(
+                                    startConversation(property.propertyId)
+                                ).unwrap();
+                                navigation.navigate("ChatDetail", {
+                                    conversationId: conversation.conversationId,
+                                    conversation,
+                                });
+                            } catch (err) {
+                                console.warn("Tạo chat thất bại:", err?.message || err);
+                                alert("Không thể mở cuộc trò chuyện");
+                            }
+                        }}
+                    >
                         <Icon name="message-text-outline" size={18} color="#f36031" />
                         <Text style={styles.lightBtnText}>Chat</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity style={styles.primaryBtn}>
                         <Icon name="calendar-check" size={18} color="#fff" />
                         <Text style={styles.primaryBtnText}>Đặt phòng</Text>

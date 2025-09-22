@@ -34,7 +34,7 @@ const FavoritesScreen = ({ navigation }) => {
             <Icon name="chevron-left" size={26} color="#111" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Yêu thích</Text>
-          <View style={styles.headerBtn} /> {/* giữ cân bằng 2 bên */}
+          <View style={styles.headerBtn} />
         </View>
       </View>
 

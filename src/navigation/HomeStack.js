@@ -16,6 +16,7 @@ import PropertyDetailScreen from '../screens/PropertyDetailScreen';
 import CreatePostStack from './CreatePostStack';
 
 import NotificationsScreen from '../screens/NotificationsScreen';
+import ChatDetailScreen from '../screens/ChatDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -41,6 +42,7 @@ export default function HomeStack() {
 
       {/* Detail */}
       <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} options={{ title: 'Chi tiết bất động sản', headerShown: false }} />
+      <Stack.Screen name="ChatDetail" component={ChatDetailScreen} options={{ headerShown: false }} />
 
       {/* Create Post */}
       <Stack.Screen name="CreatePostStack" component={CreatePostStack} options={{ headerShown: false }} />
