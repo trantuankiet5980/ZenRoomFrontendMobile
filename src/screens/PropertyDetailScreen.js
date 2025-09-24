@@ -22,6 +22,7 @@ import S3Image from "../components/S3Image";
 import { resolveAssetUrl } from "../utils/cdn";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
+import { pushServerMessage } from "../features/chat/chatSlice";
 
 
 const PropertyDetailScreen = ({ route, navigation }) => {
@@ -331,47 +332,50 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         style={styles.lightBtn}
                         onPress={async () => {
                             try {
-                            // Gửi tin nhắn mở đầu → BE tự tạo hội thoại nếu chưa có
-                            const { serverMessage } = await dispatch(
+                                const { serverMessage } = await dispatch(
                                 sendMessage({
-                                propertyId: property.propertyId,
-                                content: "Xin chào anh/chị, phòng này còn trống không?",
+                                    propertyId: property.propertyId,
+                                    content: "Xin chào anh/chị, phòng này còn trống không?",
                                 })
-                            ).unwrap();
+                                ).unwrap();
 
-                            const convId =
+                                const convId =
                                 serverMessage?.conversation?.conversationId ||
                                 serverMessage?.conversationId;
 
-                            // Chuẩn bị propertyMini
-                            const mini = {
-                                propertyId: property.propertyId,
-                                title: property.title,
-                                address: property.address?.addressFull,
-                                price: property.price,
-                                thumbnail:
-                                (property.media?.find((m) => m.mediaType === "IMAGE")?.url) ||
-                                property.media?.[0]?.url ||
-                                null,
-                                landlordName: property.landlord?.fullName,
-                            };
+                                // ĐẨY NGAY bubble chào vào Redux để ChatDetail hiện tức thì
+                                if (convId) {
+                                // cập nhật lastMessage cho list + thêm message vào bucket
+                                dispatch(pushServerMessage(serverMessage));
 
-                            if (convId) {
+                                const mini = {
+                                    propertyId: property.propertyId,
+                                    title: property.title,
+                                    address: property.address?.addressFull,
+                                    price: property.price,
+                                    thumbnail:
+                                    (property.media?.find((m) => m.mediaType === "IMAGE")?.url) ||
+                                    property.media?.[0]?.url ||
+                                    null,
+                                    landlordName: property.landlord?.fullName,
+                                };
+
                                 navigation.navigate("ChatDetail", {
-                                conversationId: convId,
-                                title: property.landlord?.fullName || "Chủ nhà",
-                                avatar: property.landlord?.avatarUrl || null,
-                                propertyId: property.propertyId,
-                                propertyMini: mini,
+                                    conversationId: convId,
+                                    title: property.landlord?.fullName || "Chủ nhà",
+                                    avatar: property.landlord?.avatarUrl || null,
+                                    propertyId: property.propertyId,
+                                    propertyMini: mini,
+                                    initialMessage: serverMessage, // optional: để ChatDetail không phải đợi fetch
                                 });
-                            } else {
+                                } else {
                                 showToast("error", "top", "Thông báo", "Không lấy được hội thoại");
-                            }
+                                }
                             } catch (err) {
-                            console.warn("Tạo chat thất bại:", err?.message || err);
-                            showToast("error", "top", "Thông báo", "Không thể bắt đầu trò chuyện");
+                                console.warn("Tạo chat thất bại:", err?.message || err);
+                                showToast("error", "top", "Thông báo", "Không thể bắt đầu trò chuyện");
                             }
-                        }}
+                            }}
                         >
                         <Icon name="message-text-outline" size={18} color="#f36031" />
                         <Text style={styles.lightBtnText}>Chat</Text>
