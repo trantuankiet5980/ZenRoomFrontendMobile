@@ -1,100 +1,169 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchConversations, fetchMessages, sendMessage, fetchUnreadCount } from "./chatThunks";
+import {
+  fetchConversations,
+  fetchUnreadCount,
+  fetchMessages,
+  sendMessage,
+} from "./chatThunks";
 
 const initialState = {
-  conversations: [],
-  convLoading: false,
-  messagesByConv: {}, // { [conversationId]: { items: [] } }
   socketConnected: false,
+  conversations: [],           
+  convLoading: false,
+  messagesByConv: {},           
+  activeConversationId: null,  
 };
 
 const chatSlice = createSlice({
   name: "chat",
   initialState,
   reducers: {
-    pushLocalMessage(state, action) {
-      const { conversationId, content, me, tempId, fullname } = action.payload;
-      if (!conversationId) return;
-      const bucket = state.messagesByConv[conversationId] || (state.messagesByConv[conversationId] = { items: [] });
-      bucket.items.push({
-        tempId,
-        content,
-        createdAt: new Date().toISOString(),
-        sender: me,
-        fullname,
-      });
-    },
-    pushServerMessage(state, action) {
-      const msg = action.payload; // MessageDto từ socket
-      const conversationId = msg?.conversation?.conversationId;
-      if (!conversationId) return;
-      const bucket = state.messagesByConv[conversationId] || (state.messagesByConv[conversationId] = { items: [] });
-      if (!bucket.items.find((x) => x.messageId === msg.messageId)) {
-        bucket.items.push(msg);
-      }
-      // có thể cập nhật preview/unread ở conversations tùy ý
-    },
-    upsertConversationInbox(state, action) {
-      const evt = action.payload; // { conversationId, lastMessage, unread, updatedAt }
-      const i = state.conversations.findIndex(c => c.conversationId === evt.conversationId);
-      if (i >= 0) {
-        state.conversations[i].lastMessage = evt.lastMessage;
-        state.conversations[i].unread = evt.unread;
-        state.conversations[i].updatedAt = evt.updatedAt;
-      } else {
-        // lần đầu có convo từ socket (chưa load bằng REST)
-        state.conversations.unshift({
-          conversationId: evt.conversationId,
-          unread: evt.unread,
-          lastMessage: evt.lastMessage,
-          updatedAt: evt.updatedAt,
-          // tuỳ bạn: otherParty… nếu muốn nhét thêm trong event
-        });
-      }
-      // sort theo updatedAt nếu muốn
-      state.conversations.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    },
-    setUnread(state, action) {
-      const { conversationId, unread } = action.payload;
-      const conv = state.conversations.find((c) => c.conversationId === conversationId);
-      if (conv) conv.unread = unread;
-    },
     setSocketConnected(state, action) {
       state.socketConnected = !!action.payload;
-    }
+    },
+    setActiveConversation(state, action) {
+      state.activeConversationId = action.payload || null;
+    },
+
+    pushLocalMessage(state, action) {
+      const { conversationId, content, me, tempId, createdAt } = action.payload;
+      if (!conversationId) return;
+      const bucket = state.messagesByConv[conversationId] || { items: [] };
+      bucket.items = [
+        ...bucket.items,
+        {
+          messageId: tempId,
+          content,
+          sender: me,
+          createdAt: createdAt || new Date().toISOString(),
+        },
+      ];
+      state.messagesByConv[conversationId] = bucket;
+
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        state.conversations[idx] = {
+          ...state.conversations[idx],
+          lastMessage: content,
+        };
+      }
+    },
+
+    // Tin nhắn từ server (WS) — realtime
+    pushServerMessage(state, action) {
+      const m = action.payload;
+      const conversationId = m?.conversation?.conversationId || m?.conversationId;
+      if (!conversationId) return;
+
+      // append vào bucket
+      const bucket = state.messagesByConv[conversationId] || { items: [] };
+      bucket.items = [...bucket.items, m];
+      state.messagesByConv[conversationId] = bucket;
+
+      // cập nhật lastMessage
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        // nếu chưa có, thêm field lastMessage
+        const mine = false;
+        const conv = state.conversations[idx];
+        const isActive = state.activeConversationId === conversationId;
+
+        state.conversations[idx] = {
+          ...conv,
+          lastMessage: m.content || "",
+          // nếu hội thoại KHÔNG ở màn hình hiện tại và người gửi KHÔNG phải mình → +1 unread
+          unread:
+            !isActive && m.sender?.userId !== undefined && m.sender?.userId !== (state.meId || "__me__")
+              ? (conv.unread || 0) + 1
+              : conv.unread || 0,
+        };
+      }
+    },
+
+    // đọc hết (UI vừa mở chat/detail)
+    clearUnread(state, action) {
+      const conversationId = action.payload;
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        state.conversations[idx] = { ...state.conversations[idx], unread: 0 };
+      }
+    },
+
+    setLastMessage(state, action) {
+      const { conversationId, lastMessage } = action.payload;
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        state.conversations[idx] = { ...state.conversations[idx], lastMessage };
+      }
+    },
   },
+
   extraReducers: (builder) => {
     builder
-      .addCase(fetchConversations.pending, (s) => { s.convLoading = true; })
-      .addCase(fetchConversations.fulfilled, (s, { payload }) => {
-        s.convLoading = false;
-        s.conversations = payload || [];
+      // danh sách hội thoại
+      .addCase(fetchConversations.pending, (state) => {
+        state.convLoading = true;
       })
-      .addCase(fetchConversations.rejected, (s) => { s.convLoading = false; })
-
-      .addCase(fetchMessages.fulfilled, (s, { payload }) => {
-        const { conversationId, data } = payload;
-        const bucket = s.messagesByConv[conversationId] || (s.messagesByConv[conversationId] = { items: [] });
-        bucket.items = Array.isArray(data?.content) ? data.content : [];
+      .addCase(fetchConversations.fulfilled, (state, action) => {
+        state.convLoading = false;
+        // chuẩn hoá có unread & lastMessage
+        state.conversations = action.payload.map(c => ({
+          ...c,
+          unread: typeof c.unread === "number" ? c.unread : 0,
+          lastMessage: c.lastMessage || "",
+        }));
+      })
+      .addCase(fetchConversations.rejected, (state) => {
+        state.convLoading = false;
       })
 
-      .addCase(sendMessage.fulfilled, (s, { payload }) => {
-        const msg = payload?.serverMessage;
-        const cid = payload?.conversationId;
-        if (!cid || !msg) return;
-        const bucket = s.messagesByConv[cid] || (s.messagesByConv[cid] = { items: [] });
-        if (!bucket.items.find((x) => x.messageId === msg.messageId)) {
-          bucket.items.push(msg);
+      // đếm unread
+      .addCase(fetchUnreadCount.fulfilled, (state, action) => {
+        const { conversationId, unread } = action.payload || {};
+        const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+        if (idx >= 0) {
+          state.conversations[idx] = { ...state.conversations[idx], unread: unread ?? 0 };
         }
       })
 
-      .addCase(fetchUnreadCount.fulfilled, (s, { payload }) => {
-        const { conversationId, unread } = payload || {};
-        const conv = s.conversations.find((c) => c.conversationId === conversationId);
-        if (conv) conv.unread = unread;
+      // load messages
+      .addCase(fetchMessages.fulfilled, (state, action) => {
+        const { conversationId, data } = action.payload;
+        const items = (data?.content || data) ?? [];
+        state.messagesByConv[conversationId] = { items };
+      })
+
+      // sendMessage
+      .addCase(sendMessage.fulfilled, (state, action) => {
+        const { serverMessage } = action.payload || {};
+        if (!serverMessage) return;
+        const convId = serverMessage?.conversation?.conversationId || serverMessage?.conversationId;
+        if (!convId) return;
+
+        const bucket = state.messagesByConv[convId] || { items: [] };
+        // append
+        bucket.items = [...bucket.items, serverMessage];
+        state.messagesByConv[convId] = bucket;
+
+        // cập nhật lastMessage
+        const idx = state.conversations.findIndex(c => c.conversationId === convId);
+        if (idx >= 0) {
+          state.conversations[idx] = {
+            ...state.conversations[idx],
+            lastMessage: serverMessage.content || "",
+          };
+        }
       });
   },
 });
 
-export const { pushLocalMessage, pushServerMessage, setUnread, setSocketConnected, upsertConversationInbox } = chatSlice.actions;
+export const {
+  setSocketConnected,
+  setActiveConversation,
+  pushLocalMessage,
+  pushServerMessage,
+  clearUnread,
+  setLastMessage,
+} = chatSlice.actions;
+
 export default chatSlice.reducer;
