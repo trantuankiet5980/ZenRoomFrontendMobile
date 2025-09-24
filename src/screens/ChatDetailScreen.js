@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchMessages, sendMessage, markReadAll } from "../features/chat/chatThunks";
@@ -15,23 +15,27 @@ export default function ChatDetailScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const route = useRoute();
-  const { title = "Chat", avatar, conversationId: chatIdParam, peerId, propertyId } = route.params || {};
+  const { title = "Chat", avatar, conversationId: chatIdParam, peerId, propertyId, propertyMini } = route.params || {};
 
   const listRef = useRef();
   const me = useSelector((s) => s.auth.user);
   const [conversationId, setConversationId] = useState(chatIdParam);
-  const bucket = useSelector((s) => conversationId ? (s.chat.messagesByConv[conversationId] || { items: [] }) : { items: [] });
+  const bucket = useSelector((s) =>
+    conversationId ? (s.chat.messagesByConv[conversationId] || { items: [] }) : { items: [] }
+  );
 
   const [text, setText] = useState("");
 
+  // Lần đầu/mỗi khi đổi conversationId → load + mark read
   useEffect(() => {
     if (!conversationId) return;
     dispatch(setActiveConversation(conversationId));
     dispatch(clearUnread(conversationId));
     dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
     dispatch(markReadAll(conversationId));
-  }, [conversationId]);
+  }, [conversationId, dispatch]);
 
+  // Subscribe realtime cho 1 conversationId
   useEffect(() => {
     if (!conversationId) return;
 
@@ -41,11 +45,15 @@ export default function ChatDetailScreen() {
       const sub = client.subscribe(`/topic/chat.${conversationId}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
+
+          // Nếu là tin của đối phương → mark read
           if (dto?.sender?.userId && dto.sender.userId !== me.userId) {
             dispatch(markReadAll(conversationId));
           }
+
           dispatch(pushServerMessage(dto));
-          setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 20);
+          // Auto scroll xuống cuối
+          setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 16);
         } catch {}
       });
       return () => sub?.unsubscribe();
@@ -62,6 +70,7 @@ export default function ChatDetailScreen() {
     const content = text.trim();
     if (!content) return;
 
+    // Nếu đã có conv → push local (optimistic)
     if (conversationId) {
       const tempId = "tmp-" + Date.now();
       dispatch(pushLocalMessage({
@@ -77,13 +86,15 @@ export default function ChatDetailScreen() {
     try {
       const res = await dispatch(sendMessage({
         conversationId,
-        peerId,     
+        peerId,     // nếu chưa có conv → BE sẽ tự tạo từ peerId/propertyId
         propertyId,
         content
       })).unwrap();
 
+      // BE có thể trả về conv mới
       const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
       if (!conversationId && newCid) setConversationId(newCid);
+
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
     } catch (e) {}
   };
@@ -104,8 +115,44 @@ export default function ChatDetailScreen() {
     );
   };
 
+  const convRow = useSelector(s =>
+    conversationId ? s.chat.conversations.find(c => c.conversationId === conversationId) : null
+  );
+
+  const headerMini = route.params?.propertyMini || convRow?.propertyMini || null;
+
+  // Thẻ thông tin phòng ở đầu khung chat
+  const HeaderPropertyCard = () => {
+    const pm = headerMini;
+    if (!pm) return null;
+    return (
+      <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+          {pm.thumbnail ? (
+            <Image source={{ uri: pm.thumbnail }} style={{ width: 64, height: 64, borderRadius: 8 }} />
+          ) : (
+            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: "#EEE", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="image-outline" size={20} color="#999" />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ fontWeight: "700" }}>{pm.title || "Phòng trọ"}</Text>
+            {!!pm.address && <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>{pm.address}</Text>}
+            {!!pm.price && (
+              <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
+                {Number(pm.price).toLocaleString("vi-VN")} đ/ngày
+              </Text>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#fff" }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      {/* Header */}
       <View style={{ height: 56, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, marginTop: 30, borderBottomWidth: 1, borderColor: "#F5F5F5" }}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
           <Ionicons name="chevron-back" size={24} color="#111" />
@@ -114,14 +161,17 @@ export default function ChatDetailScreen() {
         <View style={{ flex: 1 }} />
       </View>
 
+      {/* Messages */}
       <FlatList
         ref={listRef}
         data={bucket.items}
-        keyExtractor={(it) => it.messageId || it.tempId}
+        ListHeaderComponent={<HeaderPropertyCard />}
+        keyExtractor={(it, idx) => `${it.messageId || it.tempId || "k"}-${it.createdAt || idx}`}
         renderItem={renderItem}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
       />
 
+      {/* Composer */}
       <View style={{ flexDirection: "row", alignItems: "center", padding: 10, borderTopWidth: 1, borderColor: BORDER, marginBottom: 20 }}>
         <TextInput
           value={text}
