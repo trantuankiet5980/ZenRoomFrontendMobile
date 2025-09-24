@@ -20,7 +20,9 @@ import { useRole } from "../hooks/useRole";
 import { Video } from "expo-av";
 import S3Image from "../components/S3Image";
 import { resolveAssetUrl } from "../utils/cdn";
-import { startConversation } from "../features/chat/chatThunks";
+import { sendMessage } from "../features/chat/chatThunks";
+import { showToast } from "../utils/AppUtils";
+
 
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
@@ -329,22 +331,51 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         style={styles.lightBtn}
                         onPress={async () => {
                             try {
-                                const conversation = await dispatch(
-                                    startConversation(property.propertyId)
-                                ).unwrap();
+                            // Gửi tin nhắn mở đầu → BE tự tạo hội thoại nếu chưa có
+                            const { serverMessage } = await dispatch(
+                                sendMessage({
+                                propertyId: property.propertyId,
+                                content: "Xin chào anh/chị, phòng này còn trống không?",
+                                })
+                            ).unwrap();
+
+                            const convId =
+                                serverMessage?.conversation?.conversationId ||
+                                serverMessage?.conversationId;
+
+                            // Chuẩn bị propertyMini
+                            const mini = {
+                                propertyId: property.propertyId,
+                                title: property.title,
+                                address: property.address?.addressFull,
+                                price: property.price,
+                                thumbnail:
+                                (property.media?.find((m) => m.mediaType === "IMAGE")?.url) ||
+                                property.media?.[0]?.url ||
+                                null,
+                                landlordName: property.landlord?.fullName,
+                            };
+
+                            if (convId) {
                                 navigation.navigate("ChatDetail", {
-                                    conversationId: conversation.conversationId,
-                                    conversation,
+                                conversationId: convId,
+                                title: property.landlord?.fullName || "Chủ nhà",
+                                avatar: property.landlord?.avatarUrl || null,
+                                propertyId: property.propertyId,
+                                propertyMini: mini,
                                 });
+                            } else {
+                                showToast("error", "top", "Thông báo", "Không lấy được hội thoại");
+                            }
                             } catch (err) {
-                                console.warn("Tạo chat thất bại:", err?.message || err);
-                                alert("Không thể mở cuộc trò chuyện");
+                            console.warn("Tạo chat thất bại:", err?.message || err);
+                            showToast("error", "top", "Thông báo", "Không thể bắt đầu trò chuyện");
                             }
                         }}
-                    >
+                        >
                         <Icon name="message-text-outline" size={18} color="#f36031" />
                         <Text style={styles.lightBtnText}>Chat</Text>
-                    </TouchableOpacity>
+                        </TouchableOpacity>
 
                     <TouchableOpacity style={styles.primaryBtn}>
                         <Icon name="calendar-check" size={18} color="#fff" />
