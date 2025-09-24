@@ -94,6 +94,7 @@ export default function ChatListScreen() {
         conversationId: item.id,
         title: item.name,
         avatar: item.avatar,
+        propertyMini: null,
       })}
       style={{
         marginHorizontal: 16, marginTop: 12, borderRadius: 16, backgroundColor: "#fff",

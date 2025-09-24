@@ -15,7 +15,7 @@ export default function ChatDetailScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const route = useRoute();
-  const { title = "Chat", avatar, conversationId: chatIdParam, peerId, propertyId, propertyMini } = route.params || {};
+  const { title = "Chat", avatar, conversationId: chatIdParam, peerId, propertyId, propertyMini, initialMessage } = route.params || {};
 
   const listRef = useRef();
   const me = useSelector((s) => s.auth.user);
@@ -25,17 +25,31 @@ export default function ChatDetailScreen() {
   );
 
   const [text, setText] = useState("");
+  const [headerMini, setHeaderMini] = useState(propertyMini || null);
 
-  // Lần đầu/mỗi khi đổi conversationId → load + mark read
+  useEffect(() => {
+    setHeaderMini(propertyMini || null);
+    setConversationId(chatIdParam || conversationId);
+  }, [chatIdParam, propertyMini]);
+
+  useEffect(() => {
+    if (headerMini) return;
+    const arr = bucket.items || [];
+    const found = [...arr].reverse().find(m => m?.property && m.property.propertyId); // ưu tiên tin mới nhất có property
+    if (found?.property) setHeaderMini(found.property);
+  }, [bucket.items, headerMini]);
+
   useEffect(() => {
     if (!conversationId) return;
-    dispatch(setActiveConversation(conversationId));
-    dispatch(clearUnread(conversationId));
-    dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
-    dispatch(markReadAll(conversationId));
+      const empty = !bucket.items || bucket.items.length === 0;
+    if (initialMessage && empty) {
+      dispatch(setActiveConversation(conversationId));
+      dispatch(clearUnread(conversationId));
+      dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
+      dispatch(markReadAll(conversationId));
+    }
   }, [conversationId, dispatch]);
 
-  // Subscribe realtime cho 1 conversationId
   useEffect(() => {
     if (!conversationId) return;
 
@@ -46,7 +60,6 @@ export default function ChatDetailScreen() {
         try {
           const dto = JSON.parse(msg.body);
 
-          // Nếu là tin của đối phương → mark read
           if (dto?.sender?.userId && dto.sender.userId !== me.userId) {
             dispatch(markReadAll(conversationId));
           }
@@ -70,7 +83,6 @@ export default function ChatDetailScreen() {
     const content = text.trim();
     if (!content) return;
 
-    // Nếu đã có conv → push local (optimistic)
     if (conversationId) {
       const tempId = "tmp-" + Date.now();
       dispatch(pushLocalMessage({
@@ -86,12 +98,11 @@ export default function ChatDetailScreen() {
     try {
       const res = await dispatch(sendMessage({
         conversationId,
-        peerId,     // nếu chưa có conv → BE sẽ tự tạo từ peerId/propertyId
+        peerId,     
         propertyId,
         content
       })).unwrap();
 
-      // BE có thể trả về conv mới
       const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
       if (!conversationId && newCid) setConversationId(newCid);
 
@@ -119,8 +130,6 @@ export default function ChatDetailScreen() {
     conversationId ? s.chat.conversations.find(c => c.conversationId === conversationId) : null
   );
 
-  const headerMini = route.params?.propertyMini || convRow?.propertyMini || null;
-
   // Thẻ thông tin phòng ở đầu khung chat
   const HeaderPropertyCard = () => {
     const pm = headerMini;
@@ -128,15 +137,15 @@ export default function ChatDetailScreen() {
     return (
       <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          {pm.thumbnail ? (
-            <Image source={{ uri: pm.thumbnail }} style={{ width: 64, height: 64, borderRadius: 8 }} />
+          {pm.thumbnailUrl ? (
+            <Image source={{ uri: pm.thumbnailUrl }} style={{ width: 64, height: 64, borderRadius: 8 }} />
           ) : (
             <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: "#EEE", alignItems: "center", justifyContent: "center" }}>
               <Ionicons name="image-outline" size={20} color="#999" />
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontWeight: "700" }}>{pm.title || "Phòng trọ"}</Text>
+            <Text numberOfLines={1} style={{ fontWeight: "700" }}>{pm.title || "Phòng"}</Text>
             {!!pm.address && <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>{pm.address}</Text>}
             {!!pm.price && (
               <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
@@ -148,7 +157,6 @@ export default function ChatDetailScreen() {
       </View>
     );
   };
-
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#fff" }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
