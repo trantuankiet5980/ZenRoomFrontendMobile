@@ -14,7 +14,8 @@ export function initSocket(token) {
   client = new Client({
     webSocketFactory: () => new WebSocket(WS_URL, ['v12.stomp']),
     connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
-    debug: (str) => console.log("[WS]", str),
+    // debug: (str) => console.log("[WS]", str),
+    debug: () => {},
     reconnectDelay: 3000,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,

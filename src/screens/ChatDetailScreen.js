@@ -5,7 +5,7 @@ import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/nativ
 import useHideTabBar from "../hooks/useHideTabBar";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchMessages, sendMessage, markReadAll } from "../features/chat/chatThunks";
-import { pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
+import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
@@ -24,14 +24,14 @@ export default function ChatDetailScreen() {
 
   const [text, setText] = useState("");
 
-  // (A) Load + markReadAll khi mở màn
   useEffect(() => {
     if (!conversationId) return;
+    dispatch(setActiveConversation(conversationId));
+    dispatch(clearUnread(conversationId));
     dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
     dispatch(markReadAll(conversationId));
   }, [conversationId]);
 
-  // (B) Subscribe topic hội thoại → nhận tin mới realtime
   useEffect(() => {
     if (!conversationId) return;
 
@@ -41,7 +41,6 @@ export default function ChatDetailScreen() {
       const sub = client.subscribe(`/topic/chat.${conversationId}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
-          // nếu tin từ đối phương, tự mark read (giữ UI luôn 0 unread)
           if (dto?.sender?.userId && dto.sender.userId !== me.userId) {
             dispatch(markReadAll(conversationId));
           }
@@ -63,7 +62,6 @@ export default function ChatDetailScreen() {
     const content = text.trim();
     if (!content) return;
 
-    // lạc quan
     if (conversationId) {
       const tempId = "tmp-" + Date.now();
       dispatch(pushLocalMessage({
@@ -79,7 +77,7 @@ export default function ChatDetailScreen() {
     try {
       const res = await dispatch(sendMessage({
         conversationId,
-        peerId,        // nếu chưa có conv → BE auto tạo dựa vào peerId/propertyId
+        peerId,     
         propertyId,
         content
       })).unwrap();
