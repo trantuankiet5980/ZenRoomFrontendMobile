@@ -1,148 +1,193 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import useHideTabBar from '../hooks/useHideTabBar';
+import React, { useState, useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import useHideTabBar from "../hooks/useHideTabBar";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchMessages, sendMessage } from "../features/chat/chatThunks";
-import { pushLocalMessage } from "../features/chat/chatSlice";
+import { fetchMessages, sendMessage, markReadAll } from "../features/chat/chatThunks";
+import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
+import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 
-const ORANGE = '#f36031', BORDER = '#E5E7EB', MUTED = '#9CA3AF';
+const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 
 export default function ChatDetailScreen() {
   useHideTabBar();
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const route = useRoute();
-  const { name = "Chat", chatId } = route.params || {};
-  const listRef = useRef();
+  const { title = "Chat", avatar, conversationId: chatIdParam, peerId, propertyId, propertyMini, initialMessage } = route.params || {};
 
-  const bucket = useSelector(s => s.chat.messagesByConv[chatId]) || { items: [] };
-  const me = useSelector(s => s.auth.user); // user hiện tại
+  const listRef = useRef();
+  const me = useSelector((s) => s.auth.user);
+  const [conversationId, setConversationId] = useState(chatIdParam);
+  const bucket = useSelector((s) =>
+    conversationId ? (s.chat.messagesByConv[conversationId] || { items: [] }) : { items: [] }
+  );
 
   const [text, setText] = useState("");
+  const [headerMini, setHeaderMini] = useState(propertyMini || null);
 
   useEffect(() => {
-    dispatch(fetchMessages({ conversationId: chatId, page: 0, size: 20 }));
-  }, [chatId]);
+    setHeaderMini(propertyMini || null);
+    setConversationId(chatIdParam || conversationId);
+  }, [chatIdParam, propertyMini]);
 
-  const send = () => {
-    if (!text.trim()) return;
-    const tempId = "tmp-" + Date.now();
+  useEffect(() => {
+    if (headerMini) return;
+    const arr = bucket.items || [];
+    const found = [...arr].reverse().find(m => m?.property && m.property.propertyId); // ưu tiên tin mới nhất có property
+    if (found?.property) setHeaderMini(found.property);
+  }, [bucket.items, headerMini]);
 
-    // 1. push local ngay lập tức
-    dispatch(pushLocalMessage({
-      conversationId: chatId,
-      content: text.trim(),
-      fullname: me.fullName || me.name,
-      me,
-      tempId,
-    }));
+  useEffect(() => {
+    if (!conversationId) return;
+      const empty = !bucket.items || bucket.items.length === 0;
+    if (initialMessage && empty) {
+      dispatch(setActiveConversation(conversationId));
+      dispatch(clearUnread(conversationId));
+      dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
+      dispatch(markReadAll(conversationId));
+    }
+  }, [conversationId, dispatch]);
 
-    // 2. gọi API
-    dispatch(sendMessage({ conversationId: chatId, content: text.trim() }));
+  useEffect(() => {
+    if (!conversationId) return;
 
+    const doSubscribe = () => {
+      const client = getClient();
+      if (!client?.connected) return;
+      const sub = client.subscribe(`/topic/chat.${conversationId}`, (msg) => {
+        try {
+          const dto = JSON.parse(msg.body);
+
+          if (dto?.sender?.userId && dto.sender.userId !== me.userId) {
+            dispatch(markReadAll(conversationId));
+          }
+
+          dispatch(pushServerMessage(dto));
+          // Auto scroll xuống cuối
+          setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 16);
+        } catch {}
+      });
+      return () => sub?.unsubscribe();
+    };
+
+    let cleanup;
+    if (isConnected()) cleanup = doSubscribe();
+    else ensureConnected(() => { cleanup = doSubscribe(); }, conversationId);
+
+    return () => { cleanup && cleanup(); };
+  }, [conversationId, me?.userId, dispatch]);
+
+  const doSend = async () => {
+    const content = text.trim();
+    if (!content) return;
+
+    if (conversationId) {
+      const tempId = "tmp-" + Date.now();
+      dispatch(pushLocalMessage({
+        conversationId,
+        content,
+        fullname: me.fullName || me.name,
+        me,
+        tempId,
+      }));
+    }
     setText("");
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+
+    try {
+      const res = await dispatch(sendMessage({
+        conversationId,
+        peerId,     
+        propertyId,
+        content
+      })).unwrap();
+
+      const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
+      if (!conversationId && newCid) setConversationId(newCid);
+
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+    } catch (e) {}
   };
 
- const renderItem = ({ item }) => {
-  const mine = item.sender?.userId === me.userId;
-
-  // Lấy fullname từ server (item.sender.fullName) hoặc local (item.fullname)
-  const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
-
-  return (
-    <View
-      style={{
-        paddingHorizontal: 16,
-        marginTop: 10,
-        alignItems: mine ? "flex-end" : "flex-start",
-      }}
-    >
-      {/* Nếu không phải tin nhắn của mình thì hiển thị tên phía trên bubble */}
-      {!mine && (
-        <Text
-          style={{
-            fontSize: 12,
-            fontWeight: "600",
-            color: "#374151",
-            marginBottom: 2,
-            marginLeft: 4,
-          }}
-        >
-          {senderName}
+  const renderItem = ({ item }) => {
+    const mine = item.sender?.userId === me.userId;
+    const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
+    return (
+      <View style={{ paddingHorizontal: 16, marginTop: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
+        {!mine && <Text style={{ fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 2, marginLeft: 4 }}>{senderName}</Text>}
+        <View style={{ maxWidth: "80%", padding: 10, borderRadius: 14, backgroundColor: mine ? ORANGE : "#F2F4F5" }}>
+          <Text style={{ color: mine ? "#fff" : "#111" }}>{item.content}</Text>
+        </View>
+        <Text style={{ color: MUTED, fontSize: 11, marginTop: 4, textAlign: mine ? "right" : "left" }}>
+          {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </Text>
-      )}
-
-      {/* Bubble */}
-      <View
-        style={{
-          maxWidth: "80%",
-          padding: 10,
-          borderRadius: 14,
-          backgroundColor: mine ? ORANGE : "#F2F4F5",
-        }}
-      >
-        <Text style={{ color: mine ? "#fff" : "#111" }}>{item.content}</Text>
       </View>
+    );
+  };
 
-      {/* Thời gian */}
-      <Text
-        style={{
-          color: MUTED,
-          fontSize: 11,
-          marginTop: 4,
-          textAlign: mine ? "right" : "left",
-        }}
-      >
-        {new Date(item.createdAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-      </Text>
-    </View>
+  const convRow = useSelector(s =>
+    conversationId ? s.chat.conversations.find(c => c.conversationId === conversationId) : null
   );
-};
 
-
-
+  // Thẻ thông tin phòng ở đầu khung chat
+  const HeaderPropertyCard = () => {
+    const pm = headerMini;
+    if (!pm) return null;
+    return (
+      <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+          {pm.thumbnailUrl ? (
+            <Image source={{ uri: pm.thumbnailUrl }} style={{ width: 64, height: 64, borderRadius: 8 }} />
+          ) : (
+            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: "#EEE", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="image-outline" size={20} color="#999" />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ fontWeight: "700" }}>{pm.title || "Phòng"}</Text>
+            {!!pm.address && <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>{pm.address}</Text>}
+            {!!pm.price && (
+              <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
+                {Number(pm.price).toLocaleString("vi-VN")} đ/ngày
+              </Text>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#fff" }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       {/* Header */}
-      <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginTop: 30, borderBottomWidth: 1, borderColor: '#F5F5F5' }}>
+      <View style={{ height: 56, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, marginTop: 30, borderBottomWidth: 1, borderColor: "#F5F5F5" }}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
           <Ionicons name="chevron-back" size={24} color="#111" />
         </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontWeight: '700' }}>{name}</Text>
+        <Text style={{ fontSize: 18, fontWeight: "700" }}>{title}</Text>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity style={{ padding: 6 }}>
-          <Ionicons name="call-outline" size={20} color="#111" />
-        </TouchableOpacity>
       </View>
 
       {/* Messages */}
       <FlatList
         ref={listRef}
         data={bucket.items}
-        keyExtractor={it => it.messageId || it.tempId}
+        ListHeaderComponent={<HeaderPropertyCard />}
+        keyExtractor={(it, idx) => `${it.messageId || it.tempId || "k"}-${it.createdAt || idx}`}
         renderItem={renderItem}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
       />
 
       {/* Composer */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderTopWidth: 1, borderColor: BORDER, marginBottom: 20 }}>
-        <TouchableOpacity style={{ paddingHorizontal: 6 }}>
-          <Ionicons name="add-circle-outline" size={24} color={ORANGE} />
-        </TouchableOpacity>
+      <View style={{ flexDirection: "row", alignItems: "center", padding: 10, borderTopWidth: 1, borderColor: BORDER, marginBottom: 20 }}>
         <TextInput
           value={text}
           onChangeText={setText}
           placeholder="Nhập tin nhắn..."
-          style={{ flex: 1, backgroundColor: '#F7F7F7', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 8 }}
+          style={{ flex: 1, backgroundColor: "#F7F7F7", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 8 }}
         />
-        <TouchableOpacity onPress={send} style={{ paddingHorizontal: 6 }}>
+        <TouchableOpacity onPress={doSend} style={{ paddingHorizontal: 6 }}>
           <Ionicons name="send" size={22} color={ORANGE} />
         </TouchableOpacity>
       </View>

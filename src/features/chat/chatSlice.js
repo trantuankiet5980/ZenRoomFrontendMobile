@@ -1,164 +1,222 @@
-import { createSlice, nanoid } from "@reduxjs/toolkit";
+import { createSlice } from "@reduxjs/toolkit";
 import {
   fetchConversations,
   fetchUnreadCount,
   fetchMessages,
   sendMessage,
-  markReadAll,
 } from "./chatThunks";
 
-const initialBucket = () => ({
-  items: [],
-  page: 0,
-  size: 20,
-  totalPages: 1,
-  loading: false,
-  error: null,
-  hasMore: false,
-});
+const initialState = {
+  socketConnected: false,
+  conversations: [],           
+  convLoading: false,
+  messagesByConv: {},           
+  activeConversationId: null,  
+};
+
+function toPropertyMini(prop) {
+  if (!prop) return null;
+  return {
+    propertyId: prop.propertyId,
+    title: prop.title,
+    address: prop.address?.addressFull || "",
+    price: prop.price,
+    thumbnail: (prop.media && prop.media[0]?.url) ? prop.media[0].url : null,
+  };
+}
 
 const chatSlice = createSlice({
   name: "chat",
-  initialState: {
-    conversations: [],
-    convLoading: false,
-    convError: null,
-
-    messagesByConv: {},
-    sending: {},
-    activeConvId: null,
-
-    search: "",
-    tab: "all",
-  },
+  initialState,
   reducers: {
-    setActiveConv(state, { payload }) {
-      state.activeConvId = payload || null;
+    setSocketConnected(state, action) {
+      state.socketConnected = !!action.payload;
     },
-    setSearch(state, { payload }) {
-      state.search = payload ?? "";
-    },
-    setTab(state, { payload }) {
-      state.tab = payload || "all";
+    setActiveConversation(state, action) {
+      state.activeConversationId = action.payload || null;
     },
 
-    pushLocalMessage(state, { payload }) {
-      const { conversationId, content, me, tempId } = payload;
-      const bucket = state.messagesByConv[conversationId] ||= initialBucket();
-
+    pushLocalMessage(state, action) {
+      const { conversationId, content, me, tempId, createdAt } = action.payload;
+      if (!conversationId) return;
+      const bucket = state.messagesByConv[conversationId] || { items: [] };
       bucket.items = [
         ...bucket.items,
         {
           messageId: tempId,
           content,
-          createdAt: new Date().toISOString(),
-          sender: me ? { userId: me.userId, fullName: me.fullName } : null,
-          isRead: true,
-          __temp: true,
+          sender: me,
+          createdAt: createdAt || new Date().toISOString(),
         },
       ];
+      state.messagesByConv[conversationId] = bucket;
+
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        state.conversations[idx] = {
+          ...state.conversations[idx],
+          lastMessage: content,
+        };
+      }
     },
 
+    // Tin nhắn từ server (WS) — realtime
+     pushServerMessage(state, action) {
+      const m = action.payload;
+      const convId = m?.conversation?.conversationId || m?.conversationId;
+      if (!convId) return;
 
-    replaceTempMessage(state, { payload }) {
-      const { conversationId, tempId, serverMessage } = payload;
-      const bucket = state.messagesByConv[conversationId];
-      if (!bucket) return;
-      const i = bucket.items.findIndex(m => m.messageId === tempId);
-      if (i >= 0) bucket.items[i] = serverMessage;
-      else bucket.items = [...bucket.items, serverMessage];
+      // 1) append message
+      const bucket = state.messagesByConv[convId] || { items: [] };
+      // chống trùng nếu WS về cùng tin: so sánh messageId
+      const exists = bucket.items.some(x => x.messageId === m.messageId);
+      if (!exists) {
+        bucket.items = [...bucket.items, m];
+        state.messagesByConv[convId] = bucket;
+      }
+
+      // 2) upsert conversation row (để ChatList & ChatDetail dùng lại)
+      const idx = state.conversations.findIndex(c => c.conversationId === convId);
+      const propMini = toPropertyMini(m?.conversation?.property);
+      const last = m.content || "";
+
+      if (idx >= 0) {
+        const conv = state.conversations[idx];
+        const isActive = state.activeConversationId === convId;
+        const senderId = m?.sender?.userId;
+
+        state.conversations[idx] = {
+          ...conv,
+          lastMessage: last || conv.lastMessage || "",
+          propertyMini: propMini || conv.propertyMini || null,
+          unread: !isActive && senderId && senderId !== state.meId
+            ? (conv.unread || 0) + 1
+            : (conv.unread || 0),
+        };
+      } else {
+        // chưa có trong danh sách (VD: gửi tin từ property lần đầu)
+        state.conversations.unshift({
+          conversationId: convId,
+          tenant: m?.conversation?.tenant || null,
+          landlord: m?.conversation?.landlord || null,
+          createdAt: m?.conversation?.createdAt || new Date().toISOString(),
+          lastMessage: last,
+          propertyMini: propMini || null,
+          unread: 0,
+        });
+      }
+    },
+
+    // đọc hết (UI vừa mở chat/detail)
+    clearUnread(state, action) {
+      const conversationId = action.payload;
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        state.conversations[idx] = { ...state.conversations[idx], unread: 0 };
+      }
+    },
+
+    setLastMessage(state, action) {
+      const { conversationId, lastMessage } = action.payload;
+      const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+      if (idx >= 0) {
+        state.conversations[idx] = { ...state.conversations[idx], lastMessage };
+      }
     },
   },
-  extraReducers: (b) => {
-    /** Conversations */
-    b.addCase(fetchConversations.pending, (s) => {
-      s.convLoading = true; s.convError = null;
-    });
-    b.addCase(fetchConversations.fulfilled, (s, { payload }) => {
-      s.convLoading = false;
-      s.conversations = payload;
-    });
-    b.addCase(fetchConversations.rejected, (s, { payload }) => {
-      s.convLoading = false;
-      s.convError = payload?.message || "Load conversations failed";
-    });
 
-    /** Unread */
-    b.addCase(fetchUnreadCount.fulfilled, (s, { payload }) => {
-      const { conversationId, unread } = payload;
-      const c = s.conversations.find(x => x.conversationId === conversationId);
-      if (c) c.unread = unread;
-    });
+  extraReducers: (builder) => {
+    builder
+      // danh sách hội thoại
+      .addCase(fetchConversations.pending, (state) => {
+        state.convLoading = true;
+      })
+      .addCase(fetchConversations.fulfilled, (state, action) => {
+        state.convLoading = false;
+        const mapOld = new Map(state.conversations.map(c => [c.conversationId, c]));
+        state.conversations = (action.payload || []).map(c => {
+          const old = mapOld.get(c.conversationId);
+          return {
+            ...c,
+            lastMessage: c.lastMessage || old?.lastMessage || "",
+            propertyMini: c.propertyMini || old?.propertyMini || null,
+            unread: typeof c.unread === "number" ? c.unread : (old?.unread || 0),
+          };
+        });
+      })
+      .addCase(fetchConversations.rejected, (state) => {
+        state.convLoading = false;
+      })
 
-    /** Messages */
-    b.addCase(fetchMessages.pending, (s, { meta }) => {
-      const { conversationId } = meta.arg;
-      const bucket = s.messagesByConv[conversationId] ||= initialBucket();
-      bucket.loading = true; bucket.error = null;
-    });
-    b.addCase(fetchMessages.fulfilled, (s, { payload }) => {
-      const { conversationId, page, data } = payload;
-      const bucket = s.messagesByConv[conversationId] ||= initialBucket();
-      bucket.loading = false;
-      bucket.page = data.number;
-      bucket.size = data.size;
-      bucket.totalPages = data.totalPages;
-      bucket.hasMore = !data.last;
+      // đếm unread
+      .addCase(fetchUnreadCount.fulfilled, (state, action) => {
+        const { conversationId, unread } = action.payload || {};
+        const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+        if (idx >= 0) {
+          state.conversations[idx] = { ...state.conversations[idx], unread: unread ?? 0 };
+        }
+      })
 
-      const raw = Array.isArray(data.content) ? data.content : [];
-      const list = raw.map(m => ({
-        ...m,
-        sender: m.sender && typeof m.sender === "object"
-          ? m.sender
-          : { userId: m.senderId }
-      }));
+      // load messages
+      .addCase(fetchMessages.fulfilled, (state, action) => {
+        const { conversationId, data } = action.payload;
+        const items = (data?.content || data) ?? [];
+        state.messagesByConv[conversationId] = { items };
 
-      if (page === 0) bucket.items = list;
-      else bucket.items = [...list, ...bucket.items];
-    });
-    b.addCase(fetchMessages.rejected, (s, { meta, payload }) => {
-      const { conversationId } = meta.arg;
-      const bucket = s.messagesByConv[conversationId] ||= initialBucket();
-      bucket.loading = false;
-      bucket.error = payload?.message || "Load messages failed";
-    });
+        const last = items.length ? items[items.length - 1].content : "";
+        const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
+        if (idx >= 0 && last) {
+          state.conversations[idx] = {
+            ...state.conversations[idx],
+            lastMessage: state.conversations[idx].lastMessage || last,
+          };
+        }
+      })
 
-    /** Send */
-    b.addCase(sendMessage.pending, (s, { meta }) => {
-      const { conversationId } = meta.arg;
-      s.sending[conversationId] = true;
-    });
-    b.addCase(sendMessage.fulfilled, (s, { payload }) => {
-      const { conversationId, serverMessage } = payload;
-      const bucket = s.messagesByConv[conversationId] ||= initialBucket();
+      // sendMessage
+      .addCase(sendMessage.fulfilled, (state, action) => {
+        const sm = action.payload?.serverMessage;
+        if (!sm) return;
+        const convId = sm?.conversation?.conversationId || sm?.conversationId;
+        if (!convId) return;
 
-      const idx = bucket.items.findIndex(m => m.__temp);
-      if (idx >= 0) {
-        bucket.items[idx] = serverMessage;
-      } else {
-        bucket.items = [...bucket.items, serverMessage];
-      }
-    });
-    b.addCase(sendMessage.rejected, (s, { meta }) => {
-      const { conversationId } = meta.arg;
-      s.sending[conversationId] = false;
-    });
+        const bucket = state.messagesByConv[convId] || { items: [] };
+        const exists = bucket.items.some(x => x.messageId === sm.messageId);
+        if (!exists) {
+          bucket.items = [...bucket.items, sm];
+          state.messagesByConv[convId] = bucket;
+        }
 
-    /** Read all */
-    b.addCase(markReadAll.fulfilled, (s, { payload }) => {
-      const { conversationId } = payload;
-      const conv = s.conversations.find(c => c.conversationId === conversationId);
-      if (conv) conv.unread = 0;
-
-      const bucket = s.messagesByConv[conversationId];
-      if (bucket) {
-        bucket.items = bucket.items.map(m => ({ ...m, isRead: true }));
-      }
-    });
+        const idx = state.conversations.findIndex(c => c.conversationId === convId);
+        const propMini = toPropertyMini(sm?.conversation?.property);
+        if (idx >= 0) {
+          state.conversations[idx] = {
+            ...state.conversations[idx],
+            lastMessage: sm.content || state.conversations[idx].lastMessage || "",
+            propertyMini: propMini || state.conversations[idx].propertyMini || null,
+          };
+        } else {
+          state.conversations.unshift({
+            conversationId: convId,
+            tenant: sm?.conversation?.tenant || null,
+            landlord: sm?.conversation?.landlord || null,
+            createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
+            lastMessage: sm.content || "",
+            propertyMini: propMini || null,
+            unread: 0,
+          });
+        }
+      });
   },
 });
 
-export const { setActiveConv, setSearch, setTab, pushLocalMessage, replaceTempMessage } =
-  chatSlice.actions;
+export const {
+  setSocketConnected,
+  setActiveConversation,
+  pushLocalMessage,
+  pushServerMessage,
+  clearUnread,
+  setLastMessage,
+} = chatSlice.actions;
 
 export default chatSlice.reducer;
