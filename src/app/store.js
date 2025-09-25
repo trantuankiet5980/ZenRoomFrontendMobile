@@ -11,6 +11,8 @@ import propertyMediaReducer from "../features/propertyMedia/propertyMediaSlice";
 import userReducer from "../features/user/userSlice";
 import notificationReducer from '../features/notifications/notificationsSlice';
 import chatReducer from '../features/chat/chatSlice';
+import addressReducer from '../features/address/addressSlice';
+import administrativeReducer from '../features/administrative/administrativeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -26,6 +28,8 @@ export const store = configureStore({
     user: userReducer,
     notifications: notificationReducer,
     chat: chatReducer,
+    address: addressReducer,
+    administrative: administrativeReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });

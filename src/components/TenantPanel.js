@@ -1,24 +1,37 @@
-import React, { useState,useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View } from "react-native";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import SearchPost from "./SearchPost";
 import { useNavigation } from "@react-navigation/native";
 import SelectCityModal from "../components/modal/SelectCityModal";
-import { locations } from "../data/locationData";
+import { fetchProvinces, fetchDistricts } from "../features/administrative/administrativeThunks";
+import { clearDistricts } from "../features/administrative/administrativeSlice";
 
 export default function TenantPanel({ selectedCity, setSelectedCity }) {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
   if (role !== "tenant") return null;
 
-  const [cityModalVisible, setCityModalVisible] = useState(false);
-  const [districts, setDistricts] = useState(locations[selectedCity] || []);
-
-  // Update districts khi selectedCity thay đổi
-  useEffect(() => {
-    setDistricts(locations[selectedCity] || []);
-  }, [selectedCity]);
-
+  const dispatch = useDispatch();
   const navigation = useNavigation();
+
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+
+  const provinces = useSelector((s) => s.administrative.provinces);
+  const districts = useSelector((s) => s.administrative.districts);
+const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || selectedCity;
+
+
+  // Load provinces khi component mount
+  useEffect(() => {
+    dispatch(fetchProvinces());
+  }, [dispatch]);
+
+  // Khi chọn tỉnh -> load districts từ BE
+  const handleSelectCity = (provinceCode) => {
+    setSelectedCity(provinceCode);
+    dispatch(fetchDistricts(provinceCode));
+    setCityModalVisible(false);
+  };
 
   return (
     <View style={{ gap: 12 }}>
@@ -37,10 +50,13 @@ export default function TenantPanel({ selectedCity, setSelectedCity }) {
         <SelectCityModal
           visible={cityModalVisible}
           onClose={() => setCityModalVisible(false)}
-          onSelectCity={(city) => setSelectedCity(city)}
+          provinces={provinces}
+          districts={districts}
+          selectedCity={ selectedCityName}
+          onSelectCity={handleSelectCity}
         />
         <SearchPost
-          city={selectedCity}
+          city={selectedCityName}
           districts={districts}
           onPressCity={() => setCityModalVisible(true)}
           onPressSearch={() => navigation.navigate("SearchRooms")}
@@ -49,4 +65,3 @@ export default function TenantPanel({ selectedCity, setSelectedCity }) {
     </View>
   );
 }
-
