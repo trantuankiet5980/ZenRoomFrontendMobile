@@ -7,83 +7,94 @@ import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
 import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { locations } from '../data/locationData';
 import { districtImages } from '../data/districtImages';
 import { fetchProperties } from "../features/properties/propertiesThunks";
+import { fetchProvinces, fetchDistricts } from "../features/administrative/administrativeThunks";
 import S3Image from "../components/S3Image";
 
 export default function HomeScreen() {
   const screenWidth = Dimensions.get("window").width;
   const user = useSelector((s) => s.auth.user);
-  const token = useSelector(s => s.auth.accessToken);
-  const role = (user?.role || user?.roleName || "").toLowerCase();
   const unread = useSelector(s => s.notifications?.unreadCount ?? 0);
   const name = user?.fullName || user?.name || "";
-  const [selectedCity, setSelectedCity] = useState("Hồ Chí Minh");
-
-  const navigation = useNavigation();
+  const role = (user?.role || user?.roleName || "").toLowerCase();
 
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const { rooms = [], buildings = [], loading } = useSelector(state => state.properties || {});
+  const provinces = useSelector(s => s.administrative.provinces || []);
+  const districts = useSelector(s => s.administrative.districts || []);
 
-  const districtItems = (locations[selectedCity] || []).map((district, index) => ({
-    key: `${selectedCity}-${index}`,
-    label: district,
-    imageUri: districtImages[district],
+  const [selectedCity, setSelectedCity] = useState("");
+const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || selectedCity;
+
+
+  // Load dữ liệu khi mount
+  useEffect(() => {
+    dispatch(fetchProvinces());
+    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
+    dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
+  }, [dispatch]);
+
+  // Chọn city mặc định là tỉnh đầu tiên
+  useEffect(() => {
+    if (provinces.length > 0 && !selectedCity) {
+      const firstCity = provinces[0].code;
+      setSelectedCity(firstCity);
+      dispatch(fetchDistricts(firstCity));
+    }
+  }, [provinces, selectedCity, dispatch]);
+
+  const handleSelectCity = (cityCode) => {
+    setSelectedCity(cityCode);
+    dispatch(fetchDistricts(cityCode));
+  };
+
+  const districtItems = districts.map((district) => ({
+    key: district.code,
+    label: district.name,
+    imageUri: districtImages[district.name],
   }));
 
   const formatPrice = (p) => {
     const n = Number(p);
     return Number.isFinite(n) ? n.toLocaleString("vi-VN") : p;
   };
-  useEffect(() => {
-    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
-    dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
-  }, [dispatch]);
 
+  const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
 
-  if (loading) return <Text>Đang tải phòng...</Text>;
-
-  const formatAddress = (addr = "") => {
-    return addr.replace(/_/g, " ").trim();
-  };
-
+  if (loading) return <Text>Đang tải dữ liệu...</Text>;
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{
-        flexGrow: 1,
-        gap: 12,
-        paddingBottom: 70,
-      }}
+      contentContainerStyle={{ flexGrow: 1, gap: 12, paddingBottom: 70 }}
     >
+      {/* Header */}
       <View style={{ backgroundColor: "#f36031", height: 150, paddingTop: 50 }}>
         <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-            <Ionicons
-              name="notifications"
-              size={30}
-              color="#fff"
-              style={{ alignSelf: "flex-end", paddingHorizontal: 20 }}
-            />
-            {unread > 0 && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  right: 14,
-                  backgroundColor: "red",
-                  borderRadius: 10,
-                  paddingHorizontal: 6,
-                  paddingVertical: 1,
-                }}
-              >
-                <Text style={{ color: "#fff", fontSize: 10 }}>
-                  {unread > 99 ? "99+" : unread}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <Ionicons
+            name="notifications"
+            size={30}
+            color="#fff"
+            style={{ alignSelf: "flex-end", paddingHorizontal: 20 }}
+          />
+          {unread > 0 && (
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 14,
+                backgroundColor: "red",
+                borderRadius: 10,
+                paddingHorizontal: 6,
+                paddingVertical: 1,
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 10 }}>{unread > 99 ? "99+" : unread}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
         <View style={{ paddingLeft: 20, paddingBottom: 10, flexDirection: "row" }}>
           <TypingText
             text={`Xin chào, ${name}`}
@@ -94,18 +105,21 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* Panels */}
       <View style={{ marginTop: -40 }}>
-        <LandlordPanel selectedCity={selectedCity} setSelectedCity={setSelectedCity} />
-        <TenantPanel selectedCity={selectedCity} setSelectedCity={setSelectedCity} />
+        <LandlordPanel selectedCity={selectedCity} setSelectedCity={handleSelectCity} />
+        <TenantPanel selectedCity={selectedCity} setSelectedCity={handleSelectCity} />
       </View>
 
+      {/* Explore districts */}
       <ExploreSection
-        title={`Khám phá ${selectedCity}`}
+        title={`Khám phá ${selectedCityName}`}
         items={districtItems}
         itemSize={150}
-        onPressItem={(item) => navigation.navigate("SearchRooms", { district: item.label })}
+        onPressItem={(item) => navigation.navigate("SearchRooms", { districtCode: item.key })}
       />
 
+      {/* Banner */}
       <TouchableOpacity
         onPress={() => navigation.navigate("SearchRooms")}
         style={{ alignItems: "center", marginHorizontal: 20, marginVertical: 20 }}
@@ -130,9 +144,8 @@ export default function HomeScreen() {
               backgroundColor: "#fff",
               borderRadius: 12,
               overflow: "hidden",
-              marginBottom: 12,
               width: "48%",
-              marginHorizontal: 4,
+              marginBottom: 12,
             }}
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
@@ -142,27 +155,20 @@ export default function HomeScreen() {
               style={{ width: "100%", height: 120, borderRadius: 8 }}
               alt={item.title}
             />
-
             <View style={{ padding: 8 }}>
               <Text style={{ fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{item.title}</Text>
-
               {item.price ? (
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 2 }}>
                   <Ionicons name="pricetag-outline" size={14} color="#f36031" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#f36031' }}>
-                    Từ {formatPrice(item.price)}đ/tháng
-                  </Text>
+                  <Text style={{ fontSize: 12, color: '#f36031' }}>Từ {formatPrice(item.price)}đ/tháng</Text>
                 </View>
               ) : (
                 <Text style={{ fontSize: 12, color: '#777', marginVertical: 2 }}>Giá liên hệ</Text>
               )}
-
               {item.address?.addressFull && (
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#555' }} numberOfLines={1}>
-                    {formatAddress(item.address?.addressFull)}
-                  </Text>
+                  <Text style={{ fontSize: 12, color: '#555' }} numberOfLines={1}>{formatAddress(item.address.addressFull)}</Text>
                 </View>
               )}
             </View>
@@ -184,40 +190,31 @@ export default function HomeScreen() {
               backgroundColor: "#fff",
               borderRadius: 12,
               overflow: "hidden",
-              marginBottom: 12,
               width: "48%",
-              marginHorizontal: 4,
+              marginBottom: 12,
             }}
             onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
           >
             <S3Image
-              src={item.media?.[0]?.url || "https://picsum.photos/seed/c673bf07-8669-11f0-9f5e-d8bbc1740476b/800/600"}
+              src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
               cacheKey={item.updatedAt}
               style={{ width: "100%", height: 120, borderRadius: 8 }}
               alt={item.title}
             />
             <View style={{ padding: 8 }}>
               <Text style={{ fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{item.title}</Text>
-
-              {/* Giá tòa nhà */}
               {item.price ? (
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 2 }}>
                   <Ionicons name="pricetag-outline" size={14} color="#f36031" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#f36031' }}>
-                    Từ {formatPrice(item.price)}đ/tháng
-                  </Text>
+                  <Text style={{ fontSize: 12, color: '#f36031' }}>Từ {formatPrice(item.price)}đ/tháng</Text>
                 </View>
               ) : (
                 <Text style={{ fontSize: 12, color: '#777', marginVertical: 2 }}>Giá liên hệ</Text>
               )}
-
               {item.address?.addressFull && (
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#555' }} numberOfLines={1}>
-                    {formatAddress(item.address?.addressFull)}
-                  </Text>
-
+                  <Text style={{ fontSize: 12, color: '#555' }} numberOfLines={1}>{formatAddress(item.address.addressFull)}</Text>
                 </View>
               )}
             </View>

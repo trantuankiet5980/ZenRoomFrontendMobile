@@ -191,6 +191,7 @@ export default function SearchPostScreen() {
           alignItems: 'center',
           gap: 6,
         }}
+        onPress={() => navigation.navigate('MapScreen', { activeType })}
       >
         <Ionicons name="map" size={18} color={ORANGE} />
         <Text style={{ color: ORANGE, fontWeight: '700' }}>Bản đồ</Text>
