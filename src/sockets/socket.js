@@ -1,6 +1,7 @@
 import { Client } from "@stomp/stompjs";
 import { store } from "../app/store";
 import { setSocketConnected } from "../features/chat/chatSlice";
+import { showToast } from "../utils/AppUtils";
 
 let client = null;
 let isActive = false;
@@ -8,7 +9,7 @@ const pendingSubs = new Map();
 
 const WS_URL = 'ws://10.0.2.2:8080/ws';
 
-export function initSocket(token) {
+export function initSocket(token, meId) {
   if (client) return client; // đã init
 
   client = new Client({
@@ -28,6 +29,18 @@ export function initSocket(token) {
     console.log("Socket connected");
     isActive = true;
     store.dispatch(setSocketConnected(true));
+    try {
+      if (meId) {
+        const topic = `/topic/notify.${meId}`;
+        client.subscribe(topic, (frame) => {
+          const msg = frame.body || "Bạn có tin nhắn mới";
+          console.log("Notify (topic):", msg);
+          showToast("info", "top", "Thông báo", msg);
+        });
+      }
+    } catch (e) {
+      console.log("Subscribe topic notify error:", e?.message);
+    }
     // chạy các pending subscribe (nếu có màn hình gọi trước khi connected)
     for (const [convId, cbs] of pendingSubs.entries()) {
       cbs.forEach(cb => cb());
