@@ -4,11 +4,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
-import { fetchProperties } from "../features/properties/propertiesThunks";
+import { searchProperties } from "../features/properties/propertiesThunks";
 import SortModal from "../components/modal/SortModal";
 import PriceRangeModal from "../components/modal/PriceRangeModal";
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useNavigation } from "@react-navigation/native";
+import FilterModal from "../components/modal/FilterModal";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
@@ -19,31 +20,27 @@ export default function SearchPostScreen() {
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [priceRange, setPriceRange] = useState([0, 15000000]);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+
   useHideTabBar();
   const navigation = useNavigation();
-
-  const [searchKeyword, setSearchKeyword] = useState("");
-
-
   const dispatch = useDispatch();
-  const { rooms, buildings, loading } = useSelector((state) => state.properties);
 
-  // fetch lần đầu
+  const { searchResults, loading } = useSelector((state) => state.properties);
+
+  // gọi API mỗi khi keyword / priceRange / type thay đổi
   useEffect(() => {
-    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
-  }, [dispatch]);
-
-  // chọn loại (ROOM / BUILDING) dựa vào activeType
-  useEffect(() => {
-    if (activeType === "Phòng trọ") {
-      dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
-    } else if (activeType === "Nguyên căn" || activeType === "Chung cư") {
-      dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
-    }
-  }, [activeType, dispatch]);
-
-  // chọn data theo loại
-  const data = activeType === "Phòng trọ" ? rooms : buildings;
+    dispatch(searchProperties({
+      keyword: searchKeyword || undefined,
+      priceMin: priceRange[0],
+      priceMax: priceRange[1],
+      propertyType: activeType === "Phòng trọ" ? "ROOM" : "BUILDING",
+      postStatus: "APPROVED",
+      page: 0,
+      size: 20
+    }));
+  }, [dispatch, searchKeyword, priceRange, activeType]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -68,7 +65,7 @@ export default function SearchPostScreen() {
           {item.title}
         </Text>
         <Text style={{ color: ORANGE, fontWeight: '600', fontSize: 12, marginTop: 4 }}>
-          {`Từ ${item.price.toLocaleString()}đ/tháng`}
+          {`Từ ${item.price?.toLocaleString() || 0}đ/tháng`}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
           <Ionicons name="location" size={14} color={ORANGE} />
@@ -80,10 +77,20 @@ export default function SearchPostScreen() {
     </TouchableOpacity>
   );
 
-  // Lọc theo khoảng giá
-  const filteredData = data.filter(
-    (item) => item.price >= priceRange[0] && item.price <= priceRange[1] && item.title.toLowerCase().includes(searchKeyword.toLowerCase())
-  );
+  // handler áp dụng filter nâng cao
+  const handleApplyFilters = (filters) => {
+    dispatch(searchProperties({
+      keyword: searchKeyword || undefined,
+      priceMin: priceRange[0],
+      priceMax: priceRange[1],
+      propertyType: activeType === "Phòng trọ" ? "ROOM" : "BUILDING",
+      postStatus: "APPROVED",
+      page: 0,
+      size: 20,
+      ...filters, // minArea, maxArea, capacity, bedrooms, bathrooms...
+    }));
+    setFilterModalVisible(false);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -106,7 +113,6 @@ export default function SearchPostScreen() {
             value={searchKeyword}
             onChangeText={setSearchKeyword}
           />
-
         </View>
 
         {/* Filter row */}
@@ -129,7 +135,10 @@ export default function SearchPostScreen() {
             <Text style={{ fontWeight: '600' }}>Khoảng giá</Text>
             <Ionicons name="chevron-down" size={16} />
           </Pressable>
-          <Pressable style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+          <Pressable
+            style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+            onPress={() => setFilterModalVisible(true)}
+          >
             <Ionicons name="filter" size={16} />
             <Text style={{ fontWeight: '600', marginLeft: 4 }}>Lọc</Text>
           </Pressable>
@@ -162,7 +171,7 @@ export default function SearchPostScreen() {
           <Text style={{ textAlign: "center", marginTop: 20 }}>Đang tải...</Text>
         ) : (
           <FlatList
-            data={filteredData}
+            data={searchResults?.content || []}
             renderItem={renderItem}
             keyExtractor={(item) => item.propertyId}
             numColumns={2}
@@ -171,6 +180,11 @@ export default function SearchPostScreen() {
               paddingBottom: 80,
               flexGrow: 1,
             }}
+            ListEmptyComponent={
+              <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
+                Không tìm thấy kết quả phù hợp
+              </Text>
+            }
           />
         )
       }
@@ -191,6 +205,7 @@ export default function SearchPostScreen() {
           alignItems: 'center',
           gap: 6,
         }}
+        onPress={() => navigation.navigate('MapScreen', { activeType })}
       >
         <Ionicons name="map" size={18} color={ORANGE} />
         <Text style={{ color: ORANGE, fontWeight: '700' }}>Bản đồ</Text>
@@ -201,11 +216,10 @@ export default function SearchPostScreen() {
         visible={sortModalVisible}
         onClose={() => setSortModalVisible(false)}
         onSort={(type) => {
-          if (type === "desc") {
-            setData([...data].sort((a, b) => b.price - a.price));
-          } else {
-            setData([...data].sort((a, b) => a.price - b.price));
-          }
+          const sorted = [...(searchResults?.content || [])].sort((a, b) =>
+            type === "desc" ? b.price - a.price : a.price - b.price
+          );
+          dispatch({ type: "properties/search/fulfilled", payload: { ...searchResults, content: sorted } });
           setSortModalVisible(false);
         }}
       />
@@ -216,6 +230,12 @@ export default function SearchPostScreen() {
         priceRange={priceRange}
         setPriceRange={setPriceRange}
       />
-    </View >
+
+      <FilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={handleApplyFilters}
+      />
+    </View>
   );
 }

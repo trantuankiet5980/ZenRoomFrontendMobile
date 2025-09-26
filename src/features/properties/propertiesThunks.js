@@ -57,10 +57,31 @@ export const fetchPropertiesByLandlord = createAsyncThunk(
 export const updateProperty = createAsyncThunk(
   "properties/updateProperty",
   async ({ id, data }) => {
-    const res = await api.put(`/properties/${id}`, data);
+    const res = await axiosInstance.put(`/properties/${id}`, data);
     return res.data;
   }
 );
 
 
+export const searchProperties = createAsyncThunk(
+  "properties/search",
+  async (params, { rejectWithValue }) => {
+    try {
+      // lọc bỏ các giá trị undefined / null / ''
+      const cleanParams = {};
+      Object.entries(params || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") {
+          cleanParams[k] = v;
+        }
+      });
+
+      const response = await axiosInstance.get("/properties/search", {
+        params: cleanParams,
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
 

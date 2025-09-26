@@ -1,32 +1,37 @@
 import { useState, useEffect } from "react";
-import { View, Text, Modal, TouchableOpacity, FlatList } from "react-native";
-import { useSelector } from "react-redux";
+import { View, Text } from "react-native";
+import { useSelector, useDispatch } from "react-redux";
 import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
 import { useNavigation } from "@react-navigation/native";
-import { locations } from "../data/locationData";
 import SelectCityModal from "../components/modal/SelectCityModal";
+import { fetchProvinces, fetchDistricts } from "../features/administrative/administrativeThunks";
+import { clearDistricts } from "../features/administrative/administrativeSlice";
 
 export default function LandlordPanel({ selectedCity, setSelectedCity }) {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
   if (role !== "landlord") return null;
-  
-  const [cityModalVisible, setCityModalVisible] = useState(false);
-  const [districts, setDistricts] = useState(locations[selectedCity] || []);
 
+  const dispatch = useDispatch();
   const navigation = useNavigation();
 
-  // Update districts mỗi khi selectedCity thay đổi
-  useEffect(() => {
-    setDistricts(locations[selectedCity] || []);
-  }, [selectedCity]);
+  const [cityModalVisible, setCityModalVisible] = useState(false);
 
-  const searchItem = {
-    key: "search",
-    label: "Tìm kiếm",
-    icon: "search",
-    iconLib: "ion",
-    onPress: () => navigation.navigate("SearchRooms"), // TODO: tạo màn này
+  const provinces = useSelector((s) => s.administrative.provinces);
+  const districts = useSelector((s) => s.administrative.districts);
+  const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || selectedCity;
+
+
+  // Load provinces khi mount
+  useEffect(() => {
+    dispatch(fetchProvinces());
+  }, [dispatch]);
+
+  // Khi chọn tỉnh -> load districts từ BE
+  const handleSelectCity = (provinceCode) => {
+    setSelectedCity(provinceCode);
+    dispatch(fetchDistricts(provinceCode));
+    setCityModalVisible(false);
   };
 
   const manageActions = [
@@ -37,9 +42,9 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
       iconLib: "mc",
       onPress: () => navigation.navigate("PostsManager"),
     },
-    {
-      key: "manage-tenants",
-      label: "Quản lý khách thuê",
+    { 
+      key: "manage-tenants", 
+      label: "Quản lý khách thuê", 
       icon: "account-group-outline",
       iconLib: "mc",
       onPress: () => navigation.navigate("TenantsManager"),
@@ -77,10 +82,13 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
         <SelectCityModal
           visible={cityModalVisible}
           onClose={() => setCityModalVisible(false)}
-          onSelectCity={(city) => setSelectedCity(city)}
+          provinces={provinces}
+          districts={districts}
+          selectedCity={selectedCityName}
+          onSelectCity={handleSelectCity}
         />
         <SearchPost
-          city={selectedCity}
+          city={selectedCityName}
           districts={districts}
           onPressCity={() => setCityModalVisible(true)}
           onPressSearch={() => navigation.navigate("SearchRooms")}
