@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchProperties, createProperty, fetchPropertyDetail, fetchPropertiesByLandlord,updateProperty } from "./propertiesThunks";
+import { fetchProperties, createProperty, fetchPropertyDetail, fetchPropertiesByLandlord, updateProperty,searchProperties } from "./propertiesThunks";
 
 
 
@@ -8,6 +8,8 @@ const propertiesSlice = createSlice({
   initialState: {
     rooms: [],
     buildings: [],
+    searchResults: { content: [], totalElements: 0, totalPages: 0 },
+    current: null,
     loading: false,
     error: null,
     success: false,
@@ -117,7 +119,20 @@ const propertiesSlice = createSlice({
         state.loading = false;
         state.error = action.error.message;
       })
-      ;
+
+
+      .addCase(searchProperties.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(searchProperties.fulfilled, (state, action) => {
+        state.loading = false;
+        state.searchResults = action.payload;
+      })
+      .addCase(searchProperties.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
   }
 });
