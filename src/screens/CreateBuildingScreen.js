@@ -12,6 +12,7 @@ import { resetStatus } from "../features/properties/propertiesSlice";
 import * as ImagePicker from "expo-image-picker";
 import { fetchApartmentCategories } from '../features/apartmentCategory/apartmentThunks';
 import { uploadPropertyImages, uploadPropertyVideo } from "../features/propertyMedia/propertyMediaThunks";
+import AddressPickerModal from '../components/modal/AddressPickerModal';
 
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
@@ -23,8 +24,6 @@ export default function CreateBuildingScreen() {
 
   const nav = useNavigation();
   const dispatch = useDispatch();
-  // const { route } = props;
-  // const { mode, property } = route.params || {};
 
   const [title, setTitle] = useState('');
   const [buildingName, setBuildingName] = useState('');
@@ -45,6 +44,9 @@ export default function CreateBuildingScreen() {
   const [floor, setFloor] = useState('');
   const [roomNo, setRoomNo] = useState('');
 
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressObj, setAddressObj] = useState(null);
+
   const { items: furnishingsFromApi, loading } = useSelector(state => state.furnishings);
   const { loadings, success, error } = useSelector(state => state.properties);
 
@@ -57,32 +59,32 @@ export default function CreateBuildingScreen() {
     state => state.apartment || {}
   );
 
-    const pickImages = async () => {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 1,
-      });
-  
-      if (!result.canceled) {
-        setImages(prev => [...prev, ...result.assets].slice(0, 10));
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setImages(prev => [...prev, ...result.assets].slice(0, 10));
+    }
+  };
+  const pickVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      const video = result.assets[0];
+      if (video.fileSize && video.fileSize > 25 * 1024 * 1024) {
+        Alert.alert("Lỗi", "Video quá lớn, vui lòng chọn file dưới 50MB");
+        return;
       }
-    };
-    const pickVideo = async () => {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        quality: 1,
-      });
-  
-      if (!result.canceled) {
-        const video = result.assets[0];
-        if (video.fileSize && video.fileSize > 25 * 1024 * 1024) {
-          Alert.alert("Lỗi", "Video quá lớn, vui lòng chọn file dưới 50MB");
-          return;
-        }
-        setVideo(video);
-      }
-    };
+      setVideo(video);
+    }
+  };
   useEffect(() => {
     dispatch(fetchApartmentCategories());
   }, [dispatch]);
@@ -97,15 +99,15 @@ export default function CreateBuildingScreen() {
   const userId = useSelector(state => state.auth.user?.userId);
   const onSave = () => {
 
-    if (!title || !buildingName || !addr || !price || !area || !aptType) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ các trường bắt buộc.');
-      return;
-    }
+    if (!title || !buildingName || !addressObj || !price || !area || !aptType) {
+  Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ các trường bắt buộc.');
+  return;
+}
 
     const payload = {
       propertyType: "BUILDING",
       landlord: { userId: userId },
-      address: { addressFull: addr },
+      address: addressObj,
       title,
       description: desc,
       buildingName: buildingName,
@@ -123,41 +125,41 @@ export default function CreateBuildingScreen() {
       })),
     };
     dispatch(createProperty(payload))
-          .unwrap()
-          .then((newProperty) => {
-            console.log("New property response:", newProperty); 
-            const propertyId = newProperty.id || newProperty.propertyId;
-            if (!propertyId) {
-              throw new Error("Property ID is missing in response");
-            }
-    
-            // Upload images if any
-            if (images.length > 0) {
-              dispatch(uploadPropertyImages({ propertyId, images }))
-                .unwrap()
-                .catch(err => {
-                  console.error("Upload ảnh thất bại", err);
-                  Alert.alert("Lỗi", "Không thể tải lên ảnh: " + (err.message || "Lỗi không xác định"));
-                });
-            }
-    
-            // Upload video if any
-            if (video) {
-              dispatch(uploadPropertyVideo({ propertyId, video }))
-                .unwrap()
-                .catch(err => {
-                  console.error("Upload video thất bại", err);
-                  Alert.alert("Lỗi", "Không thể tải lên video: " + (err.message || "Lỗi không xác định"));
-                });
-            }
-    
-            Alert.alert("Thành công", "Đăng căn hộ thành công!");
-            nav.navigate("PostsManager");
-          })
-          .catch((err) => {
-            console.error("Create property failed:", err);
-            Alert.alert("Lỗi", err.message || "Đăng căn hộ thất bại");
-          });
+      .unwrap()
+      .then((newProperty) => {
+        console.log("New property response:", newProperty);
+        const propertyId = newProperty.id || newProperty.propertyId;
+        if (!propertyId) {
+          throw new Error("Property ID is missing in response");
+        }
+
+        // Upload images if any
+        if (images.length > 0) {
+          dispatch(uploadPropertyImages({ propertyId, images }))
+            .unwrap()
+            .catch(err => {
+              console.error("Upload ảnh thất bại", err);
+              Alert.alert("Lỗi", "Không thể tải lên ảnh: " + (err.message || "Lỗi không xác định"));
+            });
+        }
+
+        // Upload video if any
+        if (video) {
+          dispatch(uploadPropertyVideo({ propertyId, video }))
+            .unwrap()
+            .catch(err => {
+              console.error("Upload video thất bại", err);
+              Alert.alert("Lỗi", "Không thể tải lên video: " + (err.message || "Lỗi không xác định"));
+            });
+        }
+
+        Alert.alert("Thành công", "Đăng căn hộ thành công!");
+        nav.navigate("PostsManager");
+      })
+      .catch((err) => {
+        console.error("Create property failed:", err);
+        Alert.alert("Lỗi", err.message || "Đăng căn hộ thất bại");
+      });
   };
   useEffect(() => {
     if (success) {
@@ -196,7 +198,7 @@ export default function CreateBuildingScreen() {
         <Pressable onPress={() => nav.goBack()} style={{ padding: 8, marginRight: 4 }}>
           <Ionicons name="chevron-back" size={24} color="#111" />
         </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: '700' }}>Thêm tòa nhà</Text>
+        <Text style={{ fontSize: 18, fontWeight: '700' }}>Thêm căn hộ</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 130 }}>
@@ -221,14 +223,29 @@ export default function CreateBuildingScreen() {
           onChangeText={setBuildingName}
         />
         {/* Địa chỉ */}
-        <Field
-          label="Địa chỉ"
-          required
-          icon={<Ionicons name="location" size={18} color={ORANGE} />}
-          placeholder="Nhập địa chỉ"
-          value={addr}
-          onChangeText={setAddr}
-        />
+        <View style={{ marginBottom: 0 }}>
+          <Text style={{ fontWeight: "600", marginBottom: 6 }}>
+            Địa chỉ <Text style={{ color: "red" }}>*</Text>
+          </Text>
+          <Pressable
+            onPress={() => setShowAddressModal(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: "#ddd",
+              borderRadius: 8,
+              padding: 10,
+              backgroundColor: "#fff",
+            }}
+          >
+            <Ionicons name="location" size={18} color={ORANGE} style={{ marginRight: 8 }} />
+            <Text style={{ color: addressObj ? "#000" : "#9CA3AF" }}>
+              {addressObj?.addressFull || "Chọn địa chỉ"}
+            </Text>
+          </Pressable>
+        </View>
+
         {/* Diện tích */}
         <Field
           label="Diện tích (m²)"
@@ -243,7 +260,7 @@ export default function CreateBuildingScreen() {
         <Field
           label="Giá phòng" required
           icon={<MaterialCommunityIcons name="cash-multiple" size={18} color={ORANGE} />}
-          placeholder="Nhập giá phòng"
+          placeholder="Nhập giá phòng/ngày"
           keyboardType="numeric"
           value={price}
           onChangeText={setPrice}
@@ -402,6 +419,13 @@ export default function CreateBuildingScreen() {
           <Text style={{ color: '#fff', fontWeight: '700' }}>Đăng tòa nhà</Text>
         </TouchableOpacity>
       </View>
+
+      <AddressPickerModal
+        visible={showAddressModal}
+        onClose={() => setShowAddressModal(false)}
+        onSelect={(addr) => setAddressObj(addr)}
+      />
+
 
       {/* Modal chọn loại căn hộ */}
       {showTypeModal && (

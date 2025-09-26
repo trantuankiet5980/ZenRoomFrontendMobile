@@ -97,6 +97,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     mediaType: "IMAGE",
                 },
             ];
+    const formatPriceWithUnit = (property) => {
+        if (!property?.price) return "Giá liên hệ";
+        const formatted = Number(property.price).toLocaleString("vi-VN");
+        return property.propertyType === "ROOM"
+            ? `${formatted} đ/tháng`
+            : `${formatted} đ/ngày`;
+    };
+
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -225,12 +233,9 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     >
                         <Icon name="cash" size={20} color="#f36031" />
                         <Text style={styles.price}>
-                            {property.price
-                                ? `${Number(property.price).toLocaleString(
-                                    "vi-VN"
-                                )} đ/tháng`
-                                : "Thỏa thuận"}
+                            {formatPriceWithUnit(property)}
                         </Text>
+
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
                         <Ionicons
@@ -257,13 +262,16 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             {property.area ? `${property.area} m²` : "N/A"}
                         </Text>
                     </View>
-                    <View style={styles.detailItem}>
-                        <Icon name="account-group" size={24} color="#111" />
-                        <Text style={styles.detailLabel}>Số người</Text>
-                        <Text style={styles.detailValue}>
-                            {property.capacity || "N/A"}
-                        </Text>
-                    </View>
+                    {property.propertyType !== "BUILDING" && (
+                        <View style={styles.detailItem}>
+                            <Icon name="account-group" size={24} color="#111" />
+                            <Text style={styles.detailLabel}>Số người</Text>
+                            <Text style={styles.detailValue}>
+                                {property.capacity || "N/A"}
+                            </Text>
+                        </View>
+                    )}
+
                     <View style={styles.detailItem}>
                         <Icon name="cash-multiple" size={24} color="#111" />
                         <Text style={styles.detailLabel}>Đặt cọc</Text>
@@ -287,7 +295,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                         color="#111"
                                     />
                                     <Text style={styles.furnishingLabel}>
-                                        {f.furnishingId?.furnishingName || "Nội thất"}
+                                        {f.furnishingName}
                                         {f.quantity > 1 ? ` x${f.quantity}` : ""}
                                     </Text>
                                 </View>
@@ -333,53 +341,53 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         onPress={async () => {
                             try {
                                 const { serverMessage } = await dispatch(
-                                sendMessage({
-                                    propertyId: property.propertyId,
-                                    content: "Xin chào anh/chị, phòng này còn trống không?",
-                                })
+                                    sendMessage({
+                                        propertyId: property.propertyId,
+                                        content: "Xin chào anh/chị, phòng này còn trống không?",
+                                    })
                                 ).unwrap();
 
                                 const convId =
-                                serverMessage?.conversation?.conversationId ||
-                                serverMessage?.conversationId;
+                                    serverMessage?.conversation?.conversationId ||
+                                    serverMessage?.conversationId;
 
                                 // ĐẨY NGAY bubble chào vào Redux để ChatDetail hiện tức thì
                                 if (convId) {
-                                // cập nhật lastMessage cho list + thêm message vào bucket
-                                dispatch(pushServerMessage(serverMessage));
+                                    // cập nhật lastMessage cho list + thêm message vào bucket
+                                    dispatch(pushServerMessage(serverMessage));
 
-                                const mini = {
-                                    propertyId: property.propertyId,
-                                    title: property.title,
-                                    address: property.address?.addressFull,
-                                    price: property.price,
-                                    thumbnail:
-                                    (property.media?.find((m) => m.mediaType === "IMAGE")?.url) ||
-                                    property.media?.[0]?.url ||
-                                    null,
-                                    landlordName: property.landlord?.fullName,
-                                };
+                                    const mini = {
+                                        propertyId: property.propertyId,
+                                        title: property.title,
+                                        address: property.address?.addressFull,
+                                        price: property.price,
+                                        thumbnail:
+                                            (property.media?.find((m) => m.mediaType === "IMAGE")?.url) ||
+                                            property.media?.[0]?.url ||
+                                            null,
+                                        landlordName: property.landlord?.fullName,
+                                    };
 
-                                navigation.navigate("ChatDetail", {
-                                    conversationId: convId,
-                                    title: property.landlord?.fullName || "Chủ nhà",
-                                    avatar: property.landlord?.avatarUrl || null,
-                                    propertyId: property.propertyId,
-                                    propertyMini: mini,
-                                    initialMessage: serverMessage, // optional: để ChatDetail không phải đợi fetch
-                                });
+                                    navigation.navigate("ChatDetail", {
+                                        conversationId: convId,
+                                        title: property.landlord?.fullName || "Chủ nhà",
+                                        avatar: property.landlord?.avatarUrl || null,
+                                        propertyId: property.propertyId,
+                                        propertyMini: mini,
+                                        initialMessage: serverMessage, // optional: để ChatDetail không phải đợi fetch
+                                    });
                                 } else {
-                                showToast("error", "top", "Thông báo", "Không lấy được hội thoại");
+                                    showToast("error", "top", "Thông báo", "Không lấy được hội thoại");
                                 }
                             } catch (err) {
                                 console.warn("Tạo chat thất bại:", err?.message || err);
                                 showToast("error", "top", "Thông báo", "Không thể bắt đầu trò chuyện");
                             }
-                            }}
-                        >
+                        }}
+                    >
                         <Icon name="message-text-outline" size={18} color="#f36031" />
                         <Text style={styles.lightBtnText}>Chat</Text>
-                        </TouchableOpacity>
+                    </TouchableOpacity>
 
                     <TouchableOpacity style={styles.primaryBtn}>
                         <Icon name="calendar-check" size={18} color="#fff" />
