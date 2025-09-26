@@ -62,6 +62,7 @@ const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || s
   };
 
   const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
+  
 
   if (loading) return <Text>Đang tải dữ liệu...</Text>;
 
@@ -177,7 +178,7 @@ const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || s
       />
 
       {/* Tòa nhà */}
-      <Text style={{ fontSize: 18, fontWeight: "bold", marginLeft: 20, marginTop: 12 }}>Tòa nhà</Text>
+      <Text style={{ fontSize: 18, fontWeight: "bold", marginLeft: 20, marginTop: 12 }}>Căn hộ</Text>
       <FlatList
         data={buildings}
         keyExtractor={(item) => item.propertyId}
@@ -206,7 +207,7 @@ const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || s
               {item.price ? (
                 <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 2 }}>
                   <Ionicons name="pricetag-outline" size={14} color="#f36031" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#f36031' }}>Từ {formatPrice(item.price)}đ/tháng</Text>
+                  <Text style={{ fontSize: 12, color: '#f36031' }}>Từ {formatPrice(item.price)}đ/ngày</Text>
                 </View>
               ) : (
                 <Text style={{ fontSize: 12, color: '#777', marginVertical: 2 }}>Giá liên hệ</Text>

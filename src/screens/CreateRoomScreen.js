@@ -10,6 +10,7 @@ import { createProperty } from "../features/properties/propertiesThunks";
 import { resetStatus } from "../features/properties/propertiesSlice";
 import * as ImagePicker from "expo-image-picker";
 import { uploadPropertyImages, uploadPropertyVideo } from "../features/propertyMedia/propertyMediaThunks";
+import AddressPickerModal from '../components/modal/AddressPickerModal';
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
 const GRAY = '#E5E7EB';
@@ -28,7 +29,8 @@ export default function CreateRoomScreen() {
   const [capacity, setCapacity] = useState('');
   const [parking, setParking] = useState('');
   const [desc, setDesc] = useState('');
-  // const [phone, setPhone] = useState('');
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressObj, setAddressObj] = useState(null);
 
   const [area, setArea] = useState('');
 
@@ -67,7 +69,7 @@ export default function CreateRoomScreen() {
   };
 
   const handleSubmit = () => {
-    if (!title || !price || !addr || !area || !floor || !capacity || !parking) {
+    if (!title || !price || !addressObj || !area || !floor || !capacity || !parking) {
       Alert.alert("Thiếu thông tin", "Vui lòng nhập đầy đủ tiêu đề, giá và địa chỉ!");
       return;
     }
@@ -75,7 +77,7 @@ export default function CreateRoomScreen() {
     const payload = {
       propertyType: "ROOM",
       landlord: { userId },
-      address: { addressFull: addr },
+      address: addressObj,
       title: title,
       description: desc,
       area: Number(area),
@@ -90,7 +92,7 @@ export default function CreateRoomScreen() {
     dispatch(createProperty(payload))
       .unwrap()
       .then((newProperty) => {
-        console.log("New property response:", newProperty); 
+        console.log("New property response:", newProperty);
         const propertyId = newProperty.id || newProperty.propertyId;
         if (!propertyId) {
           throw new Error("Property ID is missing in response");
@@ -169,18 +171,33 @@ export default function CreateRoomScreen() {
           value={title}
           onChangeText={setTitle}
         />
-        <Field
-          label="Địa chỉ" required
-          icon={<Ionicons name="location" size={18} color={ORANGE} />}
-          placeholder="Nhập địa chỉ"
-          value={addr}
-          onChangeText={setAddr}
-        />
+        <View style={{ marginBottom: 0 }}>
+          <Text style={{ fontWeight: "600", marginBottom: 6 }}>
+            Địa chỉ <Text style={{ color: "red" }}>*</Text>
+          </Text>
+          <Pressable
+            onPress={() => setShowAddressModal(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: "#ddd",
+              borderRadius: 8,
+              padding: 10,
+              backgroundColor: "#fff",
+            }}
+          >
+            <Ionicons name="location" size={18} color={ORANGE} style={{ marginRight: 8 }} />
+            <Text style={{ color: addressObj ? "#000" : "#9CA3AF" }}>
+              {addressObj?.addressFull || "Chọn địa chỉ"}
+            </Text>
+          </Pressable>
+        </View>
         {/* Giá phòng */}
         <Field
           label="Giá phòng" required
           icon={<MaterialCommunityIcons name="cash-multiple" size={18} color={ORANGE} />}
-          placeholder="Nhập giá phòng"
+          placeholder="Nhập giá phòng/tháng"
           keyboardType="numeric"
           value={price}
           onChangeText={setPrice}
@@ -237,7 +254,7 @@ export default function CreateRoomScreen() {
           label="Tiêu đề tin đăng"
           icon={<Ionicons name="document-text" size={18} color={ORANGE} />}
           placeholder="Ví dụ: Phòng trọ mới xây, đầy đủ tiện nghi, giá tốt"
-          value={title ? `Phòng trọ ${title} - ${addr} - Giá ${price} triệu` : ''}
+          value={title ? `Phòng trọ ${title} - ${addressObj?.addressFull} - Giá ${price} triệu` : ''}
           onChangeText={setTitle}
         />
         {/* Mô tả */}
@@ -262,6 +279,12 @@ export default function CreateRoomScreen() {
             />
           </View>
         </View>
+
+        <AddressPickerModal
+          visible={showAddressModal}
+          onClose={() => setShowAddressModal(false)}
+          onSelect={(addr) => setAddressObj(addr)}
+        />
 
         <UploadBox
           title="Ảnh phòng trọ"
