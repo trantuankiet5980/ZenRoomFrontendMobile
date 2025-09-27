@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+// screens/ChatDetailScreen.js
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -15,41 +16,76 @@ export default function ChatDetailScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const route = useRoute();
-  const { title = "Chat", avatar, conversationId: chatIdParam, peerId, propertyId, propertyMini, initialMessage } = route.params || {};
+  const {
+    title = "Chat",
+    avatar,
+    conversationId: chatIdParam,
+    peerId,
+    propertyId,
+    propertyMini: propMiniFromRoute,
+    initialMessage
+  } = route.params || {};
 
   const listRef = useRef();
   const me = useSelector((s) => s.auth.user);
-  const [conversationId, setConversationId] = useState(chatIdParam);
-  const bucket = useSelector((s) =>
+
+  // giữ conversationId đồng bộ theo route param (không dùng "|| conversationId" gây lặp).
+  const [conversationId, setConversationId] = useState(chatIdParam || null);
+  useEffect(() => {
+    if (chatIdParam && chatIdParam !== conversationId) setConversationId(chatIdParam);
+  }, [chatIdParam]); // eslint-disable-line
+
+  // lấy bucket thô từ redux
+  const rawBucket = useSelector((s) =>
     conversationId ? (s.chat.messagesByConv[conversationId] || { items: [] }) : { items: [] }
   );
 
-  const [text, setText] = useState("");
-  const [headerMini, setHeaderMini] = useState(propertyMini || null);
+  // KHỬ TRÙNG tin nhắn: ưu tiên serverMessage (có messageId) đè tempId nếu trùng nội dung-thời điểm
+  const bucketItems = useMemo(() => {
+    const arr = rawBucket.items || [];
+    const map = new Map();
+    for (const m of arr) {
+      const key = m.messageId || m.tempId || `${m.content}-${m.createdAt}`;
+      // nếu đã có temp và giờ có serverMessage (có messageId) → thay bằng m hiện tại
+      const existed = map.get(key);
+      if (!existed) map.set(key, m);
+      else {
+        // ưu tiên bản có messageId (server)
+        if (!existed.messageId && m.messageId) map.set(key, m);
+      }
+    }
+    // sort theo createdAt tăng dần
+    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }, [rawBucket.items]);
 
+  // Header mini (property) – ưu tiên của route; nếu không có thì lấy từ tin nhắn mới nhất có "property"
+  const [headerMini, setHeaderMini] = useState(propMiniFromRoute || null);
   useEffect(() => {
-    setHeaderMini(propertyMini || null);
-    setConversationId(chatIdParam || conversationId);
-  }, [chatIdParam, propertyMini]);
+    if (propMiniFromRoute) setHeaderMini(propMiniFromRoute);
+  }, [propMiniFromRoute]);
 
   useEffect(() => {
     if (headerMini) return;
-    const arr = bucket.items || [];
-    const found = [...arr].reverse().find(m => m?.property && m.property.propertyId); // ưu tiên tin mới nhất có property
-    if (found?.property) setHeaderMini(found.property);
-  }, [bucket.items, headerMini]);
+    const found = [...bucketItems].reverse().find(m => m?.property?.propertyId);
+    if (found?.property) setHeaderMini({
+      propertyId: found.property.propertyId,
+      title: found.property.title,
+      address: found.property.address,
+      price: found.property.price,
+      thumbnailUrl: found.property.thumbnailUrl || null,
+    });
+  }, [bucketItems, headerMini]);
 
+  // Mỗi lần đổi conversationId → luôn fetch + mark read (bỏ điều kiện initialMessage && empty)
   useEffect(() => {
     if (!conversationId) return;
-      const empty = !bucket.items || bucket.items.length === 0;
-    if (initialMessage && empty) {
-      dispatch(setActiveConversation(conversationId));
-      dispatch(clearUnread(conversationId));
-      dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
-      dispatch(markReadAll(conversationId));
-    }
+    dispatch(setActiveConversation(conversationId));
+    dispatch(clearUnread(conversationId));
+    dispatch(fetchMessages({ conversationId, page: 0, size: 50 }));
+    dispatch(markReadAll(conversationId));
   }, [conversationId, dispatch]);
 
+  // Subscribe realtime theo conversationId
   useEffect(() => {
     if (!conversationId) return;
 
@@ -59,13 +95,11 @@ export default function ChatDetailScreen() {
       const sub = client.subscribe(`/topic/chat.${conversationId}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
-
+          // nếu tin của đối phương → mark read
           if (dto?.sender?.userId && dto.sender.userId !== me.userId) {
             dispatch(markReadAll(conversationId));
           }
-
           dispatch(pushServerMessage(dto));
-          // Auto scroll xuống cuối
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 16);
         } catch {}
       });
@@ -98,17 +132,18 @@ export default function ChatDetailScreen() {
     try {
       const res = await dispatch(sendMessage({
         conversationId,
-        peerId,     
+        peerId,
         propertyId,
         content
       })).unwrap();
 
       const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
       if (!conversationId && newCid) setConversationId(newCid);
-
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
     } catch (e) {}
   };
+
+  const [text, setText] = useState("");
 
   const renderItem = ({ item }) => {
     const mine = item.sender?.userId === me.userId;
@@ -126,11 +161,6 @@ export default function ChatDetailScreen() {
     );
   };
 
-  const convRow = useSelector(s =>
-    conversationId ? s.chat.conversations.find(c => c.conversationId === conversationId) : null
-  );
-
-  // Thẻ thông tin phòng ở đầu khung chat
   const HeaderPropertyCard = () => {
     const pm = headerMini;
     if (!pm) return null;
@@ -172,7 +202,7 @@ export default function ChatDetailScreen() {
       {/* Messages */}
       <FlatList
         ref={listRef}
-        data={bucket.items}
+        data={bucketItems}
         ListHeaderComponent={<HeaderPropertyCard />}
         keyExtractor={(it, idx) => `${it.messageId || it.tempId || "k"}-${it.createdAt || idx}`}
         renderItem={renderItem}

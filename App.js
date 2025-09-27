@@ -7,12 +7,13 @@ import { initSocket } from './src/sockets/socket';
 
 function SocketBootstrapper() {
   const token = useSelector(s => s.auth.token);
+  const meId = useSelector(s => s.auth.user?.userId);
   useEffect(() => {
     if (token) {
       // chỉ gọi 1 lần, initChatSocket sẽ tự bỏ qua nếu đã init
-      initSocket(token);
+      initSocket(token, meId);
     }
-  }, [token]);
+  }, [token, meId]);
   return null;
 }
 
