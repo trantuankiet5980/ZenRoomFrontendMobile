@@ -389,7 +389,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.lightBtnText}>Chat</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.primaryBtn}>
+                    <TouchableOpacity
+                        style={styles.primaryBtn}
+                        onPress={() => {
+                            navigation.navigate("BookingForm", { property: property });
+                        }}
+                    >
                         <Icon name="calendar-check" size={18} color="#fff" />
                         <Text style={styles.primaryBtnText}>Đặt phòng</Text>
                     </TouchableOpacity>
