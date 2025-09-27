@@ -13,6 +13,7 @@ import notificationReducer from '../features/notifications/notificationsSlice';
 import chatReducer from '../features/chat/chatSlice';
 import addressReducer from '../features/address/addressSlice';
 import administrativeReducer from '../features/administrative/administrativeSlice';
+import bookingReducer from '../features/bookings/bookingSlice';
 
 export const store = configureStore({
   reducer: {
@@ -30,6 +31,7 @@ export const store = configureStore({
     chat: chatReducer,
     address: addressReducer,
     administrative: administrativeReducer,
+    bookings: bookingReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
