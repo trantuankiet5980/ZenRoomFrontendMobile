@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, TouchableOpacity, FlatList, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigation } from "@react-navigation/native";
 import {
   fetchMyPendingBookings,
   fetchMyApprovedBookings,
@@ -32,14 +33,13 @@ function formatDateVN(dateString) {
   return `${day}/${month}/${year}`;
 }
 
-
-
 export default function MyBookingsScreen() {
   useHideTabBar();
   const dispatch = useDispatch();
   const { myPending, myApproved } = useSelector(s => s.bookings);
   const [tab, setTab] = useState("pending");
   const [q, setQ] = useState("");
+  const navigation = useNavigation();
 
   useEffect(() => {
     if (tab === "pending") {
@@ -79,9 +79,21 @@ export default function MyBookingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* Header */}
-      <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginTop: 30 }}>
-        <Ionicons name="chevron-back" size={24} color="#111" onPress={() => null} />
-        <Text style={{ fontSize: 18, fontWeight: '700', flex: 1 }}>Booking của tôi</Text>
+      <View
+        style={{
+          height: 56,
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 12,
+          marginTop: 30,
+        }}
+      >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
+          <Ionicons name="chevron-back" size={24} color="#111" />
+        </TouchableOpacity>
+        <Text style={{ fontSize: 18, fontWeight: "700", flex: 1 }}>
+          Booking của tôi
+        </Text>
       </View>
 
       {/* Search */}
@@ -130,31 +142,70 @@ function Tab({ label, active, onPress }) {
 }
 
 function BookingCard({ item, tab, onCancel }) {
+  const navigation = useNavigation();
+
+  const handlePay = () => {
+    navigation.navigate("Payment", {
+      bookingId: item.bookingId,
+      totalAmount: item.totalAmount,
+      depositAmount: item.depositAmount,
+    });
+  };
   return (
     <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 12, padding: 12, marginBottom: 12 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontWeight: '700' }}>{item.property?.title}</Text>
-        <Text style={{ color: '#6B7280' }}>{item.status}</Text>
+        <Text style={{ fontWeight: '700' }}>Tên phòng: {item.property?.title}</Text>
+        <Text style={{ color: '#6B7280' }}>{item.bookingStatus}</Text>
       </View>
       <Text style={{ marginTop: 6 }}>
-        Check-in: <Text style={{ fontWeight: '600' }}>{formatDateVN(item.startDate)}</Text>
+        Ngày nhận phòng: <Text style={{ fontWeight: '600' }}>{formatDateVN(item.startDate)}</Text>
       </Text>
       <Text style={{ marginTop: 2 }}>
-        Check-out: <Text style={{ fontWeight: '600' }}>{formatDateVN(item.endDate)}</Text>
+        Ngày trả phòng: <Text style={{ fontWeight: '600' }}>{formatDateVN(item.endDate)}</Text>
       </Text>
 
       {item.note ? <Text style={{ marginTop: 4, color: '#6B7280' }}>Ghi chú: {item.note}</Text> : null}
 
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-        <TouchableOpacity onPress={() => { }} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: BORDER }}>
+        <TouchableOpacity onPress={() => navigation.navigate("BookingDetail", { id: item.bookingId })} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: BORDER }}>
           <Text>Xem</Text>
         </TouchableOpacity>
 
         {tab === 'pending' && (
-          <TouchableOpacity onPress={() => onCancel(item.bookingId)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: ORANGE }}>
-            <Text style={{ color: '#fff' }}>Hủy</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              onPress={() => onCancel(item.bookingId)}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: ORANGE,
+              }}
+            >
+              <Text style={{ color: "#fff" }}>Hủy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePay}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: "#16a34a",
+              }}
+            >
+              <Text style={{ color: "#fff" }}>Thanh toán</Text>
+            </TouchableOpacity>
+          </>
         )}
+        {/* Thanh toán (chỉ hiện ở approved)
+        {tab === 'approved' && (
+          <TouchableOpacity
+            onPress={handlePay}
+            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "#16a34a" }}
+          >
+            <Text style={{ color: '#fff' }}>Thanh toán</Text>
+          </TouchableOpacity>
+        )} */}
       </View>
     </View>
   );

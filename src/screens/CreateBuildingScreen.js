@@ -188,7 +188,8 @@ export default function CreateBuildingScreen() {
   const catMap = {
     CHUNG_CU: "Chung cư",
     DUPLEX: "Duplex",
-    PENTHOUSE: "Penthouse"
+    PENTHOUSE: "Penthouse",
+    HOMESTAY: "Homestay",
   };
 
   return (
