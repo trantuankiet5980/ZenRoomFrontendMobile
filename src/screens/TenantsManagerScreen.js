@@ -279,14 +279,15 @@ function TenantCard({ item, tab, dispatch }) {
 
         {tab === "pending" && (
           <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => dispatch(approveBooking(item.id))}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 8,
-              backgroundColor: ORANGE,
+            onPress={async () => {
+              try {
+                await dispatch(approveBooking(item.id)).unwrap();
+                alert("Duyệt thành công, hợp đồng đã tạo.");
+              } catch (e) {
+                alert("Có lỗi: " + e.message);
+              }
             }}
+            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: ORANGE }}
           >
             <Text style={{ color: "#fff" }}>Duyệt</Text>
           </TouchableOpacity>

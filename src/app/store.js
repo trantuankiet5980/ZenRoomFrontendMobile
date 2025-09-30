@@ -14,6 +14,7 @@ import chatReducer from '../features/chat/chatSlice';
 import addressReducer from '../features/address/addressSlice';
 import administrativeReducer from '../features/administrative/administrativeSlice';
 import bookingReducer from '../features/bookings/bookingSlice';
+import contractReducer from "../features/contracts/contractSlice";
 
 export const store = configureStore({
   reducer: {
@@ -32,6 +33,7 @@ export const store = configureStore({
     address: addressReducer,
     administrative: administrativeReducer,
     bookings: bookingReducer,
+    contracts: contractReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });

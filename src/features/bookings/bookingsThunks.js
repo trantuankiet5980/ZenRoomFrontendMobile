@@ -174,3 +174,17 @@ export const checkOutBooking = createAsyncThunk(
     }
   }
 );
+/**
+ * Tenant - thanh toán booking
+ */
+export const payBooking = createAsyncThunk(
+  "bookings/pay",
+  async ({ bookingId, type }, thunkAPI) => {
+    try {
+      const res = await axiosInstance.post(`/bookings/${bookingId}/pay`, { type });
+      return res.data;
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
