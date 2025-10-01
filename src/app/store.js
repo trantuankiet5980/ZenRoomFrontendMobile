@@ -15,6 +15,7 @@ import addressReducer from '../features/address/addressSlice';
 import administrativeReducer from '../features/administrative/administrativeSlice';
 import bookingReducer from '../features/bookings/bookingSlice';
 import contractReducer from "../features/contracts/contractSlice";
+import reviewsReducer from '../features/reviews/reviewsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -34,6 +35,7 @@ export const store = configureStore({
     administrative: administrativeReducer,
     bookings: bookingReducer,
     contracts: contractReducer,
+    reviews: reviewsReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
