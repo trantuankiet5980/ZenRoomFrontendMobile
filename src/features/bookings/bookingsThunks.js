@@ -27,6 +27,20 @@ export const createBooking = createAsyncThunk(
   }
 );
 
+export const fetchPropertyBookedDates = createAsyncThunk(
+  "bookings/fetchPropertyBookedDates",
+  async (propertyId, thunkAPI) => {
+    try {
+      const res = await axiosInstance.get(
+        `/bookings/property/${propertyId}/booked-dates`
+      );
+      return { propertyId, dates: res.data };
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
 /**
  * Tenant - xem danh sách booking
  */

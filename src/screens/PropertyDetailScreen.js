@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect , useRef} from "react";
 import {
     View,
     Text,
@@ -8,7 +8,7 @@ import {
     FlatList,
     SafeAreaView,
     Linking,
-    Dimensions
+    Dimensions,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useDispatch, useSelector } from "react-redux";
@@ -26,8 +26,8 @@ import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
 import { fetchPropertyReviewsSummary } from "../features/reviews/reviewsThunks";
 import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
+import PropertyBookingSection from "../components/property/PropertyBookingSection";
 const { width } = Dimensions.get('window');
-
 
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
@@ -41,7 +41,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const { isTenant } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
-const reviewsSummary = useSelector(
+    const reviewsSummary = useSelector(
         (state) => state.reviews.summaries[propertyId] || { average: 0, total: 0 }
     );
     const reviewsData = useSelector(
@@ -53,12 +53,21 @@ const reviewsSummary = useSelector(
     const propertyReviews = reviewsData.items || [];
     const MAX_COMMENT_LENGTH = 160;
 
+    const scrollViewRef = useRef(null);
+    const bookingSectionYRef = useRef(null);
+
+    const handleBookingSectionLayout = (event) => {
+        bookingSectionYRef.current = event?.nativeEvent?.layout?.y ?? 0;
+    };
+
+    const handleScrollToBooking = () => {
+        const y = bookingSectionYRef.current ?? 0;
+        scrollViewRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
+    };
+
     useEffect(() => {
         setExpandedReviews({});
     }, [propertyId]);
-
-    const normalizedReviewTotal =
-        reviewsSummary?.total || reviewsData.total || propertyReviews.length || 0;
 
     const formatReviewDate = (value) => {
         if (!value) {
@@ -251,6 +260,7 @@ const reviewsSummary = useSelector(
             </View>
 
             <ScrollView
+                ref={scrollViewRef}
                 style={[styles.container, { paddingTop: 15 }]}
                 contentContainerStyle={{ paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
@@ -370,7 +380,7 @@ const reviewsSummary = useSelector(
                         </View>
                     )}
 
-                    <View style={styles.detailItem}>
+                    {/* <View style={styles.detailItem}>
                         <Icon name="cash-multiple" size={24} color="#111" />
                         <Text style={styles.detailLabel}>Đặt cọc</Text>
                         <Text style={styles.detailValue}>
@@ -378,7 +388,7 @@ const reviewsSummary = useSelector(
                                 ? `${Number(property.deposit).toLocaleString("vi-VN")} đ`
                                 : "Thỏa thuận"}
                         </Text>
-                    </View>
+                    </View> */}
                 </View>
                 {/* Nội thất */}
                 {property.furnishings?.length > 0 && (
@@ -418,12 +428,19 @@ const reviewsSummary = useSelector(
                     )}
                 </View>
 
-
                 {/* Mô tả */}
                 <Text style={styles.sectionTitle}>Mô tả</Text>
                 <Text style={styles.description}>
                     {property.description || "Chưa có mô tả chi tiết"}
                 </Text>
+                {isTenant && (
+                    <View
+                        onLayout={handleBookingSectionLayout}
+                        style={{ paddingHorizontal: 12 }}
+                    >
+                        <PropertyBookingSection propertyId={property.propertyId} />
+                    </View>
+                )}
                 <Text style={styles.sectionTitle}>Đánh giá</Text>
                 {isReviewsLoading ? (
                     <Text style={styles.reviewsStatusText}>Đang tải đánh giá...</Text>
@@ -568,12 +585,10 @@ const reviewsSummary = useSelector(
 
                     <TouchableOpacity
                         style={styles.primaryBtn}
-                        onPress={() => {
-                            navigation.navigate("BookingForm", { property: property });
-                        }}
+                        onPress={handleScrollToBooking}
                     >
                         <Icon name="calendar-check" size={18} color="#fff" />
-                        <Text style={styles.primaryBtnText}>Đặt phòng</Text>
+                        <Text style={styles.primaryBtnText}>Chọn ngày</Text>
                     </TouchableOpacity>
                 </View>
             ) : String(property.landlord?.userId) === String(currentUser?.userId) ? (
