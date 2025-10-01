@@ -1,4 +1,4 @@
-import React, { useState, useEffect , useRef} from "react";
+import React, { useState, useEffect , useRef, useCallback } from "react";
 import {
     View,
     Text,
@@ -55,6 +55,11 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
     const scrollViewRef = useRef(null);
     const bookingSectionYRef = useRef(null);
+    const [bookingSelection, setBookingSelection] = useState({
+        startDate: null,
+        endDate: null,
+        nights: 0,
+    });
 
     const handleBookingSectionLayout = (event) => {
         bookingSectionYRef.current = event?.nativeEvent?.layout?.y ?? 0;
@@ -64,6 +69,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         const y = bookingSectionYRef.current ?? 0;
         scrollViewRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
     };
+
+    const handleBookingSelectionChange = useCallback(({ startDate, endDate, nights }) => {
+        setBookingSelection({
+            startDate: startDate || null,
+            endDate: endDate || null,
+            nights: nights || 0,
+        });
+    }, []);
 
     useEffect(() => {
         setExpandedReviews({});
@@ -184,6 +197,50 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             : `${formatted} đ/đêm`;
     };
 
+    const formatTotalPrice = (price, nights) => {
+        if (!price || nights <= 0) {
+            return null;
+        }
+
+        const total = Number(price) * nights;
+        if (Number.isNaN(total)) {
+            return null;
+        }
+
+        return `${total.toLocaleString("vi-VN")} đ`;
+    };
+
+    const formatBookingRangeLabel = (startKey, endKey, nights) => {
+        if (!startKey || !endKey || nights <= 0) {
+            return null;
+        }
+
+        const startDate = new Date(`${startKey}T00:00:00`);
+        const endDate = new Date(`${endKey}T00:00:00`);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+            return null;
+        }
+
+        const startDay = startDate.getDate();
+        const endDay = endDate.getDate();
+        const startMonth = startDate.getMonth() + 1;
+        const endMonth = endDate.getMonth() + 1;
+        const startMonthLabel = `thg ${startMonth}`;
+        const endMonthLabel = `thg ${endMonth}`;
+
+        if (startMonth === endMonth) {
+            return `Cho ${nights} đêm ${startDay}-${endDay} ${endMonthLabel}`;
+        }
+
+        return `Cho ${nights} đêm ${startDay} ${startMonthLabel}-${endDay} ${endMonthLabel}`;
+    };
+
+    const totalPriceLabel = formatTotalPrice(property.price, bookingSelection.nights);
+    const bookingRangeLabel = formatBookingRangeLabel(
+        bookingSelection.startDate,
+        bookingSelection.endDate,
+        bookingSelection.nights
+    );
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -302,98 +359,95 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 />
 
                 {/* Tiêu đề + Giá */}
-                <View style={{ padding: 12 }}>
+                <View style={styles.summaryCard}>
                     <Text style={styles.title} numberOfLines={2}>
                         {property.title || "Phòng cho thuê"}
                     </Text>
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginVertical: 6,
-                        }}
-                    >
+                    {property.buildingName ? (
+                        <Text style={styles.buildingName} numberOfLines={2}>
+                            {property.buildingName}
+                        </Text>
+                    ) : null}
+                    <View style={styles.priceRow}>
                         <Icon name="cash" size={20} color="#f36031" />
-                        <Text style={styles.price}>
-                            {formatPriceWithUnit(property)}
-                        </Text>
+                        <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
                     </View>
-                    <View style={styles.ratingRow}>
-                        <Ionicons
-                            name="star"
-                            size={16}
-                            color="#f5a623"
-                            style={{ marginRight: 4 }}
-                        />
-                        {isReviewsLoading ? (
-                            <Text style={styles.ratingText}>
-                                Đang tải đánh giá...
-                            </Text>
-                        ) : reviewsStatus === "failed" ? (
-                            <Text style={styles.ratingText}>
-                                {reviewsError || "Không thể tải đánh giá"}
-                            </Text>
-                        ) : reviewsSummary.total > 0 ? (
-                            <Text style={styles.ratingText}>
-                                {Number(
-                                    reviewsSummary.average || 0
-                                ).toFixed(1)} ({reviewsSummary.total} đánh giá)
-                            </Text>
-                        ) : (
-                            <Text style={styles.ratingText}>
-                                Chưa có đánh giá
-                            </Text>
-                        )}
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Ionicons
-                            name="location-outline"
-                            size={14}
-                            color="#555"
-                            style={{ marginRight: 4 }}
-                        />
-                        <Text style={styles.subText}>{addressFormatted}</Text>
-                    </View>
-                </View>
-                {/* Thông tin chi tiết */}
-                <Text style={styles.sectionTitle}>Thông tin chi tiết</Text>
-                <View style={styles.detailGrid}>
-                    <View style={styles.detailItem}>
-                        <Icon name="stairs" size={24} color="#111" />
-                        <Text style={styles.detailLabel}>Tầng</Text>
-                        <Text style={styles.detailValue}>{property.floorNo || 0}</Text>
-                    </View>
-                    <View style={styles.detailItem}>
-                        <Icon name="fullscreen" size={24} color="#111" />
-                        <Text style={styles.detailLabel}>Diện tích</Text>
-                        <Text style={styles.detailValue}>
-                            {property.area ? `${property.area} m²` : "N/A"}
-                        </Text>
-                    </View>
-                    {property.propertyType !== "BUILDING" && (
-                        <View style={styles.detailItem}>
-                            <Icon name="account-group" size={24} color="#111" />
-                            <Text style={styles.detailLabel}>Số người</Text>
-                            <Text style={styles.detailValue}>
-                                {property.capacity || "N/A"}
+                    <View style={styles.ratingBadgeRow}>
+                        <View style={styles.ratingBadge}>
+                            <Ionicons name="star" size={16} color="#f5a623" />
+                            <Text style={styles.ratingBadgeText}>
+                                {isReviewsLoading
+                                    ? "Đang tải"
+                                    : reviewsStatus === "failed"
+                                    ? "Không thể tải"
+                                    : reviewsSummary.total > 0
+                                    ? Number(reviewsSummary.average || 0).toFixed(1)
+                                    : "--"}
                             </Text>
                         </View>
-                    )}
-
-                    {/* <View style={styles.detailItem}>
-                        <Icon name="cash-multiple" size={24} color="#111" />
-                        <Text style={styles.detailLabel}>Đặt cọc</Text>
-                        <Text style={styles.detailValue}>
-                            {property.deposit
-                                ? `${Number(property.deposit).toLocaleString("vi-VN")} đ`
-                                : "Thỏa thuận"}
+                        <View style={styles.ratingBadge}>
+                            <Icon name="crown" size={18} color="#f5a623" />
+                            <Text style={styles.ratingBadgeText}>Được khách yêu thích</Text>
+                        </View>
+                        <View style={styles.ratingBadge}>
+                            <Icon name="comment-text-multiple-outline" size={18} color="#f5a623" />
+                            <Text style={styles.ratingBadgeText}>
+                                {isReviewsLoading
+                                    ? "-- đánh giá"
+                                    : reviewsStatus === "failed"
+                                    ? "Lỗi"
+                                    : `${reviewsSummary.total || 0} đánh giá`}
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={styles.metaRow}>
+                        <View style={styles.metaItem}>
+                            <Icon name="account-group" size={18} color="#555" />
+                            <Text style={styles.metaText}>
+                                {property.capacity ? `${property.capacity} khách` : "Đang cập nhật"}
+                            </Text>
+                        </View>
+                        <View style={styles.metaItem}>
+                            <Icon name="bed-outline" size={18} color="#555" />
+                            <Text style={styles.metaText}>
+                                {property.bedrooms ? `${property.bedrooms} phòng ngủ` : "Chưa rõ"}
+                            </Text>
+                        </View>
+                        <View style={styles.metaItem}>
+                            <Icon name="shower" size={18} color="#555" />
+                            <Text style={styles.metaText}>
+                                {property.bathrooms
+                                    ? `${property.bathrooms} phòng tắm`
+                                    : "Chưa rõ"}
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={styles.metaRow}>
+                        <View style={styles.metaItem}>
+                            <Icon name="stairs-up" size={18} color="#555" />
+                            <Text style={styles.metaText}>
+                                {property.floorNo ? `Tầng ${property.floorNo}` : "Không rõ tầng"}
+                            </Text>
+                        </View>
+                        <View style={styles.metaItem}>
+                            <Icon name="ruler-square" size={18} color="#555" />
+                            <Text style={styles.metaText}>
+                                {property.area ? `${property.area} m²` : "Chưa rõ diện tích"}
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={styles.locationRow}>
+                        <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
+                        <Text style={[styles.subText, { flex: 1 }]} numberOfLines={2}>
+                            {addressFormatted}
                         </Text>
-                    </View> */}
+                    </View>
                 </View>
+            
                 {/* Nội thất */}
                 {property.furnishings?.length > 0 && (
                     <>
-                        <Text style={styles.sectionTitle}>Nội thất</Text>
+                        <Text style={styles.sectionTitle}>Nơi này có những gì</Text>
                         <View style={styles.furnishingGrid}>
                             {property.furnishings.map((f, idx) => (
                                 <View key={idx} style={styles.furnishingItem}>
@@ -438,7 +492,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         onLayout={handleBookingSectionLayout}
                         style={{ paddingHorizontal: 12 }}
                     >
-                        <PropertyBookingSection propertyId={property.propertyId} />
+                        <PropertyBookingSection
+                            propertyId={property.propertyId}
+                            onSelectionChange={handleBookingSelectionChange}
+                        />
                     </View>
                 )}
                 <Text style={styles.sectionTitle}>Đánh giá</Text>
@@ -526,10 +583,19 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             {isTenant ? (
                 // Người thuê -> báo cáo, chat, đặt phòng
                 <View style={styles.bottomBar}>
-                    <TouchableOpacity style={styles.lightBtn}>
-                        <Icon name="flag-outline" size={18} color="#f36031" />
-                        <Text style={styles.lightBtnText}>Báo cáo</Text>
-                    </TouchableOpacity>
+                    <View style={styles.priceSummary}>
+                        <Text
+                            style={[
+                                styles.priceSummaryValue,
+                                totalPriceLabel ? styles.priceSummaryValueHighlight : null,
+                            ]}
+                        >
+                            {totalPriceLabel || "Chọn ngày để xem giá"}
+                        </Text>
+                        {bookingRangeLabel ? (
+                            <Text style={styles.priceSummarySubtitle}>{bookingRangeLabel}</Text>
+                        ) : null}
+                    </View>
                     <TouchableOpacity
                         style={styles.lightBtn}
                         onPress={async () => {
@@ -643,27 +709,84 @@ const styles = StyleSheet.create({
     mainImage: {
         width: width,
         height: 400,
-        borderRadius: 0
+        borderRadius: 0,
     },
 
     // Content
-    title: { fontSize: 18, fontWeight: "700" },
-    price: {
+    summaryCard: {
+        padding: 12,
+        alignItems: "center",
+    },
+    title: {
+        fontSize: 22,
+        fontWeight: "700",
+        textAlign: "center",
+        marginBottom: 4,
+        color: "#111",
+    },
+    buildingName: {
         fontSize: 16,
-        fontWeight: "600",
+        color: "#6b7280",
+        textAlign: "center",
+        marginBottom: 8,
+    },
+    priceRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 10,
+    },
+    price: {
+        fontSize: 18,
+        fontWeight: "700",
         marginLeft: 6,
         color: "#f36031",
     },
-        ratingRow: {
+    ratingBadgeRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "center",
+        marginBottom: 12,
+    },
+    ratingBadge: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 4,
+        backgroundColor: "#fff7ed",
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        marginHorizontal: 4,
+        marginVertical: 4,
     },
-    ratingText: {
+    ratingBadgeText: {
+        fontSize: 13,
+        fontWeight: "600",
+        marginLeft: 6,
+        color: "#b45309",
+    },
+    subText: { fontSize: 14, color: "#555", marginVertical: 2, textAlign: "center" },
+    metaRow: {
+        flexDirection: "row",
+        justifyContent: "center",
+        flexWrap: "wrap",
+        marginBottom: 6,
+    },
+    metaItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginHorizontal: 8,
+        marginVertical: 4,
+    },
+    metaText: {
+        marginLeft: 6,
+        color: "#374151",
         fontSize: 14,
-        color: "#444",
     },
-    subText: { fontSize: 14, color: "#555", marginVertical: 2 },
+    locationRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: 6,
+    },
 
     detailGrid: {
         flexDirection: "row",
@@ -783,38 +906,62 @@ const styles = StyleSheet.create({
     },
     bottomBar: {
         position: "absolute",
-        bottom: 10,
+        bottom: 0,
         left: 0,
         right: 0,
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-around",
-        padding: 15,
+        justifyContent: "space-between",
+        padding: 20,
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: "#ddd",
-        backgroundColor: "#fff",
+        backgroundColor: "#ffffffff",
+        borderRadius: 15
     },
     lightBtn: {
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 12
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#f36031",
+        marginRight: 12,
     },
     lightBtnText: {
         marginLeft: 6,
         color: "#f36031",
-        fontWeight: "600"
+        fontWeight: "600",
     },
     primaryBtn: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#f36031",
         paddingHorizontal: 20,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingVertical: 15,
+        borderRadius: 25,
     },
     primaryBtnText: {
         marginLeft: 6,
         color: "#fff",
-        fontWeight: "700"
+        fontWeight: "700",
+    },
+    priceSummary: {
+        flex: 1,
+        marginRight: 12,
+        justifyContent: "center",
+    },
+    priceSummaryValue: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#111",
+    },
+    priceSummaryValueHighlight: {
+        color: "#f36031",
+    },
+    priceSummarySubtitle: {
+        fontSize: 13,
+        color: "#6b7280",
+        marginTop: 2,
     },
 });

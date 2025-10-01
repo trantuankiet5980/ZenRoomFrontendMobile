@@ -51,7 +51,7 @@ const toLocalISOStringFromKey = (key) => {
     return new Date(date.getTime() - tzOffset).toISOString().slice(0, -1);
 };
 
-const PropertyBookingSection = ({ propertyId, style, onLayout }) => {
+const PropertyBookingSection = ({ propertyId, style, onLayout, onSelectionChange }) => {
     const dispatch = useDispatch();
     const [selectedStart, setSelectedStart] = useState(null);
     const [selectedEnd, setSelectedEnd] = useState(null);
@@ -178,6 +178,18 @@ const PropertyBookingSection = ({ propertyId, style, onLayout }) => {
         },
         [bookedDatesSet, hasBookedBetween, selectedEnd, selectedStart]
     );
+
+    useEffect(() => {
+        if (typeof onSelectionChange !== "function") {
+            return;
+        }
+
+        onSelectionChange({
+            startDate: selectedStart,
+            endDate: selectedEnd,
+            nights,
+        });
+    }, [nights, onSelectionChange, selectedEnd, selectedStart]);
 
     const handleSubmit = useCallback(async () => {
         if (!propertyId || !selectedStart || !selectedEnd) {
