@@ -235,6 +235,124 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         return `Cho ${nights} đêm ${startDay} ${startMonthLabel}-${endDay} ${endMonthLabel}`;
     };
 
+    const formatCurrency = (value) => {
+        if (!value && value !== 0) {
+            return null;
+        }
+
+        const number = Number(value);
+        if (Number.isNaN(number)) {
+            return null;
+        }
+
+        return `${number.toLocaleString("vi-VN")} đ`;
+    };
+
+    const getChargeBasisLabel = (basis) => {
+        const mapping = {
+            FIXED: "trọn gói",
+            PER_PERSON: "mỗi người",
+            PER_ROOM: "mỗi phòng",
+            OTHER: "khác",
+        };
+
+        return mapping[basis] || null;
+    };
+
+    const getServiceIconName = (serviceName = "") => {
+        const normalized = serviceName.toLowerCase();
+
+        if (normalized.includes("dọn") || normalized.includes("vệ sinh")) {
+            return "broom";
+        }
+
+        if (normalized.includes("an ninh") || normalized.includes("bảo vệ")) {
+            return "shield-check";
+        }
+
+        if (normalized.includes("giặt")) {
+            return "washing-machine";
+        }
+
+        if (normalized.includes("internet") || normalized.includes("wifi")) {
+            return "wifi";
+        }
+
+        if (normalized.includes("điện")) {
+            return "flash";
+        }
+
+        if (normalized.includes("nước")) {
+            return "water";
+        }
+
+        if (normalized.includes("giữ xe") || normalized.includes("đỗ xe") || normalized.includes("parking")) {
+            return "car";
+        }
+
+        return "clipboard-check";
+    };
+
+    const getFurnishingIconName = (name = "") => {
+        const normalized = name.toLowerCase();
+
+        if (normalized.includes("tủ lạnh")) {
+            return "fridge";
+        }
+
+        if (normalized.includes("máy lạnh") || normalized.includes("điều hòa")) {
+            return "air-conditioner";
+        }
+
+        if (normalized.includes("máy giặt")) {
+            return "washing-machine";
+        }
+
+        if (normalized.includes("tivi") || normalized.includes("tv")) {
+            return "television-classic";
+        }
+
+        if (normalized.includes("bếp")) {
+            return "stove";
+        }
+
+        if (normalized.includes("giường") || normalized.includes("nệm")) {
+            return "bed-queen";
+        }
+
+        if (normalized.includes("tủ quần áo") || normalized.includes("tủ")) {
+            return "wardrobe";
+        }
+
+        if (normalized.includes("bàn") || normalized.includes("ghế")) {
+            return "table-furniture";
+        }
+
+        return "sofa";
+    };
+
+    const renderServiceFee = (service) => {
+        if (service.isIncluded) {
+            return "Đã bao gồm trong giá";
+        }
+
+        const formatted = formatCurrency(service.fee);
+        if (!formatted) {
+            return "Liên hệ để biết phí";
+        }
+
+        const basisLabel = getChargeBasisLabel(service.chargeBasis);
+        return basisLabel ? `${formatted} · ${basisLabel}` : formatted;
+    };
+
+    const renderFurnishingSubtitle = (furnishing) => {
+        if (furnishing.quantity && furnishing.quantity > 1) {
+            return `Số lượng: ${furnishing.quantity}`;
+        }
+
+        return "Sẵn sàng sử dụng";
+    };
+
     const totalPriceLabel = formatTotalPrice(property.price, bookingSelection.nights);
     const bookingRangeLabel = formatBookingRangeLabel(
         bookingSelection.startDate,
@@ -447,19 +565,74 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 {/* Nội thất */}
                 {property.furnishings?.length > 0 && (
                     <>
-                        <Text style={styles.sectionTitle}>Nơi này có những gì</Text>
-                        <View style={styles.furnishingGrid}>
-                            {property.furnishings.map((f, idx) => (
-                                <View key={idx} style={styles.furnishingItem}>
-                                    <Icon
-                                        name={f.furnishingId?.icon || "sofa"}
-                                        size={28}
-                                        color="#111"
-                                    />
-                                    <Text style={styles.furnishingLabel}>
-                                        {f.furnishingName}
-                                        {f.quantity > 1 ? ` x${f.quantity}` : ""}
-                                    </Text>
+                        <Text style={styles.sectionTitle}>Nội thất & tiện nghi</Text>
+                        <View style={styles.infoList}>
+                            {property.furnishings.map((furnishing, idx) => (
+                                <View
+                                    key={furnishing.id || `${furnishing.furnishingId || idx}`}
+                                    style={[
+                                        styles.infoCard,
+                                        idx === property.furnishings.length - 1
+                                            ? styles.infoCardLast
+                                            : null,
+                                    ]}
+                                >
+                                    <View style={styles.infoIconWrapper}>
+                                        <Icon
+                                            name={getFurnishingIconName(
+                                                furnishing.furnishingName || ""
+                                            )}
+                                            size={22}
+                                            color="#f36031"
+                                        />
+                                    </View>
+                                    <View style={styles.infoCardBody}>
+                                        <Text style={styles.infoCardTitle}>
+                                            {furnishing.furnishingName || "Nội thất"}
+                                        </Text>
+                                        <Text style={styles.infoCardSubtitle}>
+                                            {renderFurnishingSubtitle(furnishing)}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </>
+                )}
+
+                {/* Dịch vụ */}
+                {property.services?.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Dịch vụ đi kèm</Text>
+                        <View style={styles.infoList}>
+                            {property.services.map((service, idx) => (
+                                <View
+                                    key={service.id || `${service.serviceName || idx}`}
+                                    style={[
+                                        styles.infoCard,
+                                        idx === property.services.length - 1
+                                            ? styles.infoCardLast
+                                            : null,
+                                    ]}
+                                >
+                                    <View style={styles.infoIconWrapper}>
+                                        <Icon
+                                            name={getServiceIconName(service.serviceName || "")}
+                                            size={22}
+                                            color="#0ea5e9"
+                                        />
+                                    </View>
+                                    <View style={styles.infoCardBody}>
+                                        <Text style={styles.infoCardTitle}>
+                                            {service.serviceName || "Dịch vụ"}
+                                        </Text>
+                                        <Text style={styles.infoCardSubtitle}>
+                                            {renderServiceFee(service)}
+                                        </Text>
+                                        {service.note ? (
+                                            <Text style={styles.infoCardNote}>{service.note}</Text>
+                                        ) : null}
+                                    </View>
                                 </View>
                             ))}
                         </View>
@@ -886,23 +1059,51 @@ const styles = StyleSheet.create({
         color: "#f36031",
         fontWeight: "600",
     },
-    furnishingGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
+    infoList: {
         paddingHorizontal: 12,
-        marginTop: 6,
+        marginTop: 8,
+        marginBottom: 4,
     },
-    furnishingItem: {
-        width: "30%", // 3 item / hàng
+    infoCard: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        backgroundColor: "#f9fafb",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+    },
+    infoCardLast: {
+        marginBottom: 0,
+    },
+    infoIconWrapper: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        backgroundColor: "#fff",
         alignItems: "center",
-        marginVertical: 10,
+        justifyContent: "center",
+        marginRight: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
     },
-    furnishingLabel: {
+    infoCardBody: {
+        flex: 1,
+    },
+    infoCardTitle: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#111827",
+        marginBottom: 4,
+    },
+    infoCardSubtitle: {
         fontSize: 13,
-        color: "#444",
-        marginTop: 6,
-        textAlign: "center",
+        color: "#4b5563",
+    },
+    infoCardNote: {
+        marginTop: 4,
+        fontSize: 12,
+        color: "#6b7280",
+        lineHeight: 18,
     },
     bottomBar: {
         position: "absolute",
