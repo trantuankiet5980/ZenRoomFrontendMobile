@@ -42,7 +42,7 @@ export default function AppTabs() {
                 component={FavoritesStack}
                 options={{
                     title: 'Yêu thích',
-                    tabBarIcon: ({ color }) => <AntDesign name="hearto" size={22} color={color} />,
+                    tabBarIcon: ({ color }) => <Ionicons name="heart-outline" size={22} color={color} />,
                 }}
             />
             }
