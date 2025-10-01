@@ -24,6 +24,8 @@ import { resolveAssetUrl } from "../utils/cdn";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
+import { fetchPropertyReviewsSummary } from "../features/reviews/reviewsThunks";
+import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
 const { width } = Dimensions.get('window');
 
 
@@ -31,6 +33,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
     const { propertyId } = route.params;
     const [liked, setLiked] = useState(false);
+    const [expandedReviews, setExpandedReviews] = useState({});
     const dispatch = useDispatch();
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
@@ -38,6 +41,59 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const { isTenant } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
+const reviewsSummary = useSelector(
+        (state) => state.reviews.summaries[propertyId] || { average: 0, total: 0 }
+    );
+    const reviewsData = useSelector(
+        (state) => state.reviews.lists?.[propertyId] || { items: [], total: 0 }
+    );
+    const reviewsStatus = useSelector((state) => state.reviews.status[propertyId]);
+    const reviewsError = useSelector((state) => state.reviews.error[propertyId]);
+    const isReviewsLoading = reviewsStatus === "loading";
+    const propertyReviews = reviewsData.items || [];
+    const MAX_COMMENT_LENGTH = 160;
+
+    useEffect(() => {
+        setExpandedReviews({});
+    }, [propertyId]);
+
+    const normalizedReviewTotal =
+        reviewsSummary?.total || reviewsData.total || propertyReviews.length || 0;
+
+    const formatReviewDate = (value) => {
+        if (!value) {
+            return "--";
+        }
+
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            return value;
+        }
+
+        return parsed.toLocaleDateString("vi-VN");
+    };
+
+    const shouldTruncateComment = (comment) =>
+        typeof comment === "string" && comment.length > MAX_COMMENT_LENGTH;
+
+    const getDisplayedComment = (comment, isExpanded) => {
+        if (typeof comment !== "string") {
+            return "";
+        }
+
+        if (isExpanded || comment.length <= MAX_COMMENT_LENGTH) {
+            return comment;
+        }
+
+        return `${comment.slice(0, MAX_COMMENT_LENGTH).trimEnd()}...`;
+    };
+
+    const toggleReviewExpansion = (reviewKey) => {
+        setExpandedReviews((prev) => ({
+            ...prev,
+            [reviewKey]: !prev[reviewKey],
+        }));
+    };
 
     useEffect(() => {
         if (property) {
@@ -55,9 +111,21 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
     useEffect(() => {
         if (property?.media) {
-            console.log("MEDIA LIST:", property.media);
+            // console.log("MEDIA LIST:", property.media);
         }
     }, [property]);
+
+    useEffect(() => {
+        if (!propertyId) {
+            return;
+        }
+
+        dispatch(fetchPropertyReviewsSummary(propertyId));
+
+        return () => {
+            dispatch(resetReviewsSummary(propertyId));
+        };
+    }, [dispatch, propertyId]);
 
     if (loading) {
         return (
@@ -239,7 +307,33 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.price}>
                             {formatPriceWithUnit(property)}
                         </Text>
-
+                    </View>
+                    <View style={styles.ratingRow}>
+                        <Ionicons
+                            name="star"
+                            size={16}
+                            color="#f5a623"
+                            style={{ marginRight: 4 }}
+                        />
+                        {isReviewsLoading ? (
+                            <Text style={styles.ratingText}>
+                                Đang tải đánh giá...
+                            </Text>
+                        ) : reviewsStatus === "failed" ? (
+                            <Text style={styles.ratingText}>
+                                {reviewsError || "Không thể tải đánh giá"}
+                            </Text>
+                        ) : reviewsSummary.total > 0 ? (
+                            <Text style={styles.ratingText}>
+                                {Number(
+                                    reviewsSummary.average || 0
+                                ).toFixed(1)} ({reviewsSummary.total} đánh giá)
+                            </Text>
+                        ) : (
+                            <Text style={styles.ratingText}>
+                                Chưa có đánh giá
+                            </Text>
+                        )}
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
                         <Ionicons
@@ -330,6 +424,85 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.description}>
                     {property.description || "Chưa có mô tả chi tiết"}
                 </Text>
+                <Text style={styles.sectionTitle}>Đánh giá</Text>
+                {isReviewsLoading ? (
+                    <Text style={styles.reviewsStatusText}>Đang tải đánh giá...</Text>
+                ) : reviewsStatus === "failed" ? (
+                    <Text style={[styles.reviewsStatusText, { color: "#d9534f" }]}>
+                        {reviewsError || "Không thể tải đánh giá"}
+                    </Text>
+                ) : propertyReviews.length > 0 ? (
+                    <View style={styles.reviewsContainer}>
+                        {propertyReviews.map((review, index) => {
+                            const reviewKey = review.reviewId || `${propertyId}-${index}`;
+                            const isExpanded = !!expandedReviews[reviewKey];
+                            const comment = getDisplayedComment(
+                                review.comment,
+                                isExpanded
+                            );
+                            const showToggle = shouldTruncateComment(review.comment);
+
+                            return (
+                                <View
+                                    key={reviewKey}
+                                    style={[
+                                        styles.reviewCard,
+                                        index !== propertyReviews.length - 1 &&
+                                            styles.reviewCardSpacing,
+                                    ]}
+                                >
+                                    <View style={styles.reviewHeader}>
+                                        <Ionicons
+                                            name="person-circle-outline"
+                                            size={36}
+                                            color="#a0a0a0"
+                                            style={{ marginRight: 10 }}
+                                        />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.reviewName} numberOfLines={1}>
+                                                {review?.tenant?.fullName ||
+                                                    review?.booking?.tenant?.fullName ||
+                                                    "Người dùng ẩn danh"}
+                                            </Text>
+                                            <Text style={styles.reviewDate}>
+                                                {formatReviewDate(review.createdAt)}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.reviewRating}>
+                                            <Ionicons
+                                                name="star"
+                                                size={16}
+                                                color="#f5a623"
+                                                style={{ marginRight: 4 }}
+                                            />
+                                            <Text style={styles.reviewRatingValue}>
+                                                {Number(review.rating || 0).toFixed(1)}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    {comment ? (
+                                        <View style={styles.reviewBody}>
+                                            <Text style={styles.reviewComment}>{comment}</Text>
+                                            {showToggle && (
+                                                <TouchableOpacity
+                                                    onPress={() =>
+                                                        toggleReviewExpansion(reviewKey)
+                                                    }
+                                                >
+                                                    <Text style={styles.reviewToggle}>
+                                                        {isExpanded ? "Thu gọn" : "Xem thêm"}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    ) : null}
+                                </View>
+                            );
+                        })}
+                    </View>
+                ) : (
+                    <Text style={styles.reviewsStatusText}>Chưa có đánh giá</Text>
+                )}
             </ScrollView>
 
             {/* Thanh Action */}
@@ -466,6 +639,15 @@ const styles = StyleSheet.create({
         marginLeft: 6,
         color: "#f36031",
     },
+        ratingRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 4,
+    },
+    ratingText: {
+        fontSize: 14,
+        color: "#444",
+    },
     subText: { fontSize: 14, color: "#555", marginVertical: 2 },
 
     detailGrid: {
@@ -510,6 +692,61 @@ const styles = StyleSheet.create({
         color: "#444",
         lineHeight: 20,
         paddingHorizontal: 12,
+    },
+    reviewsStatusText: {
+        paddingHorizontal: 12,
+        fontSize: 14,
+        color: "#555",
+        marginBottom: 12,
+    },
+    reviewsContainer: {
+        paddingHorizontal: 12,
+        paddingBottom: 4,
+    },
+    reviewCard: {
+        backgroundColor: "#f7f7f7",
+        borderRadius: 12,
+        padding: 12,
+    },
+    reviewCardSpacing: {
+        marginBottom: 12,
+    },
+    reviewHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    reviewName: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: "#222",
+    },
+    reviewDate: {
+        fontSize: 12,
+        color: "#777",
+        marginTop: 2,
+    },
+    reviewRating: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginLeft: 12,
+    },
+    reviewRatingValue: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#333",
+    },
+    reviewBody: {
+        marginTop: 10,
+    },
+    reviewComment: {
+        fontSize: 14,
+        color: "#444",
+        lineHeight: 20,
+    },
+    reviewToggle: {
+        marginTop: 6,
+        color: "#f36031",
+        fontWeight: "600",
     },
     furnishingGrid: {
         flexDirection: "row",
