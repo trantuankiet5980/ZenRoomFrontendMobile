@@ -52,14 +52,14 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
     {
       key: "manage-contracts",
       label: "Quản lý hợp đồng",
-      icon: "filetext1",
-      iconLib: "ant",
+      icon: "file-document-outline",
+      iconLib: "mc",
       onPress: () => navigation.navigate("ContractsManager"),
     },
     {
       key: "create-contract",
       label: "Tạo hợp đồng",
-      icon: "filetext1",
+      icon: "profile",
       iconLib: "ant",
       onPress: () => navigation.navigate("CreateContract"),
     },

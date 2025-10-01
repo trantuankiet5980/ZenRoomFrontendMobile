@@ -10,13 +10,14 @@ import PriceRangeModal from "../components/modal/PriceRangeModal";
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useNavigation } from "@react-navigation/native";
 import FilterModal from "../components/modal/FilterModal";
+import S3Image from "../components/S3Image";
+import { useRoute } from "@react-navigation/native";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
 
 export default function SearchPostScreen() {
-  const [activeType, setActiveType] = useState('Phòng trọ');
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [priceRange, setPriceRange] = useState([0, 15000000]);
@@ -28,6 +29,18 @@ export default function SearchPostScreen() {
   const dispatch = useDispatch();
 
   const { searchResults, loading } = useSelector((state) => state.properties);
+  const route = useRoute();
+  const { type } = route.params || {};
+  const [activeType, setActiveType] = useState(
+    type === "ROOM" ? "Phòng trọ" : type === "BUILDING" ? "Căn hộ" : "Phòng trọ"
+  );
+
+  const formatPrice = (p) => {
+    const n = Number(p);
+    return Number.isFinite(n) ? n.toLocaleString("vi-VN") : p;
+  };
+
+  const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
 
   // gọi API mỗi khi keyword / priceRange / type thay đổi
   useEffect(() => {
@@ -55,22 +68,23 @@ export default function SearchPostScreen() {
         overflow: 'hidden',
       }}
     >
-      <Image
-        source={{ uri: item.media?.[0]?.url || "https://picsum.photos/seed/building/600/400" }}
-        style={{ width: "100%", height: 120 }}
-        resizeMode="cover"
+      <S3Image
+        src={item.media?.[0]?.url || "https://picsum.photos/seed/building/600/400"}
+        cacheKey={item.updatedAt}
+        style={{ width: "100%", height: 120, borderRadius: 8 }}
+        alt={item.title}
       />
       <View style={{ padding: 8 }}>
         <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
           {item.title}
         </Text>
-        <Text style={{ color: ORANGE, fontWeight: '600', fontSize: 12, marginTop: 4 }}>
-          {`Từ ${item.price?.toLocaleString() || 0}đ/tháng`}
-        </Text>
+        <Text style={{ fontSize: 12, color: ORANGE }}>
+            Từ {formatPrice(item.price)}đ/tháng
+          </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
           <Ionicons name="location" size={14} color={ORANGE} />
           <Text style={{ fontSize: 11, color: '#111', marginLeft: 4 }} numberOfLines={1}>
-            {item.address?.addressFull || "Đang cập nhật"}
+            {formatAddress(item.address.addressFull)}
           </Text>
         </View>
       </View>

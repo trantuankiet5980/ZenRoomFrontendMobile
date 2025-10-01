@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchProperties, createProperty, fetchPropertyDetail, fetchPropertiesByLandlord, updateProperty,searchProperties } from "./propertiesThunks";
+import { fetchProperties, createProperty, fetchPropertyDetail, fetchPropertiesByLandlord, updateProperty, searchProperties } from "./propertiesThunks";
 
 
 
@@ -8,6 +8,10 @@ const propertiesSlice = createSlice({
   initialState: {
     rooms: [],
     buildings: [],
+    landlordRooms: [],   // danh sách riêng cho landlord
+    landlordBuildings: [],
+    landlordRoomsPending: [],
+    landlordBuildingsPending: [],
     searchResults: { content: [], totalElements: 0, totalPages: 0 },
     current: null,
     loading: false,
@@ -82,11 +86,20 @@ const propertiesSlice = createSlice({
       })
       .addCase(fetchPropertiesByLandlord.fulfilled, (state, action) => {
         state.loading = false;
-        const { type, data } = action.payload;
+        const { type, data, postStatus } = action.payload;
+
         if (type === "ROOM") {
-          state.rooms = data;
+          if (postStatus === "APPROVED") {
+            state.landlordRooms = data;
+          } else if (postStatus === "PENDING") {
+            state.landlordRoomsPending = data;
+          }
         } else if (type === "BUILDING") {
-          state.buildings = data;
+          if (postStatus === "APPROVED") {
+            state.landlordBuildings = data;
+          } else if (postStatus === "PENDING") {
+            state.landlordBuildingsPending = data;
+          }
         }
       })
       .addCase(fetchPropertiesByLandlord.rejected, (state, action) => {
