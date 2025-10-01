@@ -113,3 +113,16 @@ export const resetPasswordThunk = createAsyncThunk(
     }
   }
 );
+
+export const changePasswordThunk = createAsyncThunk(
+  'auth/changePassword',
+  async ({ currentPassword, newPassword }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post('/auth/change-password', { currentPassword, newPassword });
+      return res.data; 
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Đổi mật khẩu thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);
