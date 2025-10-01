@@ -5,6 +5,7 @@ import { loginThunk } from '../features/auth/authThunks';
 import ButtonPrimary from '../components/ButtonPrimary';
 import InputText from '../components/InputText';
 import TypingText from '../hooks/TypingText';
+import { showToast } from '../utils/AppUtils';
 
 export default function LoginScreen({navigation}) {
   const [phoneNumber, setPhone] = useState('');
@@ -17,9 +18,10 @@ export default function LoginScreen({navigation}) {
   const onSubmit = async () => {
     const action = await dispatch(loginThunk({ phoneNumber, password }));
     if (loginThunk.fulfilled.match(action)) {
-      Alert.alert('Thành công', 'Đã đăng nhập!');
+      showToast("success", "top", "Thành công", "Đăng nhập thành công!");
     } else {
-      Alert.alert('Đăng nhập thất bại', action.payload || 'Thông tin đăng nhập không hợp lệ.');
+      const errorMessage = action.payload || action.error.message || "Đăng nhập thất bại. Vui lòng thử lại.";
+      showToast("error", "top", "Thất bại", errorMessage);
     }
   };
 
@@ -52,7 +54,7 @@ export default function LoginScreen({navigation}) {
         <TouchableOpacity onPress={() => navigation.navigate('ForgotPasswordScreen')} style={{ alignSelf: 'flex-end', marginBottom: 20 }}>
           <Text style={{ color: '#FBB040', textAlign: 'left', fontWeight: '600' }}>Quên mật khẩu?</Text>
         </TouchableOpacity>
-        <ButtonPrimary title={loading ? 'Logging in...' : 'Login'} onPress={onSubmit} />
+        <ButtonPrimary title={loading ? 'Đăng nhập...' : 'Đăng nhập'} onPress={onSubmit} />
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, paddingTop: 20 }}>
           <Text style={{ color: '#666' }}>Bạn chưa có tài khoản?</Text>
