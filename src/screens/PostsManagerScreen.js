@@ -64,7 +64,7 @@ export default function PostsManagerScreen() {
       address: typeof p.address === "string"
         ? formatAddress(p.address)
         : formatAddress(p.address?.addressFull || ""),
-      price: p.price ? `Từ ${formatPrice(p.price)}đ/tháng` : "Giá liên hệ",
+      price: p.price ? `Từ ${formatPrice(p.price)}đ/đêm` : "Giá liên hệ",
       propertyType: p.propertyType,
       media: p.media || [],        // giữ ảnh
       updatedAt: p.updatedAt || "", // giữ cache

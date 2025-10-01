@@ -8,6 +8,7 @@ import {
     FlatList,
     SafeAreaView,
     Linking,
+    Dimensions
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useDispatch, useSelector } from "react-redux";
@@ -23,6 +24,7 @@ import { resolveAssetUrl } from "../utils/cdn";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
+const { width } = Dimensions.get('window');
 
 
 const PropertyDetailScreen = ({ route, navigation }) => {
@@ -102,7 +104,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         const formatted = Number(property.price).toLocaleString("vi-VN");
         return property.propertyType === "ROOM"
             ? `${formatted} đ/tháng`
-            : `${formatted} đ/ngày`;
+            : `${formatted} đ/đêm`;
     };
 
 
@@ -117,9 +119,9 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     <Icon name="chevron-left" size={28} color="#111" />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle} numberOfLines={1}>
+                {/* <Text style={styles.headerTitle} numberOfLines={1}>
                     Chi tiết phòng
-                </Text>
+                </Text> */}
 
                 <View style={{ flexDirection: "row" }}>
                     {/* Share */}
@@ -217,6 +219,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     }
                     showsHorizontalScrollIndicator={false}
                     pagingEnabled
+                    snapToInterval={width}
+                    decelerationRate="fast"
                 />
 
                 {/* Tiêu đề + Giá */}
@@ -449,10 +453,9 @@ const styles = StyleSheet.create({
 
     // Image
     mainImage: {
-        width: 320,
-        height: 220,
-        borderRadius: 12,
-        marginRight: 12,
+        width: width,
+        height: 400,
+        borderRadius: 0
     },
 
     // Content

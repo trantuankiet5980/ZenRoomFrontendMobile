@@ -13,6 +13,7 @@ import * as ImagePicker from "expo-image-picker";
 import { fetchApartmentCategories } from '../features/apartmentCategory/apartmentThunks';
 import { uploadPropertyImages, uploadPropertyVideo } from "../features/propertyMedia/propertyMediaThunks";
 import AddressPickerModal from '../components/modal/AddressPickerModal';
+import { showToast } from '../utils/AppUtils';
 
 const ORANGE = '#f36031';
 const ORANGE_SOFT = '#FEE6C9';
@@ -33,6 +34,7 @@ export default function CreateBuildingScreen() {
   const [deposit, setDeposit] = useState('');
   const [desc, setDesc] = useState('');
   const [furnitures, setFurnitures] = useState([]);
+  const [services, setServices] = useState([]);
   const [images, setImages] = useState([]);
   const [video, setVideo] = useState(null);
   const [aptType, setAptType] = useState('');
@@ -99,10 +101,10 @@ export default function CreateBuildingScreen() {
   const userId = useSelector(state => state.auth.user?.userId);
   const onSave = () => {
 
-    if (!title || !buildingName || !addressObj || !price || !area || !aptType) {
-  Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ các trường bắt buộc.');
-  return;
-}
+  if (!title || !buildingName || !addressObj || !price || !area || !aptType) {
+    showToast("error", "top", "Lỗi", "Vui lòng nhập đầy đủ các trường bắt buộc.");
+    return;
+  }
 
     const payload = {
       propertyType: "BUILDING",
@@ -119,6 +121,15 @@ export default function CreateBuildingScreen() {
       area: parseFloat(area || "0"),
       price: parseFloat(price || "0"),
       deposit: parseFloat(deposit || "0"),
+      services: services
+        .filter(s => s.serviceName?.trim())
+        .map(s => ({
+          serviceName: s.serviceName,
+          fee: parseFloat(s.fee || "0"),
+          chargeBasis: s.chargeBasis,
+          isIncluded: !!s.isIncluded,
+          note: s.note || "",
+        })),
       furnishings: furnitures.map(f => ({
         furnishingId: f.id,
         quantity: f.quantity,
@@ -127,7 +138,7 @@ export default function CreateBuildingScreen() {
     dispatch(createProperty(payload))
       .unwrap()
       .then((newProperty) => {
-        console.log("New property response:", newProperty);
+        // console.log("New property response:", newProperty);
         const propertyId = newProperty.id || newProperty.propertyId;
         if (!propertyId) {
           throw new Error("Property ID is missing in response");
@@ -152,13 +163,12 @@ export default function CreateBuildingScreen() {
               Alert.alert("Lỗi", "Không thể tải lên video: " + (err.message || "Lỗi không xác định"));
             });
         }
-
-        Alert.alert("Thành công", "Đăng căn hộ thành công!");
+        showToast("success", "top", "Thành công", "Đăng căn hộ thành công!");
         nav.navigate("PostsManager");
       })
       .catch((err) => {
         console.error("Create property failed:", err);
-        Alert.alert("Lỗi", err.message || "Đăng căn hộ thất bại");
+        showToast("error", "top", "Lỗi", err.message || "Đăng căn hộ thất bại");
       });
   };
   useEffect(() => {
@@ -171,6 +181,7 @@ export default function CreateBuildingScreen() {
       setDeposit('');
       setDesc('');
       setFurnitures([]);
+      setServices([]);
       setImages([]);
       setVideo(null);
       setAptType('');
@@ -261,20 +272,20 @@ export default function CreateBuildingScreen() {
         <Field
           label="Giá phòng" required
           icon={<MaterialCommunityIcons name="cash-multiple" size={18} color={ORANGE} />}
-          placeholder="Nhập giá phòng/ngày"
+          placeholder="Nhập giá phòng/đêm"
           keyboardType="numeric"
           value={price}
           onChangeText={setPrice}
         />
         {/* Tiền cọc */}
-        <Field
+        {/* <Field
           label="Tiền cọc"
           icon={<MaterialCommunityIcons name="cash-lock" size={18} color={ORANGE} />}
           placeholder="Nhập tiền đặt cọc"
           keyboardType="numeric"
           value={deposit}
           onChangeText={setDeposit}
-        />
+        /> */}
         <SectionTitle title="Vị trí căn hộ" />
         {/* Vị trí */}
         <Field
@@ -353,6 +364,50 @@ export default function CreateBuildingScreen() {
             />
           </View>
         </View>
+
+        {/* Dịch vụ */}
+        <SectionTitle title="Dịch vụ" />
+        {services.map((service, index) => (
+          <ServiceCard
+            key={index}
+            service={service}
+            onChange={(updated) =>
+              setServices(prev =>
+                prev.map((item, idx) => (idx === index ? { ...item, ...updated } : item))
+              )
+            }
+            onRemove={() =>
+              setServices(prev => prev.filter((_, idx) => idx !== index))
+            }
+          />
+        ))}
+        <TouchableOpacity
+          onPress={() =>
+            setServices(prev => [
+              ...prev,
+              {
+                serviceName: "",
+                fee: "",
+                chargeBasis: "FIXED",
+                isIncluded: true,
+              },
+            ])
+          }
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            borderColor: ORANGE,
+            borderRadius: 10,
+            paddingVertical: 12,
+            marginTop: 10,
+          }}
+        >
+          <Ionicons name="add" size={20} color={ORANGE} style={{ marginRight: 6 }} />
+          <Text style={{ color: ORANGE, fontWeight: '600' }}>Thêm dịch vụ</Text>
+        </TouchableOpacity>
 
         {/* Ảnh + Video */}
         <UploadBox
@@ -564,6 +619,120 @@ function UploadBox({ title, subtitle, onPick, children }) {
         <Text style={{ color: ORANGE, fontSize: 12, marginTop: 4 }}>Chọn từ thư viện</Text>
       </Pressable>
       {children ? <View style={{ marginTop: 10 }}>{children}</View> : null}
+    </View>
+  );
+}
+
+const chargeBasisOptions = [
+  { label: "Cố định", value: "FIXED" },
+  { label: "Theo người", value: "PER_PERSON" },
+  { label: "Theo phòng", value: "PER_ROOM" },
+];
+
+function ServiceCard({ service, onChange, onRemove }) {
+  return (
+    <View
+      style={{
+        borderWidth: 1,
+        borderColor: GRAY,
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 12,
+      }}
+    >
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ fontWeight: '700', fontSize: 15 }}>Dịch vụ</Text>
+        <TouchableOpacity onPress={onRemove}>
+          <Ionicons name="trash" size={18} color="#EF4444" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ marginTop: 10 }}>
+        <Text style={{ fontWeight: '600', marginBottom: 6 }}>Tên dịch vụ</Text>
+        <TextInput
+          placeholder="VD: Vệ sinh hàng ngày"
+          value={service.serviceName}
+          onChangeText={(text) => onChange({ serviceName: text })}
+          style={{
+            borderWidth: 1,
+            borderColor: GRAY,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+          }}
+        />
+      </View>
+
+      <View style={{ marginTop: 10 }}>
+        <Text style={{ fontWeight: '600', marginBottom: 6 }}>Phí dịch vụ</Text>
+        <TextInput
+          placeholder="VD: 150000"
+          keyboardType="numeric"
+          value={String(service.fee)}
+          onChangeText={(text) => onChange({ fee: text })}
+          style={{
+            borderWidth: 1,
+            borderColor: GRAY,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+          }}
+        />
+      </View>
+
+      <View style={{ marginTop: 10 }}>
+        <Text style={{ fontWeight: '600', marginBottom: 6 }}>Đơn vị tính</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {chargeBasisOptions.map(option => {
+            const isActive = service.chargeBasis === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => onChange({ chargeBasis: option.value })}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: isActive ? ORANGE : GRAY,
+                  backgroundColor: isActive ? ORANGE_SOFT : '#fff',
+                  marginRight: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={{ color: isActive ? ORANGE : '#111' }}>{option.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontWeight: '600' }}>Đã bao gồm trong giá?</Text>
+        <Pressable
+          onPress={() => onChange({ isIncluded: !service.isIncluded })}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: service.isIncluded ? ORANGE : GRAY,
+            backgroundColor: service.isIncluded ? ORANGE_SOFT : '#fff',
+          }}
+        >
+          <Ionicons
+            name={service.isIncluded ? 'checkmark-circle' : 'ellipse-outline'}
+            size={18}
+            color={service.isIncluded ? ORANGE : TEXT_MUTED}
+            style={{ marginRight: 6 }}
+          />
+          <Text style={{ color: service.isIncluded ? ORANGE : '#111', fontWeight: '600' }}>
+            {service.isIncluded ? 'Đã bao gồm' : 'Tính thêm'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
