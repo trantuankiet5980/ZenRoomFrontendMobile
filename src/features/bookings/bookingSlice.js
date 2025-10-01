@@ -12,6 +12,7 @@ import {
   cancelBooking,
   checkInBooking,
   checkOutBooking,
+  fetchPropertyBookedDates
 } from "./bookingsThunks";
 
 const initialState = {
@@ -23,6 +24,9 @@ const initialState = {
   bookingDetail: null,
   loading: false,
   error: null,
+  propertyBookedDates: {},
+  propertyBookedStatus: {},
+  propertyBookedError: {},
 };
 
 const bookingSlice = createSlice({
@@ -110,6 +114,31 @@ const bookingSlice = createSlice({
       })
       .addCase(checkOutBooking.fulfilled, (state, action) => {
         state.bookingDetail = action.payload;
+      })
+      .addCase(fetchPropertyBookedDates.pending, (state, action) => {
+        const propertyId = action.meta.arg;
+        if (!propertyId) {
+          return;
+        }
+        state.propertyBookedStatus[propertyId] = "loading";
+        state.propertyBookedError[propertyId] = null;
+      })
+      .addCase(fetchPropertyBookedDates.fulfilled, (state, action) => {
+        const { propertyId, dates } = action.payload || {};
+        if (!propertyId) {
+          return;
+        }
+        state.propertyBookedStatus[propertyId] = "succeeded";
+        state.propertyBookedDates[propertyId] = Array.isArray(dates) ? dates : [];
+      })
+      .addCase(fetchPropertyBookedDates.rejected, (state, action) => {
+        const propertyId = action.meta.arg;
+        if (!propertyId) {
+          return;
+        }
+        state.propertyBookedStatus[propertyId] = "failed";
+        state.propertyBookedDates[propertyId] = [];
+        state.propertyBookedError[propertyId] = action.payload || action.error.message;
       });
   },
 });
@@ -123,5 +152,10 @@ export const selectLandlordPending = (state) => state.bookings.landlordPending;
 export const selectBookingDetail = (state) => state.bookings.bookingDetail;
 export const selectBookingsLoading = (state) => state.bookings.loading;
 export const selectBookingsError = (state) => state.bookings.error;
-
+export const selectPropertyBookedDates = (state, propertyId) =>
+  state.bookings.propertyBookedDates?.[propertyId] || [];
+export const selectPropertyBookedStatus = (state, propertyId) =>
+  state.bookings.propertyBookedStatus?.[propertyId] || "idle";
+export const selectPropertyBookedError = (state, propertyId) =>
+  state.bookings.propertyBookedError?.[propertyId] || null;
 export default bookingSlice.reducer;
