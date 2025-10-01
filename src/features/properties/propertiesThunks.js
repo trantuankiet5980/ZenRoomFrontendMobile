@@ -52,7 +52,7 @@ export const fetchPropertiesByLandlord = createAsyncThunk(
 
     return {
       type,
-      data: response.data.content
+      data: response.data.content,postStatus 
     };
   }
 );

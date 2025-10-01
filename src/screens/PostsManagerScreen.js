@@ -26,7 +26,14 @@ export default function PostsManagerScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
-  const { rooms, buildings, roomsPending, buildingsPending, loading } = useSelector((s) => s.properties);
+  const {
+    landlordRooms,
+    landlordBuildings,
+    landlordRoomsPending,
+    landlordBuildingsPending,
+    loading
+  } = useSelector((s) => s.properties);
+
   const user = useSelector((s) => s.auth.user);
 
   const [posts, setPosts] = useState([]);
@@ -47,12 +54,13 @@ export default function PostsManagerScreen() {
   // Map dữ liệu thành posts
   useEffect(() => {
     const approved = [
-      ...(rooms || []).map(p => ({ ...p, propertyType: "ROOM" })),
-      ...(buildings || []).map(p => ({ ...p, propertyType: "BUILDING" }))
+      ...(landlordRooms || []).map(p => ({ ...p, propertyType: "ROOM" })),
+      ...(landlordBuildings || []).map(p => ({ ...p, propertyType: "BUILDING" }))
     ];
+
     const pending = [
-      ...(roomsPending || []).map(p => ({ ...p, propertyType: "ROOM" })),
-      ...(buildingsPending || []).map(p => ({ ...p, propertyType: "BUILDING" }))
+      ...(landlordRoomsPending || []).map(p => ({ ...p, propertyType: "ROOM" })),
+      ...(landlordBuildingsPending || []).map(p => ({ ...p, propertyType: "BUILDING" }))
     ];
 
     const allPosts = [...approved, ...pending].map(p => ({
@@ -64,14 +72,14 @@ export default function PostsManagerScreen() {
       address: typeof p.address === "string"
         ? formatAddress(p.address)
         : formatAddress(p.address?.addressFull || ""),
-      price: p.price ? `Từ ${formatPrice(p.price)}đ/đêm` : "Giá liên hệ",
+      price: p.price ? `Từ ${formatPrice(p.price)}đ/ngày` : "Giá liên hệ",
       propertyType: p.propertyType,
       media: p.media || [],        // giữ ảnh
       updatedAt: p.updatedAt || "", // giữ cache
     }));
 
     setPosts(allPosts);
-  }, [rooms, buildings, roomsPending, buildingsPending]);
+  }, [landlordRooms, landlordBuildings, landlordRoomsPending, landlordBuildingsPending]);
 
 
   // Filter posts theo tab và search
@@ -195,14 +203,14 @@ function PostCard({ item }) {
       borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: 'hidden', marginBottom: 12
     }}>
       <S3Image
-  src={
-    item.media?.[0]?.url 
-    || item.rooms?.[0]?.media?.[0]?.url
-  }
-  cacheKey={item.updatedAt}
-  style={{ width: "100%", height: 120, borderRadius: 8 }}
-  alt={item.title}
-/>
+        src={
+          item.media?.[0]?.url
+          || item.rooms?.[0]?.media?.[0]?.url
+        }
+        cacheKey={item.updatedAt}
+        style={{ width: "100%", height: 120, borderRadius: 8 }}
+        alt={item.title}
+      />
 
 
       <View style={{ padding: 12 }}>
