@@ -9,8 +9,10 @@ import {
     SafeAreaView,
     Linking,
     Dimensions,
+    Platform,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import MapView, { Marker } from "react-native-maps";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchPropertyDetail } from "../features/properties/propertiesThunks";
 import { resetProperty } from "../features/properties/propertiesSlice";
@@ -637,6 +639,22 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             ))}
                         </View>
                     </>
+                )}
+
+                {Platform.OS !== "web" && (
+                    <View style={{ height: 300, width: "100%" }}>
+                    <MapView
+                        style={{ flex: 1 }}
+                        initialRegion={{
+                        latitude: 10.776889,
+                        longitude: 106.700806,
+                        latitudeDelta: 0.05,
+                        longitudeDelta: 0.05,
+                        }}
+                    >
+                    <Marker coordinate={{ latitude: 10.776889, longitude: 106.700806 }} title="HCMC" />
+                    </MapView>
+                    </View>
                 )}
 
                 {/* Chủ nhà */}

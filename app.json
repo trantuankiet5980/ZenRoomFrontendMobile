@@ -30,8 +30,7 @@
       "WS_BASE": "ws://10.0.2.2:8080"
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-maps"
+      "expo-secure-store"
     ]
   }
 }
