@@ -30,7 +30,7 @@ export default function SelectCityModal({ visible, onClose, onSelectCity, provin
                 }}
                 onPress={() => onSelectCity(item.code)}
               >
-                <Text style={{ fontSize: 15 }}>{item.name}</Text>
+                <Text style={{ fontSize: 15 }}>{item.name_with_type}</Text>
               </TouchableOpacity>
             )}
           />

@@ -44,16 +44,16 @@ const AddressPickerModal = ({ visible, onClose, onSelect }) => {
 
     const addressObj = {
       provinceId: province.code,
-      provinceName: province.name,
+      provinceName: province.name_with_type,
       districtId: district.code,
-      districtName: district.name,
+      districtName: district.name_with_type,
       wardId: ward.code,
-      wardName: ward.name,
+      wardName: ward.name_with_type,
       street,
       houseNumber,
       addressFull: `${houseNumber ? houseNumber + ", " : ""}${
         street ? street + ", " : ""
-      }${ward.name}, ${district.name}, ${province.name}`,
+      }${ward.name_with_type}, ${district.name_with_type}, ${province.name_with_type}`,
     };
 
     onSelect(addressObj);
@@ -71,7 +71,7 @@ const AddressPickerModal = ({ visible, onClose, onSelect }) => {
         <Text>Chọn tỉnh, thành phố *</Text>
         <RNPickerSelect
           placeholder={{ label: "Chọn tỉnh/thành phố", value: null }}
-          items={provinces.map((p) => ({ label: p.name, value: p.code }))}
+          items={provinces.map((p) => ({ label: p.name_with_type, value: p.code }))}
           onValueChange={(value) => {
             setProvinceCode(value);
             setDistrictCode(null);
@@ -87,7 +87,7 @@ const AddressPickerModal = ({ visible, onClose, onSelect }) => {
             <Text style={{ marginTop: 12 }}>Chọn quận, huyện *</Text>
             <RNPickerSelect
               placeholder={{ label: "Chọn quận/huyện", value: null }}
-              items={districts.map((d) => ({ label: d.name, value: d.code }))}
+              items={districts.map((d) => ({ label: d.name_with_type, value: d.code }))}
               onValueChange={(value) => {
                 setDistrictCode(value);
                 setWardCode(null);
@@ -104,7 +104,7 @@ const AddressPickerModal = ({ visible, onClose, onSelect }) => {
             <Text style={{ marginTop: 12 }}>Chọn phường, xã *</Text>
             <RNPickerSelect
               placeholder={{ label: "Chọn phường/xã", value: null }}
-              items={wards.map((w) => ({ label: w.name, value: w.code }))}
+              items={wards.map((w) => ({ label: w.name_with_type, value: w.code }))}
               onValueChange={(value) => setWardCode(value)}
               value={wardCode}
             />

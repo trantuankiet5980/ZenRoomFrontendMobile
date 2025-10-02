@@ -18,7 +18,7 @@ export default function TenantPanel({ selectedCity, setSelectedCity }) {
 
   const provinces = useSelector((s) => s.administrative.provinces);
   const districts = useSelector((s) => s.administrative.districts);
-const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || selectedCity;
+const selectedCityName = provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
 
 
   // Load provinces khi component mount

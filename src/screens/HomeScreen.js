@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const districts = useSelector(s => s.administrative.districts || []);
 
   const [selectedCity, setSelectedCity] = useState("");
-  const selectedCityName = provinces.find(p => p.code === selectedCity)?.name || selectedCity;
+  const selectedCityName = provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
 
 
   // Load dữ liệu khi mount
@@ -52,8 +52,8 @@ export default function HomeScreen() {
 
   const districtItems = districts.map((district) => ({
     key: district.code,
-    label: district.name,
-    imageUri: districtImages[district.name],
+    label: district.name_with_type,
+    imageUri: districtImages[district.name_with_type],
   }));
 
   const formatPrice = (p) => {
