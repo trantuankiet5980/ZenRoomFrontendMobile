@@ -31,6 +31,25 @@ import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
 const { width } = Dimensions.get('window');
 
+const DEFAULT_MAP_REGION = {
+    latitude: 21.027763,
+    longitude: 105.83416,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+};
+
+const LANDLORD_TOTAL_REVIEWS = 186;
+const LANDLORD_AVERAGE_RATING = 4.8;
+
+const parseCoordinate = (value) => {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
     const { propertyId } = route.params;
@@ -150,6 +169,36 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             dispatch(resetReviewsSummary(propertyId));
         };
     }, [dispatch, propertyId]);
+
+    const locationAddress = property?.address || {};
+    const latitude = parseCoordinate(locationAddress.latitude);
+    const longitude = parseCoordinate(locationAddress.longitude);
+    const hasValidCoordinate =
+        typeof latitude === "number" && typeof longitude === "number";
+
+    const locationAddressText =
+        locationAddress.addressFull ||
+        [
+            locationAddress.houseNumber,
+            locationAddress.street,
+            locationAddress.wardName,
+            locationAddress.districtName,
+            locationAddress.provinceName,
+        ]
+            .filter(Boolean)
+            .join(", ");
+
+    const mapRegion = {
+        latitude: hasValidCoordinate ? latitude : DEFAULT_MAP_REGION.latitude,
+        longitude: hasValidCoordinate ? longitude : DEFAULT_MAP_REGION.longitude,
+        latitudeDelta: DEFAULT_MAP_REGION.latitudeDelta,
+        longitudeDelta: DEFAULT_MAP_REGION.longitudeDelta,
+    };
+
+    const landlordAvatarUrl =
+        property?.landlord?.avatarUrl
+            ? resolveAssetUrl(property.landlord.avatarUrl)
+            : null;
 
     if (loading) {
         return (
@@ -362,6 +411,28 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         bookingSelection.nights
     );
 
+    const getCancellationDeadlineLabel = (startDateKey) => {
+        if (!startDateKey) {
+            return null;
+        }
+
+        const checkInDate = new Date(`${startDateKey}T00:00:00`);
+        if (Number.isNaN(checkInDate.getTime())) {
+            return null;
+        }
+
+        const deadline = new Date(checkInDate);
+        deadline.setDate(deadline.getDate() - 1);
+
+        const day = deadline.getDate();
+        const month = deadline.getMonth() + 1;
+        return `ngày ${day} thg ${month}`;
+    };
+
+    const cancellationDeadlineLabel = getCancellationDeadlineLabel(
+        bookingSelection.startDate
+    );
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
             {/* HEADER */}
@@ -563,6 +634,16 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         </Text>
                     </View>
                 </View>
+
+                <View style={styles.sectionDivider} />
+
+                {/* Mô tả */}
+                <Text style={styles.sectionTitle}>Mô tả</Text>
+                <Text style={styles.description}>
+                    {property.description || "Chưa có mô tả chi tiết"}
+                </Text>
+
+                <View style={styles.sectionDivider} />
             
                 {/* Nội thất */}
                 {property.furnishings?.length > 0 && (
@@ -601,6 +682,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         </View>
                     </>
                 )}
+
+                <View style={styles.sectionDivider} />
 
                 {/* Dịch vụ */}
                 {property.services?.length > 0 && (
@@ -641,43 +724,33 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     </>
                 )}
 
+                <View style={styles.sectionDivider} />
+
+                <View style={styles.locationContainer}>
+                    <Text style={styles.sectionTitle}>Nơi bạn sẽ đến</Text>
+                    {locationAddressText ? (
+                        <Text style={styles.locationAddressText}>
+                            {locationAddressText}
+                        </Text>
+                    ) : null}
+                </View>
+
                 {Platform.OS !== "web" && (
-                    <View style={{ height: 300, width: "100%" }}>
-                    <MapView
-                        style={{ flex: 1 }}
-                        initialRegion={{
-                        latitude: 10.776889,
-                        longitude: 106.700806,
-                        latitudeDelta: 0.05,
-                        longitudeDelta: 0.05,
-                        }}
-                    >
-                    <Marker coordinate={{ latitude: 10.776889, longitude: 106.700806 }} title="HCMC" />
-                    </MapView>
+                    <View style={styles.mapContainer}>
+                        <MapView style={styles.map} initialRegion={mapRegion}>
+                            {hasValidCoordinate ? (
+                                <Marker
+                                    coordinate={{ latitude, longitude }}
+                                    title={property.title || "Vị trí"}
+                                    description={locationAddressText || undefined}
+                                />
+                            ) : null}
+                        </MapView>
                     </View>
                 )}
 
-                {/* Chủ nhà */}
-                <Text style={styles.sectionTitle}>Chủ nhà</Text>
-                <View style={styles.infoRow}>
-                    <Text>👤 {property.landlord?.fullName || "Ẩn danh"}</Text>
-                    {property.landlord?.phoneNumber && (
-                        <TouchableOpacity
-                            onPress={() => Linking.openURL(`tel:${property.landlord.phoneNumber}`)}
-                        >
-                            <Text style={{ color: "#f36031" }}>📞 {property.landlord.phoneNumber}</Text>
-                        </TouchableOpacity>
-                    )}
-                    {property.landlord?.email && (
-                        <Text>✉️ {property.landlord.email}</Text>
-                    )}
-                </View>
+                <View style={styles.sectionDivider} />
 
-                {/* Mô tả */}
-                <Text style={styles.sectionTitle}>Mô tả</Text>
-                <Text style={styles.description}>
-                    {property.description || "Chưa có mô tả chi tiết"}
-                </Text>
                 {isTenant && (
                     <View
                         onLayout={handleBookingSectionLayout}
@@ -689,6 +762,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         />
                     </View>
                 )}
+                <View style={styles.sectionDivider} />
                 <Text style={styles.sectionTitle}>Đánh giá</Text>
                 {isReviewsLoading ? (
                     <Text style={styles.reviewsStatusText}>Đang tải đánh giá...</Text>
@@ -768,6 +842,68 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 ) : (
                     <Text style={styles.reviewsStatusText}>Chưa có đánh giá</Text>
                 )}
+
+                <View style={styles.sectionDivider} />
+
+                <Text style={styles.sectionTitle}>Gặp gỡ chủ nhà của bạn</Text>
+                <View style={styles.landlordCard}>
+                    <View style={styles.landlordAvatarWrapper}>
+                        {landlordAvatarUrl ? (
+                            <S3Image src={landlordAvatarUrl} style={styles.landlordAvatar} />
+                        ) : (
+                            <Ionicons name="person" size={28} color="#f97316" />
+                        )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.landlordName} numberOfLines={1}>
+                            {property.landlord?.fullName || "Ẩn danh"}
+                        </Text>
+                        {property.landlord?.phoneNumber ? (
+                            <TouchableOpacity
+                                style={styles.landlordContactRow}
+                                onPress={() => Linking.openURL(`tel:${property.landlord.phoneNumber}`)}
+                            >
+                                <Text style={styles.landlordContactText}>
+                                    Gọi {property.landlord.phoneNumber}
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
+                        <View style={styles.landlordStatsRow}>
+                            <View style={styles.landlordStatPill}>
+                                <Ionicons name="people" size={16} color="#f97316" />
+                                <Text style={styles.landlordStatText}>
+                                    {`${LANDLORD_TOTAL_REVIEWS} lượt đánh giá`}
+                                </Text>
+                            </View>
+                            <View style={styles.landlordStatPill}>
+                                <Ionicons name="star" size={16} color="#f97316" />
+                                <Text style={styles.landlordStatText}>
+                                    {`${LANDLORD_AVERAGE_RATING.toFixed(1)}/5 trung bình`}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.sectionDivider} />
+
+                <Text style={styles.sectionTitle}>Chính sách hủy</Text>
+                <Text style={styles.bodyText}>
+                    {cancellationDeadlineLabel
+                        ? `Bạn được hủy miễn phí trước ${cancellationDeadlineLabel} 14:00. Sau ${cancellationDeadlineLabel} 14:00, bạn không được hoàn tiền cho đặt phòng/đặt chỗ.`
+                        : "Bạn được hủy miễn phí trước 14:00 ngày trước khi nhận phòng. Sau thời điểm này, bạn không được hoàn tiền cho đặt phòng/đặt chỗ."}
+                </Text>
+
+                <View style={styles.sectionDivider} />
+
+                <Text style={styles.sectionTitle}>Nội quy nhà</Text>
+                <View style={styles.rulesList}>
+                    <Text style={styles.ruleItem}>• Nhận phòng sau 14:00</Text>
+                    <Text style={styles.ruleItem}>• Trả phòng trước 11:00</Text>
+                    <Text style={styles.ruleItem}>
+                        • Trước khi rời đi: Tắt hết các thiết bị - Khóa cửa
+                    </Text>
+                </View>
             </ScrollView>
 
             {/* Thanh Action */}
@@ -908,6 +1044,32 @@ const styles = StyleSheet.create({
         padding: 12,
         alignItems: "center",
     },
+    locationContainer: {
+        paddingHorizontal: 5,
+    },
+    locationAddressText: {
+        fontSize: 14,
+        color: "#4b5563",
+        marginTop: 6,
+        marginLeft: 10
+    },
+    sectionDivider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: "#909090ff",
+        marginVertical: 10,
+        marginHorizontal: 12,
+    },
+    mapContainer: {
+        height: 300,
+        width: "100%",
+        marginTop: 15,
+        marginHorizontal: 12,
+        borderRadius: 12,
+        overflow: "hidden",
+    },
+    map: {
+        flex: 1,
+    },
     title: {
         fontSize: 22,
         fontWeight: "700",
@@ -1004,16 +1166,10 @@ const styles = StyleSheet.create({
     },
 
     sectionTitle: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: "600",
         marginTop: 14,
         marginBottom: 6,
-        paddingHorizontal: 12,
-    },
-    infoRow: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 12,
         paddingHorizontal: 12,
     },
     description: {
@@ -1031,6 +1187,82 @@ const styles = StyleSheet.create({
     reviewsContainer: {
         paddingHorizontal: 12,
         paddingBottom: 4,
+    },
+     landlordCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#f9fafb",
+        borderRadius: 12,
+        padding: 16,
+        marginHorizontal: 12,
+        marginTop: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
+    },
+    landlordAvatarWrapper: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        overflow: "hidden",
+        backgroundColor: "#fee2e2",
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 16,
+    },
+    landlordAvatar: {
+        width: "100%",
+        height: "100%",
+    },
+    landlordName: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#111827",
+    },
+    landlordContactRow: {
+        marginTop: 6,
+    },
+    landlordContactText: {
+        fontSize: 14,
+        color: "#f36031",
+        fontWeight: "600",
+    },
+    landlordStatsRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        marginTop: 10,
+        gap: 12,
+    },
+    landlordStatPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#fff",
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#f97316",
+    },
+    landlordStatText: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#f97316",
+        marginLeft: 4,
+    },
+    bodyText: {
+        fontSize: 14,
+        color: "#444",
+        lineHeight: 20,
+        paddingHorizontal: 12,
+    },
+    rulesList: {
+        paddingHorizontal: 18,
+        marginTop: 8,
+    },
+    ruleItem: {
+        fontSize: 14,
+        color: "#444",
+        lineHeight: 20,
+        marginBottom: 6,
     },
     reviewCard: {
         backgroundColor: "#f7f7f7",
