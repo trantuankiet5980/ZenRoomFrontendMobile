@@ -19,7 +19,7 @@ const authSlice = createSlice({
       state.changePasswordLoading = false;
       state.changePasswordError = null;
       state.changePasswordSuccess = false;
-    }
+    },
   },
   extraReducers: (b) => {
     b.addCase(loadSessionThunk.pending, (s) => { s.loading = true; s.error = null; })
