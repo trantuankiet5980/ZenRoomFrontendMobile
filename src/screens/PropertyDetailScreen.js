@@ -245,7 +245,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         const formatted = Number(property.price).toLocaleString("vi-VN");
         return property.propertyType === "ROOM"
             ? `${formatted} đ/tháng`
-            : `${formatted} đ/đêm`;
+            : `${formatted} đ/ngày`;
     };
 
     const formatTotalPrice = (price, nights) => {
@@ -898,8 +898,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
                 <Text style={styles.sectionTitle}>Nội quy nhà</Text>
                 <View style={styles.rulesList}>
-                    <Text style={styles.ruleItem}>• Nhận phòng sau 14:00</Text>
-                    <Text style={styles.ruleItem}>• Trả phòng trước 11:00</Text>
+                    <Text style={styles.ruleItem}>• Nhận phòng sau 14:00PM</Text>
+                    <Text style={styles.ruleItem}>• Trả phòng trước 11:00AM</Text>
                     <Text style={styles.ruleItem}>
                         • Trước khi rời đi: Tắt hết các thiết bị - Khóa cửa
                     </Text>
