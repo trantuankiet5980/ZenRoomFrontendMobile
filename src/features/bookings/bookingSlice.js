@@ -45,7 +45,7 @@ const bookingSlice = createSlice({
       .addCase(createBooking.fulfilled, (state, action) => {
         state.loading = false;
         state.error = null;
-        const newBooking = { ...action.payload, status: "PENDING" };
+        const newBooking = { ...action.payload, bookingStatus: "PENDING_PAYMENT" };
         // thêm vào list myBookings và myPending để hiển thị ngay
         state.myBookings.unshift(newBooking);
         state.myPending.unshift(newBooking);
@@ -101,8 +101,17 @@ const bookingSlice = createSlice({
       // BOOKING ACTIONS
       // ==================
       .addCase(approveBooking.fulfilled, (state, action) => {
-        state.bookingDetail = action.payload;
+        const updated = action.payload;
+        state.bookingDetail = updated;
+
+        // cập nhật landlordPending → landlordBookings
+        state.landlordPending = state.landlordPending.filter(b => b.bookingId !== updated.bookingId);
+        state.landlordBookings = state.landlordBookings.map(b =>
+          b.bookingId === updated.bookingId ? updated : b
+        );
+        state.landlordBookings.unshift(updated);
       })
+
       .addCase(rejectBooking.fulfilled, (state, action) => {
         state.bookingDetail = action.payload;
       })
@@ -113,7 +122,13 @@ const bookingSlice = createSlice({
         state.bookingDetail = action.payload;
       })
       .addCase(checkOutBooking.fulfilled, (state, action) => {
-        state.bookingDetail = action.payload;
+        const updated = action.payload;
+        state.bookingDetail = updated;
+
+        // cập nhật landlordBookings
+        state.landlordBookings = state.landlordBookings.map(b =>
+          b.bookingId === updated.bookingId ? updated : b
+        );
       })
       .addCase(fetchPropertyBookedDates.pending, (state, action) => {
         const propertyId = action.meta.arg;

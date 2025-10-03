@@ -18,13 +18,13 @@ const BORDER = "#E5E7EB";
 function formatDateVN(dateString) {
   if (!dateString) return "";
 
-  // Nếu không có timezone thì thêm 'Z' để tránh NaN
-  let safeDate = dateString;
-  if (!dateString.includes("Z") && !dateString.includes("+")) {
-    safeDate = dateString + "Z";
+  // Nếu chỉ có yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [year, month, day] = dateString.split("-");
+    return `${day}/${month}/${year}`;
   }
 
-  const d = new Date(safeDate);
+  const d = new Date(dateString);
   if (isNaN(d)) return "";
 
   const day = String(d.getDate()).padStart(2, "0");
@@ -32,6 +32,7 @@ function formatDateVN(dateString) {
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
 }
+
 
 export default function MyBookingsScreen() {
   useHideTabBar();
@@ -50,7 +51,19 @@ export default function MyBookingsScreen() {
   }, [dispatch, tab]);
 
 
-  const list = tab === "pending" ? myPending : myApproved;
+  const list = useMemo(() => {
+    if (tab === "pending") {
+      return myPending.filter(b =>
+        b.bookingStatus === "PENDING_PAYMENT" ||
+        b.bookingStatus === "AWAITING_LANDLORD_APPROVAL"
+      );
+    } else {
+      return myApproved.filter(b =>
+        ["APPROVED", "CHECKED_IN", "COMPLETED"].includes(b.bookingStatus)
+      );
+    }
+  }, [tab, myPending, myApproved]);
+
   const filtered = useMemo(() => {
     if (!q) return list;
     const needle = q.toLowerCase();
@@ -173,28 +186,35 @@ function BookingCard({ item, tab, onCancel }) {
 
         {tab === 'pending' && (
           <>
-            <TouchableOpacity
-              onPress={() => onCancel(item.bookingId)}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: ORANGE,
-              }}
-            >
-              <Text style={{ color: "#fff" }}>Hủy</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handlePay}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: "#16a34a",
-              }}
-            >
-              <Text style={{ color: "#fff" }}>Thanh toán</Text>
-            </TouchableOpacity>
+            {/* Nếu booking đang chờ thanh toán */}
+            {item.bookingStatus === "PENDING_PAYMENT" && (
+              <TouchableOpacity
+                onPress={handlePay}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  backgroundColor: "#16a34a",
+                }}
+              >
+                <Text style={{ color: "#fff" }}>Thanh toán</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Hủy thì cho phép cả 2 trạng thái */}
+            {(item.bookingStatus === "PENDING_PAYMENT" || item.bookingStatus === "AWAITING_LANDLORD_APPROVAL") && (
+              <TouchableOpacity
+                onPress={() => onCancel(item.bookingId)}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  backgroundColor: ORANGE,
+                }}
+              >
+                <Text style={{ color: "#fff" }}>Hủy</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
         {/* Thanh toán (chỉ hiện ở approved)
