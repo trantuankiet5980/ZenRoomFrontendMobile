@@ -1,5 +1,6 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { axiosInstance } from '../../api/axiosInstance';
+import { setAuthUser } from '../auth/authSlice';
 
 export const updateProfile = createAsyncThunk(
   "user/updateProfile",
