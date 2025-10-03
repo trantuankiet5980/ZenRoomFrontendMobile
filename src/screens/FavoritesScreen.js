@@ -6,6 +6,7 @@ import { useDispatch } from "react-redux";
 import { fetchFavorites } from "../features/favorites/favoritesThunks";
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from "@expo/vector-icons";
+import S3Image from "../components/S3Image";
 
 const FavoritesScreen = ({ navigation }) => {
   const favorites = useSelector((state) => state.favorites.items);
@@ -24,6 +25,14 @@ const FavoritesScreen = ({ navigation }) => {
       </View>
     );
   }
+  const formatPriceWithUnit = (property) => {
+    if (!property?.price) return "Thỏa thuận";
+    const formatted = Number(property.price).toLocaleString("vi-VN");
+    return property.propertyType === "ROOM"
+      ? `${formatted} đ/tháng`
+      : `${formatted} đ/ngày`;
+  };
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -52,10 +61,14 @@ const FavoritesScreen = ({ navigation }) => {
                 navigation.navigate("PropertyDetail", { propertyId: property.propertyId })
               }
             >
-              <Image
-                source={{ uri: property.media?.[0]?.url || "https://picsum.photos/200/120" }}
+              <S3Image
+                src={property.media?.[0]?.url || "https://picsum.photos/200/120"}
+                cacheKey={property.updatedAt}
                 style={styles.image}
+                alt={property.title}
               />
+
+
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.title} numberOfLines={1}>
                   {property.title || "Không có tiêu đề"}
@@ -63,11 +76,10 @@ const FavoritesScreen = ({ navigation }) => {
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Icon name="cash" size={20} color="#f36031" />
                   <Text style={styles.price}>
-                    {property.price
-                      ? `${Number(property.price).toLocaleString("vi-VN")} đ/tháng`
-                      : "Thỏa thuận"}
+                    {formatPriceWithUnit(property)}
                   </Text>
                 </View>
+
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
                   <Text style={styles.subText}>

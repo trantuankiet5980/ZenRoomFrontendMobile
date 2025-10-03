@@ -24,16 +24,21 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 const ORANGE = "#f36031";
 
 function formatDateVN(dateString) {
-    if (!dateString) return "";
-    let safeDate = dateString;
-    if (!dateString.includes("Z") && !dateString.includes("+")) {
-        safeDate = dateString + "Z";
-    }
-    const d = new Date(safeDate);
-    if (isNaN(d)) return "";
-    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}/${d.getFullYear()}`;
+  if (!dateString) return "";
+
+  // Nếu chỉ có yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [year, month, day] = dateString.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  const d = new Date(dateString);
+  if (isNaN(d)) return "";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatCurrency(value) {

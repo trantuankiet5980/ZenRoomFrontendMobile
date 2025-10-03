@@ -5,6 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -21,6 +24,8 @@ const ORANGE = "#f36031";
 const MUTED = "#9CA3AF";
 const BORDER = "#E5E7EB";
 
+const { width, height } = Dimensions.get("window");
+
 export default function TenantsManagerScreen() {
   useHideTabBar();
   const navigation = useNavigation();
@@ -29,7 +34,7 @@ export default function TenantsManagerScreen() {
   const [tab, setTab] = useState("pending");
   const [q, setQ] = useState("");
 
-  const { landlordPending = [], landlordAll = [], loading } = useSelector(
+  const { landlordPending = [], landlordBookings = [], loading } = useSelector(
     (state) => state.bookings
   );
 
@@ -47,31 +52,19 @@ export default function TenantsManagerScreen() {
       case "pending":
         return landlordPending.map((b) => ({
           id: b.bookingId,
-          status: "pending",
+          status: b.bookingStatus,
           name: b.tenant?.fullName,
           phone: b.tenant?.phone,
           room: b.property?.title,
           when: b.startDate,
           note: b.note,
         }));
-      case "approved":
-        return (landlordAll || [])
-          .filter((b) => b.bookingStatus === "APPROVED")
-          .map((b) => ({
-            id: b.bookingId,
-            status: "approved",
-            name: b.tenant?.fullName,
-            phone: b.tenant?.phone,
-            room: b.property?.title,
-            when: b.startDate,
-            note: b.note,
-          }));
       case "deposit":
-        return (landlordAll || [])
-          .filter((b) => b.bookingStatus === "PENDING")
+        return landlordBookings
+          .filter((b) => b.bookingStatus === "PENDING_PAYMENT")
           .map((b) => ({
             id: b.bookingId,
-            status: "deposit",
+            status: b.bookingStatus,
             name: b.tenant?.fullName,
             phone: b.tenant?.phone,
             room: b.property?.title,
@@ -79,11 +72,15 @@ export default function TenantsManagerScreen() {
             note: b.note,
           }));
       case "renting":
-        return (landlordAll || [])
-          .filter((b) => b.bookingStatus === "APPROVED")
+        return landlordBookings
+          .filter(
+            (b) =>
+              b.bookingStatus === "APPROVED" ||
+              b.bookingStatus === "CHECKED_IN"
+          )
           .map((b) => ({
             id: b.bookingId,
-            status: "renting",
+            status: b.bookingStatus,
             name: b.tenant?.fullName,
             phone: b.tenant?.phone,
             room: b.property?.title,
@@ -93,7 +90,7 @@ export default function TenantsManagerScreen() {
       default:
         return [];
     }
-  }, [tab, landlordPending, landlordAll]);
+  }, [tab, landlordPending, landlordBookings]);
 
   // lọc search
   const filtered = useMemo(() => {
@@ -108,68 +105,74 @@ export default function TenantsManagerScreen() {
   }, [tenants, q]);
 
   const pendingCount = landlordPending.length;
-  const approvedCount = (landlordAll || []).filter(
-    (b) => b.bookingStatus === "APPROVED"
-  ).length;
 
   const renderItem = ({ item }) => (
     <TenantCard item={item} tab={tab} dispatch={dispatch} />
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#fff" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* Header */}
       <View
         style={{
-          height: 56,
+          height: height * 0.08,
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 12,
-          marginTop: 30,
+          paddingHorizontal: width * 0.03,
+          marginTop: height * 0.04,
         }}
       >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={{ padding: 8, marginRight: 4 }}
         >
-          <Ionicons name="chevron-back" size={24} color="#111" />
+          <Ionicons name="chevron-back" size={width * 0.06} color="#111" />
         </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontWeight: "700", flex: 1 }}>
+        <Text
+          style={{
+            fontSize: width * 0.05,
+            fontWeight: "700",
+            flex: 1,
+          }}
+        >
           Quản lý khách thuê
         </Text>
-        <TouchableOpacity
-          onPress={() => console.log("Open calendar")}
-          style={{ padding: 6 }}
-        >
-          <Ionicons name="calendar-outline" size={22} color="#111" />
-        </TouchableOpacity>
       </View>
 
       {/* Search */}
       <View
         style={{
-          margin: 16,
-          height: 44,
+          margin: width * 0.04,
+          height: height * 0.06,
           borderRadius: 12,
           borderWidth: 1,
           borderColor: BORDER,
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 12,
+          paddingHorizontal: width * 0.03,
         }}
       >
-        <Ionicons name="search" size={18} color={MUTED} />
+        <Ionicons name="search" size={width * 0.045} color={MUTED} />
         <TextInput
           value={q}
           onChangeText={setQ}
           placeholder="Nhập thông tin tìm kiếm"
           placeholderTextColor={MUTED}
-          style={{ marginLeft: 8, flex: 1 }}
+          style={{ marginLeft: width * 0.02, flex: 1, fontSize: width * 0.04 }}
         />
       </View>
 
       {/* Tabs */}
-      <View style={{ flexDirection: "row", paddingHorizontal: 16, flexWrap: "wrap" }}>
+      <View
+        style={{
+          flexDirection: "row",
+          paddingHorizontal: width * 0.04,
+          flexWrap: "wrap",
+        }}
+      >
         <Tab
           label={`Chờ duyệt${pendingCount ? `(${pendingCount})` : ""}`}
           active={tab === "pending"}
@@ -186,7 +189,9 @@ export default function TenantsManagerScreen() {
           onPress={() => setTab("renting")}
         />
       </View>
-      <View style={{ height: 2, backgroundColor: BORDER, marginTop: 8 }} />
+      <View
+        style={{ height: 2, backgroundColor: BORDER, marginTop: height * 0.01 }}
+      />
 
       {/* List / Empty */}
       {loading ? (
@@ -199,13 +204,14 @@ export default function TenantsManagerScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={filtered}
           keyExtractor={(it) => String(it.id)}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={{ padding: width * 0.04, paddingBottom: height * 0.03 }}
         />
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -214,7 +220,7 @@ function Tab({ label, active, onPress }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={{ paddingVertical: 10, marginRight: 18 }}
+      style={{ paddingVertical: height * 0.015, marginRight: width * 0.04 }}
     >
       <Text style={{ fontWeight: "700", color: active ? ORANGE : MUTED }}>
         {label}
@@ -222,7 +228,7 @@ function Tab({ label, active, onPress }) {
       <View
         style={{
           height: 3,
-          marginTop: 8,
+          marginTop: height * 0.01,
           backgroundColor: active ? ORANGE : "transparent",
           borderRadius: 2,
         }}
@@ -238,8 +244,8 @@ function TenantCard({ item, tab, dispatch }) {
         borderWidth: 1,
         borderColor: BORDER,
         borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
+        padding: width * 0.03,
+        marginBottom: height * 0.015,
       }}
     >
       <View
@@ -249,34 +255,24 @@ function TenantCard({ item, tab, dispatch }) {
           alignItems: "center",
         }}
       >
-        <Text style={{ fontWeight: "700" }}>{item.name}</Text>
-        <Text style={{ color: "#6B7280" }}>{item.phone}</Text>
+        <Text style={{ fontWeight: "700", fontSize: width * 0.045 }}>{item.name}</Text>
+        <Text style={{ color: "#6B7280", fontSize: width * 0.04 }}>{item.phone}</Text>
       </View>
-      <Text style={{ marginTop: 6 }}>
+      <Text style={{ marginTop: height * 0.008, fontSize: width * 0.042 }}>
         Phòng: <Text style={{ fontWeight: "600" }}>{item.room}</Text>
       </Text>
       {!!item.when && (
-        <Text style={{ marginTop: 4, color: "#6B7280" }}>Ngày: {item.when}</Text>
+        <Text style={{ marginTop: height * 0.005, color: "#6B7280", fontSize: width * 0.038 }}>
+          Ngày: {item.when}
+        </Text>
       )}
       {!!item.note && (
-        <Text style={{ marginTop: 4, color: "#6B7280" }}>{item.note}</Text>
+        <Text style={{ marginTop: height * 0.005, color: "#6B7280", fontSize: width * 0.038 }}>
+          {item.note}
+        </Text>
       )}
 
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => console.log("Chi tiết", item.id)}
-          style={{
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: BORDER,
-          }}
-        >
-          <Text>Xem</Text>
-        </TouchableOpacity>
-
+      <View style={{ flexDirection: "row", gap: width * 0.02, marginTop: height * 0.012 }}>
         {tab === "pending" && (
           <TouchableOpacity
             onPress={async () => {
@@ -287,24 +283,36 @@ function TenantCard({ item, tab, dispatch }) {
                 alert("Có lỗi: " + e.message);
               }
             }}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: ORANGE }}
+            style={{
+              paddingHorizontal: width * 0.04,
+              paddingVertical: height * 0.012,
+              borderRadius: 8,
+              backgroundColor: ORANGE,
+            }}
           >
-            <Text style={{ color: "#fff" }}>Duyệt</Text>
+            <Text style={{ color: "#fff", fontSize: width * 0.04 }}>Duyệt</Text>
           </TouchableOpacity>
         )}
 
         {tab === "renting" && (
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => dispatch(checkOutBooking(item.id))}
+            onPress={async () => {
+              try {
+                await dispatch(checkOutBooking(item.id)).unwrap();
+                alert("Thanh toán & trả phòng thành công.");
+              } catch (e) {
+                alert("Có lỗi: " + e.message);
+              }
+            }}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
+              paddingHorizontal: width * 0.04,
+              paddingVertical: height * 0.012,
               borderRadius: 8,
               backgroundColor: ORANGE,
             }}
           >
-            <Text style={{ color: "#fff" }}>Thanh toán</Text>
+            <Text style={{ color: "#fff", fontSize: width * 0.04 }}>Thanh toán</Text>
           </TouchableOpacity>
         )}
       </View>
