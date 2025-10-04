@@ -55,7 +55,11 @@ export default function SearchPostScreen() {
     }));
   }, [dispatch, searchKeyword, priceRange, activeType]);
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }) => {
+  const isRoom = item.propertyType === "ROOM";
+  const priceUnit = isRoom ? "tháng" : "ngày";
+
+  return (
     <TouchableOpacity
       onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
       style={{
@@ -79,8 +83,8 @@ export default function SearchPostScreen() {
           {item.title}
         </Text>
         <Text style={{ fontSize: 12, color: ORANGE }}>
-            Từ {formatPrice(item.price)}đ/tháng
-          </Text>
+          Từ {formatPrice(item.price)}đ/{priceUnit}
+        </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
           <Ionicons name="location" size={14} color={ORANGE} />
           <Text style={{ fontSize: 11, color: '#111', marginLeft: 4 }} numberOfLines={1}>
@@ -90,6 +94,8 @@ export default function SearchPostScreen() {
       </View>
     </TouchableOpacity>
   );
+};
+
 
   // handler áp dụng filter nâng cao
   const handleApplyFilters = (filters) => {
