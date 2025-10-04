@@ -1,4 +1,3 @@
-// screens/ChatDetailScreen.js
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,6 +7,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { fetchMessages, sendMessage, markReadAll } from "../features/chat/chatThunks";
 import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
+import S3Image from "../components/S3Image"; 
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 
@@ -64,17 +64,22 @@ export default function ChatDetailScreen() {
     if (propMiniFromRoute) setHeaderMini(propMiniFromRoute);
   }, [propMiniFromRoute]);
 
-  useEffect(() => {
-    if (headerMini) return;
-    const found = [...bucketItems].reverse().find(m => m?.property?.propertyId);
-    if (found?.property) setHeaderMini({
-      propertyId: found.property.propertyId,
-      title: found.property.title,
-      address: found.property.address,
-      price: found.property.price,
-      thumbnailUrl: found.property.thumbnailUrl || null,
+useEffect(() => {
+  if (headerMini) return;
+  const found = [...bucketItems].reverse().find(m => m?.property?.propertyId);
+  if (found?.property) {
+    const p = found.property;
+    setHeaderMini({
+      propertyId: p.propertyId,
+      title: p.title,
+      address: p.address?.addressFull || p.address, // ưu tiên addressFull
+      price: p.price,
+      propertyType: p.propertyType,                 // thêm loại
+      thumbnailUrl: p.thumbnailUrl || p.media?.[0]?.url || null, // fallback media
     });
-  }, [bucketItems, headerMini]);
+  }
+}, [bucketItems, headerMini]);
+
 
   // Mỗi lần đổi conversationId → luôn fetch + mark read (bỏ điều kiện initialMessage && empty)
   useEffect(() => {
@@ -161,32 +166,61 @@ export default function ChatDetailScreen() {
     );
   };
 
-  const HeaderPropertyCard = () => {
-    const pm = headerMini;
-    if (!pm) return null;
-    return (
-      <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
-        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          {pm.thumbnailUrl ? (
-            <Image source={{ uri: pm.thumbnailUrl }} style={{ width: 64, height: 64, borderRadius: 8 }} />
-          ) : (
-            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: "#EEE", alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="image-outline" size={20} color="#999" />
-            </View>
+// ChatDetailScreen.js (chỉ trích đoạn HeaderPropertyCard đã chỉnh)
+
+const formatPrice = (p) => {
+  const n = Number(p);
+  return Number.isFinite(n) ? n.toLocaleString("vi-VN") : p;
+};
+
+const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
+
+const HeaderPropertyCard = () => {
+  const pm = headerMini;
+  if (!pm) return null;
+
+  const formatPriceWithUnit = (pm) => {
+        if (!pm?.price) return "Giá liên hệ";
+        const formatted = Number(pm.price).toLocaleString("vi-VN");
+        return pm.propertyType === "ROOM"
+            ? `${formatted} đ/tháng`
+            : `${formatted} đ/ngày`;
+    };
+
+  // fallback: ưu tiên thumbnail → S3 media[0].url → placeholder
+  const imageUrl =
+    pm.thumbnailUrl ||
+    (pm.media?.length > 0 ? pm.media[0].url : null) ||
+    "https://picsum.photos/seed/building/600/400";
+
+  return (
+    <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
+      <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+        <S3Image
+          src={imageUrl}
+          cacheKey={pm.updatedAt}
+          style={{ width: 64, height: 64, borderRadius: 8 }}
+          alt={pm.title}
+        />
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontWeight: "700" }}>
+            {pm.title || "Phòng"}
+          </Text>
+          {!!pm.address && (
+            <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>
+              {formatAddress(pm.address)}
+            </Text>
           )}
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontWeight: "700" }}>{pm.title || "Phòng"}</Text>
-            {!!pm.address && <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>{pm.address}</Text>}
-            {!!pm.price && (
-              <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
-                {Number(pm.price).toLocaleString("vi-VN")} đ/ngày
-              </Text>
-            )}
-          </View>
+          {!!pm.price && (
+            <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
+              {formatPriceWithUnit(pm)}
+            </Text>
+          )}
         </View>
       </View>
-    );
-  };
+    </View>
+  );
+};
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#fff" }} behavior={Platform.OS === "ios" ? "padding" : undefined}>

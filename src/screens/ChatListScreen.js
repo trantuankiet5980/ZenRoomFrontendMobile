@@ -9,18 +9,27 @@ import { pushServerMessage } from "../features/chat/chatSlice";
 
 const ORANGE = "#f36031", MUTED = "#9CA3AF", BORDER = "#E5E7EB", GREEN = "#CBE7A7";
 
-function getOtherParty(conv, meId) {
+function getOtherParty(conv, meId, meRole) {
   if (!conv) return null;
   const { tenant, landlord } = conv;
+
+  // Nếu tôi là landlord → lấy tenant
+  if (meRole === "LANDLORD") return tenant || null;
+
+  // Nếu tôi là tenant → lấy landlord
+  if (meRole === "TENANT") return landlord || null;
+
+  // fallback
   if (tenant?.userId === meId) return landlord || null;
   if (landlord?.userId === meId) return tenant || null;
   return landlord || tenant || null;
 }
 
+
 export default function ChatListScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const meId = useSelector(s => s.auth?.userId);
+  const me = useSelector(s => s.auth?.user);
   const { conversations, convLoading } = useSelector(s => s.chat);
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
@@ -70,22 +79,22 @@ export default function ChatListScreen() {
     const filtered = tab === "tenant" ? base.filter(c => Boolean(c?.tenant)) : base;
 
     const mapped = filtered.map(c => {
-      const other = getOtherParty(c, meId);
-      return {
-        id: c.conversationId,
-        name: other?.fullName || "Người dùng",
-        avatar: other?.avatarUrl || null,
-        time: new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        unread: c.unread || 0,
-        last: c.lastMessage || "",
-        raw: c,
-      };
-    });
+  const other = getOtherParty(c, me?.userId, me?.role);
+  return {
+    id: c.conversationId,
+    name: other?.fullName || (other?.role === "TENANT" ? "Khách thuê" : "Chủ trọ"),
+    avatar: other?.avatarUrl || null,
+    time: new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    unread: c.unread || 0,
+    last: c.lastMessage || "",
+    raw: c,
+  };
+});
 
     if (!q) return mapped;
     const s = q.toLowerCase();
     return mapped.filter(x => x.name.toLowerCase().includes(s));
-  }, [conversations, tab, q, meId]);
+  }, [conversations, tab, q, me?.userId, me?.role]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
