@@ -6,7 +6,7 @@ import SearchPost from "./SearchPost";
 import { useNavigation } from "@react-navigation/native";
 import SelectCityModal from "../components/modal/SelectCityModal";
 import { fetchProvinces, fetchDistricts } from "../features/administrative/administrativeThunks";
-import { clearDistricts } from "../features/administrative/administrativeSlice";
+import SelectDistrictModal from "../components/modal/SelectDistrictModal";
 
 export default function LandlordPanel({ selectedCity, setSelectedCity }) {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
@@ -16,6 +16,8 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
   const navigation = useNavigation();
 
   const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [districtModalVisible, setDistrictModalVisible] = useState(false);
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
 
   const provinces = useSelector((s) => s.administrative.provinces);
   const districts = useSelector((s) => s.administrative.districts);
@@ -33,6 +35,10 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
     dispatch(fetchDistricts(provinceCode));
     setCityModalVisible(false);
   };
+  const handleSelectDistrict = (districtCode) => {
+    setSelectedDistrict(districtCode);
+    setDistrictModalVisible(false);
+  };
 
   const manageActions = [
     {
@@ -42,9 +48,9 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
       iconLib: "mc",
       onPress: () => navigation.navigate("PostsManager"),
     },
-    { 
-      key: "manage-tenants", 
-      label: "Quản lý khách thuê", 
+    {
+      key: "manage-tenants",
+      label: "Quản lý khách thuê",
       icon: "account-group-outline",
       iconLib: "mc",
       onPress: () => navigation.navigate("TenantsManager"),
@@ -87,11 +93,27 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
           selectedCity={selectedCityName}
           onSelectCity={handleSelectCity}
         />
+        <SelectDistrictModal
+          visible={districtModalVisible}
+          onClose={() => setDistrictModalVisible(false)}
+          districts={districts}
+          onSelectDistrict={handleSelectDistrict}
+        />
         <SearchPost
           city={selectedCityName}
-          districts={districts}
+          provinceCode={selectedCity}
+          selectedDistrictName={districts.find((d) => d.code === selectedDistrict)?.name_with_type}
+          districtCode={selectedDistrict}
           onPressCity={() => setCityModalVisible(true)}
-          onPressSearch={() => navigation.navigate("SearchRooms")}
+          onPressDistrict={() => setDistrictModalVisible(true)}
+          onPressSearch={({ provinceCode, districtCode }) =>
+            navigation.navigate("SearchRooms", {
+              provinceCode,
+              districtCode,
+              provinceName: selectedCityName,
+              districtName: districts.find((d) => d.code === districtCode)?.name_with_type
+            })
+          }
         />
       </View>
 

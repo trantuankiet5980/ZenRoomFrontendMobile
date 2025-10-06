@@ -1,56 +1,74 @@
-import { View, Text, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import { View, TouchableOpacity, Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function SearchPost({
-  city = 'Hồ Chí Minh',
+  city,                     // tên hiển thị
+  provinceCode,             // code thật
+  selectedDistrictName,     // tên hiển thị
+  districtCode,             // code thật
   onPressCity,
+  onPressDistrict,
   onPressSearch,
 }) {
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        padding: 8,
-        borderRadius: 12,
-        gap: 8,
-      }}
-    >
-      {/* Chip location */}
-      <Pressable
-        onPress={onPressCity}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#FEE6C9', // cam nhạt
-          paddingHorizontal: 10,
-          height: 36,
-          borderRadius: 10,
-          gap: 6,
-        }}
-      >
-        <Ionicons name="location" size={16} color="#F18A2F" />
-        <Text style={{ color: '#F18A2F', fontWeight: '700' }}>{city}</Text>
-      </Pressable>
+    <View style={{ gap: 12 }}>
+      {/* Hàng chọn tỉnh & quận */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+        {/* Chọn tỉnh */}
+        <TouchableOpacity
+          onPress={onPressCity}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#f4f4f4",
+            padding: 10,
+            borderRadius: 8,
+          }}
+        >
+          <Ionicons name="location-outline" size={18} color="#333" />
+          <Text style={{ marginLeft: 6, fontSize: 14 }}>
+            {city || "Chọn Tỉnh/Thành phố"}
+          </Text>
+        </TouchableOpacity>
 
-      {/* Ô “Tìm kiếm tin đăng” */}
-      <Pressable
-        onPress={onPressSearch}
+        {/* Chọn quận/huyện */}
+        <TouchableOpacity
+          onPress={onPressDistrict}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#f4f4f4",
+            padding: 10,
+            borderRadius: 8,
+          }}
+        >
+          <Ionicons name="business-outline" size={18} color="#333" />
+          <Text style={{ marginLeft: 6, fontSize: 14 }}>
+            {selectedDistrictName || "Chọn Quận/Huyện"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Nút tìm kiếm */}
+      <TouchableOpacity
+        onPress={() =>
+          onPressSearch({ provinceCode, districtCode })
+        }
         style={{
-          flex: 1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#EDEDED',
-          height: 36,
-          borderRadius: 10,
-          paddingHorizontal: 10,
-          gap: 8,
+          backgroundColor: "#f36031",
+          paddingVertical: 12,
+          borderRadius: 8,
+          alignItems: "center",
         }}
       >
-        <Ionicons name="search" size={16} color="#9CA3AF" />
-        <Text style={{ color: '#9CA3AF', fontWeight: '600' }}>
-          Tìm kiếm tin đăng
+        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
+          Tìm phòng
         </Text>
-      </Pressable>
+      </TouchableOpacity>
     </View>
   );
 }
+

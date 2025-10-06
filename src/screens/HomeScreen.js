@@ -1,42 +1,55 @@
-import { ScrollView, View, Text, Image, TouchableOpacity, Dimensions, FlatList } from "react-native";
+import {
+  ScrollView,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  Dimensions,
+  FlatList,
+} from "react-native";
 import TypingText from "../hooks/TypingText";
 import LandlordPanel from "../components/LandlordPanel";
 import TenantPanel from "../components/TenantPanel";
-import ExploreSection from "../components/ExploreSection";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
 import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { districtImages } from '../data/districtImages';
+import { districtImages } from "../data/districtImages";
 import { fetchProperties } from "../features/properties/propertiesThunks";
-import { fetchProvinces, fetchDistricts } from "../features/administrative/administrativeThunks";
+import {
+  fetchProvinces,
+  fetchDistricts,
+} from "../features/administrative/administrativeThunks";
 import S3Image from "../components/S3Image";
 
 export default function HomeScreen() {
   const screenWidth = Dimensions.get("window").width;
   const user = useSelector((s) => s.auth.user);
-  const unread = useSelector(s => s.notifications?.unreadCount ?? 0);
+  const unread = useSelector((s) => s.notifications?.unreadCount ?? 0);
   const name = user?.fullName || user?.name || "";
   const role = (user?.role || user?.roleName || "").toLowerCase();
 
   const dispatch = useDispatch();
   const navigation = useNavigation();
-  const { rooms = [], buildings = [], loading } = useSelector(state => state.properties || {});
-  const provinces = useSelector(s => s.administrative.provinces || []);
-  const districts = useSelector(s => s.administrative.districts || []);
+  const { rooms = [], buildings = [], loading } = useSelector(
+    (state) => state.properties || {}
+  );
+  const provinces = useSelector((s) => s.administrative.provinces || []);
+  const districts = useSelector((s) => s.administrative.districts || []);
 
   const [selectedCity, setSelectedCity] = useState("");
-  const selectedCityName = provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
+  const [selectedDistrict, setSelectedDistrict] = useState("");
 
+  const selectedCityName =
+    provinces.find((p) => p.code === selectedCity)?.name_with_type ||
+    selectedCity;
 
-  // Load dữ liệu khi mount
+  // Load danh sách tỉnh khi mount
   useEffect(() => {
     dispatch(fetchProvinces());
-    dispatch(fetchProperties({ page: 0, size: 20, type: "BUILDING", postStatus: "APPROVED" }));
-    dispatch(fetchProperties({ page: 0, size: 20, type: "ROOM", postStatus: "APPROVED" }));
   }, [dispatch]);
 
-  // Chọn city mặc định là tỉnh đầu tiên
+  // Nếu có danh sách tỉnh thì chọn mặc định tỉnh đầu tiên
   useEffect(() => {
     if (provinces.length > 0 && !selectedCity) {
       const firstCity = provinces[0].code;
@@ -45,10 +58,32 @@ export default function HomeScreen() {
     }
   }, [provinces, selectedCity, dispatch]);
 
+  // Khi chọn tỉnh -> load huyện
   const handleSelectCity = (cityCode) => {
     setSelectedCity(cityCode);
+    setSelectedDistrict(""); // reset huyện khi đổi tỉnh
     dispatch(fetchDistricts(cityCode));
   };
+
+  // Khi chọn huyện
+  const handleSelectDistrict = (districtCode) => {
+    setSelectedDistrict(districtCode);
+  };
+
+  // Fetch properties khi thay đổi tỉnh/huyện
+  useEffect(() => {
+    if (selectedCity) {
+      const commonFilter = {
+        page: 0,
+        size: 20,
+        postStatus: "APPROVED",
+        provinceCode: selectedCity,
+        districtCode: selectedDistrict || undefined,
+      };
+      dispatch(fetchProperties({ ...commonFilter, type: "BUILDING" }));
+      dispatch(fetchProperties({ ...commonFilter, type: "ROOM" }));
+    }
+  }, [selectedCity, selectedDistrict, dispatch]);
 
   const districtItems = districts.map((district) => ({
     key: district.code,
@@ -62,7 +97,6 @@ export default function HomeScreen() {
   };
 
   const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
-
 
   if (loading) return <Text>Đang tải dữ liệu...</Text>;
 
@@ -92,11 +126,19 @@ export default function HomeScreen() {
                 paddingVertical: 1,
               }}
             >
-              <Text style={{ color: "#fff", fontSize: 10 }}>{unread > 99 ? "99+" : unread}</Text>
+              <Text style={{ color: "#fff", fontSize: 10 }}>
+                {unread > 99 ? "99+" : unread}
+              </Text>
             </View>
           )}
         </TouchableOpacity>
-        <View style={{ paddingLeft: 20, paddingBottom: 10, flexDirection: "row" }}>
+        <View
+          style={{
+            paddingLeft: 20,
+            paddingBottom: 10,
+            flexDirection: "row",
+          }}
+        >
           <TypingText
             text={`Xin chào, ${name}`}
             speed={150}
@@ -108,34 +150,73 @@ export default function HomeScreen() {
 
       {/* Panels */}
       <View style={{ marginTop: -40 }}>
-        <LandlordPanel selectedCity={selectedCity} setSelectedCity={handleSelectCity} />
-        <TenantPanel selectedCity={selectedCity} setSelectedCity={handleSelectCity} />
+        <LandlordPanel
+          selectedCity={selectedCity}
+          setSelectedCity={handleSelectCity}
+        />
+        <TenantPanel
+          selectedCity={selectedCity}
+          setSelectedCity={handleSelectCity}
+        />
       </View>
-
-      {/* Explore districts */}
-      <ExploreSection
-        title={`Khám phá ${selectedCityName}`}
-        items={districtItems}
-        itemSize={150}
-        onPressItem={(item) => navigation.navigate("SearchRooms", { districtCode: item.key })}
-      />
 
       {/* Banner */}
       <TouchableOpacity
         onPress={() => navigation.navigate("SearchRooms")}
-        style={{ alignItems: "center", marginHorizontal: 20, marginVertical: 20 }}
+        style={{
+          alignItems: "center",
+          marginHorizontal: 20,
+          marginVertical: 20,
+        }}
       >
         <Image
           source={require("../../assets/images/datPhong.png")}
-          style={{ height: 300, width: screenWidth - 40, resizeMode: "cover", borderRadius: 15 }}
+          style={{
+            height: 300,
+            width: screenWidth - 40,
+            resizeMode: "cover",
+            borderRadius: 15,
+          }}
         />
       </TouchableOpacity>
 
       {/* Căn hộ */}
-      <View style={{ paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 10 }} >
-        <Text style={{ fontSize: 20, fontWeight: "bold", marginLeft: 20, marginTop: 12 }}>Căn hộ</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("SearchRooms", { type: "BUILDING" })}>
-          <Text style={{ fontSize: 15, fontWeight: "bold", marginTop: 12, color: "#f36031" }}>
+      <View
+        style={{
+          paddingBottom: 12,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingRight: 10,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            marginLeft: 20,
+            marginTop: 12,
+          }}
+        >
+          Căn hộ
+        </Text>
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("SearchRooms", {
+              type: "BUILDING",
+              provinceCode: selectedCity,
+              districtCode: selectedDistrict,
+            })
+          }
+        >
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "bold",
+              marginTop: 12,
+              color: "#f36031",
+            }}
+          >
             Xem tất cả
           </Text>
         </TouchableOpacity>
@@ -145,7 +226,11 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.propertyId}
         numColumns={2}
         scrollEnabled={false}
-        columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 }}
+        columnWrapperStyle={{
+          justifyContent: "space-between",
+          paddingHorizontal: 20,
+          marginBottom: 12,
+        }}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={{
@@ -155,7 +240,11 @@ export default function HomeScreen() {
               width: "48%",
               marginBottom: 12,
             }}
-            onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
+            onPress={() =>
+              navigation.navigate("PropertyDetail", {
+                propertyId: item.propertyId,
+              })
+            }
           >
             <S3Image
               src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
@@ -164,71 +253,51 @@ export default function HomeScreen() {
               alt={item.title}
             />
             <View style={{ padding: 8 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{item.title}</Text>
+              <Text
+                style={{ fontWeight: "bold", fontSize: 14 }}
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
               {item.price ? (
-                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 2 }}>
-                  <Ionicons name="pricetag-outline" size={14} color="#f36031" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#f36031' }}>Từ {formatPrice(item.price)}đ/ngày</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginVertical: 2,
+                  }}
+                >
+                  <Ionicons
+                    name="pricetag-outline"
+                    size={14}
+                    color="#f36031"
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={{ fontSize: 12, color: "#f36031" }}>
+                    Từ {formatPrice(item.price)}đ/ngày
+                  </Text>
                 </View>
               ) : (
-                <Text style={{ fontSize: 12, color: '#777', marginVertical: 2 }}>Giá liên hệ</Text>
+                <Text
+                  style={{ fontSize: 12, color: "#777", marginVertical: 2 }}
+                >
+                  Giá liên hệ
+                </Text>
               )}
               {item.address?.addressFull && (
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#555' }} numberOfLines={1}>{formatAddress(item.address.addressFull)}</Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        )}
-      />
-      {/* Phòng trọ */}
-      <View style={{ paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 10 }} >
-        <Text style={{ fontSize: 20, fontWeight: "bold", marginLeft: 20, marginTop: 12 }}>Phòng trọ</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("SearchRooms", { type: "ROOM" })}>
-          <Text style={{ fontSize: 15, fontWeight: "bold", marginTop: 12, color: "#f36031" }}>
-            Xem tất cả
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <FlatList
-        data={rooms}
-        keyExtractor={(item) => item.propertyId}
-        numColumns={2}
-        scrollEnabled={false}
-        columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              overflow: "hidden",
-              width: "48%",
-              marginBottom: 12,
-            }}
-            onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
-          >
-            <S3Image
-              src={item.media?.[0]?.url}
-              cacheKey={item.updatedAt}
-              style={{ width: "100%", height: 120, borderRadius: 8 }}
-              alt={item.title}
-            />
-            <View style={{ padding: 8 }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{item.title}</Text>
-              {item.price ? (
-                <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 2 }}>
-                  <Ionicons name="pricetag-outline" size={14} color="#f36031" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#f36031' }}>Từ {formatPrice(item.price)}đ/tháng</Text>
-                </View>
-              ) : (
-                <Text style={{ fontSize: 12, color: '#777', marginVertical: 2 }}>Giá liên hệ</Text>
-              )}
-              {item.address?.addressFull && (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 12, color: '#555' }} numberOfLines={1}>{formatAddress(item.address.addressFull)}</Text>
+                  <Ionicons
+                    name="location-outline"
+                    size={14}
+                    color="#555"
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text
+                    style={{ fontSize: 12, color: "#555" }}
+                    numberOfLines={1}
+                  >
+                    {formatAddress(item.address.addressFull)}
+                  </Text>
                 </View>
               )}
             </View>
@@ -236,7 +305,16 @@ export default function HomeScreen() {
         )}
       />
 
-      <View style={{ height: 130, backgroundColor: '#f36031', marginHorizontal: 20, marginTop: 8, marginBottom: 4, borderRadius: 15 }} />
-    </ScrollView >
+      <View
+        style={{
+          height: 130,
+          backgroundColor: "#f36031",
+          marginHorizontal: 20,
+          marginTop: 8,
+          marginBottom: 4,
+          borderRadius: 15,
+        }}
+      />
+    </ScrollView>
   );
 }
