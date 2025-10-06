@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as SecureStore from "expo-secure-store";
 
 import { fetchContractById } from "../features/contracts/contractThunks";
 import {
@@ -79,6 +82,7 @@ export default function ContractDetailScreen() {
   const dispatch = useDispatch();
   const contract = useSelector(selectContractDetail);
   const loading = useSelector(selectContractsLoading);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     if (contractId) {
@@ -86,16 +90,56 @@ export default function ContractDetailScreen() {
     }
   }, [contractId, dispatch]);
 
-  const handleOpenPdf = () => {
+  const handleOpenPdf = async () => {
+    if (downloadingPdf) {
+      return;
+    }
     if (!contractId) {
       Alert.alert("Thông báo", "Không tìm thấy hợp đồng để xuất PDF.");
       return;
     }
-    const baseUrl = (axiosInstance.defaults.baseURL || "http://localhost:8080/api/v1").replace(/\/$/, "");
-    const pdfUrl = `${baseUrl}/contracts/${contractId}/pdf`;
-    Linking.openURL(pdfUrl).catch(() => {
-      Alert.alert("Lỗi", "Không thể mở file hợp đồng. Vui lòng thử lại.");
-    });
+    try {
+      setDownloadingPdf(true);
+      const baseUrl = (axiosInstance.defaults.baseURL || "http://localhost:8080/api/v1").replace(/\/$/, "");
+      const pdfUrl = `${baseUrl}/contracts/${contractId}/pdf`;
+      const token = await SecureStore.getItemAsync("accessToken");
+      const fileName = `contract-${contract?.contractCode || contractId}.pdf`;
+      const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+      if (!baseDirectory) {
+        throw new Error("No writable directory available");
+      }
+      const normalizedDirectory = baseDirectory.endsWith("/") ? baseDirectory : `${baseDirectory}/`;
+      const targetUri = `${normalizedDirectory}${fileName}`;
+      const downloadResult = await FileSystem.downloadAsync(pdfUrl, targetUri, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (downloadResult.status < 200 || downloadResult.status >= 300) {
+        throw new Error("Download failed");
+      }
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(downloadResult.uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Chia sẻ hợp đồng",
+        });
+      } else {
+        Alert.alert(
+          "Thông báo",
+          "Thiết bị không hỗ trợ chia sẻ tệp. Hợp đồng đã được tải về thành công.",
+        );
+      }
+    } catch (error) {
+      console.error("Download contract pdf error", error);
+      const message =
+        error?.message === "No writable directory available"
+          ? "Thiết bị không hỗ trợ lưu tệp tải xuống."
+          : "Không thể tải hợp đồng. Vui lòng thử lại.";
+      Alert.alert("Lỗi", message);
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   if (loading) {
@@ -148,6 +192,7 @@ export default function ContractDetailScreen() {
             </View>
             <TouchableOpacity
               onPress={handleOpenPdf}
+              disabled={downloadingPdf}
               style={{
                 backgroundColor: PRIMARY,
                 paddingHorizontal: 16,
@@ -155,10 +200,17 @@ export default function ContractDetailScreen() {
                 borderRadius: 12,
                 flexDirection: "row",
                 alignItems: "center",
+                opacity: downloadingPdf ? 0.7 : 1,
               }}
             >
-              <Ionicons name="download-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={{ color: "#fff", fontWeight: "600" }}>Xuất PDF</Text>
+              {downloadingPdf ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="download-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>Xem hợp đồng</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </Card>

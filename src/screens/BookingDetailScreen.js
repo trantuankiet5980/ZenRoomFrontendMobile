@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -31,6 +31,9 @@ import {
 } from "../features/contracts/contractSlice";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { axiosInstance } from "../api/axiosInstance";
+import * as FileSystem from "expo-file-system/legacy";
+import * as SecureStore from "expo-secure-store";
+import * as Sharing from "expo-sharing";
 
 const ORANGE = "#f36031";
 const TEXT = "#111827";
@@ -168,6 +171,7 @@ export default function BookingDetailScreen() {
     const contract = useSelector(selectContractDetail);
     const contractLoading = useSelector(selectContractsLoading);
     const contractError = useSelector(selectContractsError);
+    const [downloadingContract, setDownloadingContract] = useState(false); 
     const contractStatus = contract?.status || contract?.contractStatus;
     const contractLabel = getContractStatusLabel(contractStatus) || "Đang cập nhật";
     const contractColor = getContractStatusColor(contractStatus);
@@ -250,17 +254,57 @@ export default function BookingDetailScreen() {
         );
     };
 
-    const handleOpenContractPdf = () => {
-        const contractId = booking?.contract?.contractId;
+    const handleOpenContractPdf = async () => {
+        const contractId = booking?.contractId;
+        if (downloadingContract) {
+            return;
+        }
         if (!contractId) {
             Alert.alert("Thông báo", "Chưa có hợp đồng cho booking này.");
             return;
         }
-        const baseUrl = (axiosInstance.defaults.baseURL || "http://localhost:8080/api/v1").replace(/\/$/, "");
-        const pdfUrl = `${baseUrl}/contracts/${contractId}/pdf`;
-        Linking.openURL(pdfUrl).catch(() => {
-            Alert.alert("Lỗi", "Không thể mở file hợp đồng. Vui lòng thử lại sau.");
-        });
+        try {
+            setDownloadingContract(true);
+            const baseUrl = (axiosInstance.defaults.baseURL || "http://localhost:8080/api/v1").replace(/\/$/, "");
+            const pdfUrl = `${baseUrl}/contracts/${contractId}/pdf`;
+            const token = await SecureStore.getItemAsync("accessToken");
+            const fileName = `contract-${contractId}.pdf`;
+            const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+            if (!baseDirectory) {
+                throw new Error("No writable directory available");
+            }
+            const normalizedDirectory = baseDirectory.endsWith("/") ? baseDirectory : `${baseDirectory}/`;
+            const targetUri = `${normalizedDirectory}${fileName}`;
+            const downloadResult = await FileSystem.downloadAsync(pdfUrl, targetUri, {
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            });
+
+            if (downloadResult.status < 200 || downloadResult.status >= 300) {
+                throw new Error("Download failed");
+            }
+
+            const canShare = await Sharing.isAvailableAsync();
+            if (canShare) {
+                await Sharing.shareAsync(downloadResult.uri, {
+                    mimeType: "application/pdf",
+                    dialogTitle: "Chia sẻ hợp đồng",
+                });
+            } else {
+                Alert.alert(
+                    "Thông báo",
+                    "Thiết bị không hỗ trợ chia sẻ tệp. Hợp đồng đã được tải về thành công.",
+                );
+            }
+        } catch (error) {
+            console.error("Download contract pdf error", error);
+            const message =
+                error?.message === "No writable directory available"
+                    ? "Thiết bị không hỗ trợ lưu tệp tải xuống."
+                    : "Không thể tải hợp đồng. Vui lòng thử lại sau.";
+            Alert.alert("Lỗi", message);
+        } finally {
+            setDownloadingContract(false);
+        }
     };
 
     if (loading || !booking) {
@@ -434,6 +478,7 @@ export default function BookingDetailScreen() {
                             </View>
                             <TouchableOpacity
                                 onPress={handleOpenContractPdf}
+                                disabled={downloadingContract}
                                 style={{
                                     backgroundColor: "#0d9488",
                                     paddingHorizontal: 16,
@@ -441,15 +486,22 @@ export default function BookingDetailScreen() {
                                     borderRadius: 10,
                                     flexDirection: "row",
                                     alignItems: "center",
+                                    opacity: downloadingContract ? 0.7 : 1,
                                 }}
                             >
-                                <Ionicons
-                                    name="document-text-outline"
-                                    size={18}
-                                    color="#fff"
-                                    style={{ marginRight: 6 }}
-                                />
-                                <Text style={{ color: "#fff", fontWeight: "600" }}>Xuất PDF</Text>
+                                {downloadingContract ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <>
+                                        <Ionicons
+                                            name="document-text-outline"
+                                            size={18}
+                                            color="#fff"
+                                            style={{ marginRight: 6 }}
+                                        />
+                                        <Text style={{ color: "#fff", fontWeight: "600" }}>Xem hợp đồng</Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                         </View>
                     ) : (
