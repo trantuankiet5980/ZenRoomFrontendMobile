@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ import {
   selectCurrentInvoice,
   selectInvoiceError,
   selectInvoiceLoading,
+  selectInvoicesByBookingId,
 } from "../features/invoices/invoiceSlice";
 import { axiosInstance } from "../api/axiosInstance";
 import useHideTabBar from "../hooks/useHideTabBar";
@@ -59,9 +60,9 @@ const BOOKING_TABS = [
     label: "Đã duyệt",
     statuses: ["AWAITING_LANDLORD_APPROVAL", "APPROVED"],
   },
-  { key: "cancelled", label: "Đã hủy", statuses: ["CANCELLED"] },
   { key: "checkin", label: "Check-in", statuses: ["CHECKED_IN"] },
   { key: "completed", label: "Hoàn thành", statuses: ["COMPLETED"] },
+  { key: "cancelled", label: "Đã hủy", statuses: ["CANCELLED"] },
 ];
 
 const BOOKING_STATUS_LABELS = {
@@ -87,6 +88,22 @@ const PAYMENT_STATUS_LABELS = {
   PAID: "Đã thanh toán",
   CANCELLED: "Đã hủy",
   FAILED: "Thanh toán thất bại",
+};
+
+const INVOICE_STATUS_LABELS = {
+  DRAFT: "Chưa phát hành",
+  ISSUED: "Đã phát hành",
+  PAID: "Đã thanh toán",
+  REFUNDED: "Đã hoàn tiền",
+  VOID: "Đã hủy",
+};
+
+const INVOICE_STATUS_COLORS = {
+  DRAFT: "#6b7280",
+  ISSUED: "#f59e0b",
+  PAID: SUCCESS,
+  REFUNDED: "#0ea5e9",
+  VOID: "#ef4444",
 };
 
 function formatDateVN(dateString) {
@@ -132,6 +149,16 @@ function getPaymentStatusLabel(status) {
   return PAYMENT_STATUS_LABELS[status] || status;
 }
 
+function getInvoiceStatusLabel(status) {
+  if (!status) return "";
+  return INVOICE_STATUS_LABELS[status] || status;
+}
+
+function getInvoiceStatusColor(status) {
+  if (!status) return MUTED;
+  return INVOICE_STATUS_COLORS[status] || TEXT;
+}
+
 function buildVietQrImage(amount, invoiceNo) {
   if (!amount || !invoiceNo) return null;
   const rounded = Math.round(Number(amount));
@@ -167,11 +194,13 @@ export default function MyBookingsScreen() {
   const invoice = useSelector(selectCurrentInvoice);
   const invoiceLoading = useSelector(selectInvoiceLoading);
   const invoiceError = useSelector(selectInvoiceError);
+  const invoicesByBookingId = useSelector(selectInvoicesByBookingId);
 
   const [activeTab, setActiveTab] = useState("pending");
   const [keyword, setKeyword] = useState("");
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const pendingInvoiceRequests = useRef(new Set());
 
   useEffect(() => {
     dispatch(fetchMyBookings());
@@ -189,6 +218,27 @@ export default function MyBookingsScreen() {
       setSelectedBookingId(null);
     }
   }, [invoiceVisible, dispatch]);
+
+  useEffect(() => {
+    const awaitingBookings = bookings.filter(
+      (booking) => booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL"
+    );
+
+    awaitingBookings.forEach((booking) => {
+      const bookingId = booking.bookingId;
+      if (!bookingId) return;
+      const hasInvoiceRecord =
+        invoicesByBookingId &&
+        Object.prototype.hasOwnProperty.call(invoicesByBookingId, bookingId);
+      if (hasInvoiceRecord) return;
+      if (pendingInvoiceRequests.current.has(bookingId)) return;
+
+      pendingInvoiceRequests.current.add(bookingId);
+      dispatch(fetchInvoiceByBooking(bookingId)).finally(() => {
+        pendingInvoiceRequests.current.delete(bookingId);
+      });
+    });
+  }, [bookings, invoicesByBookingId, dispatch]);
 
   const countsByTab = useMemo(() => {
     const counter = {};
@@ -249,6 +299,7 @@ export default function MyBookingsScreen() {
                 await dispatch(cancelBooking(booking.bookingId)).unwrap();
                 Alert.alert("Thành công", "Hủy booking thành công");
                 dispatch(fetchMyBookings());
+                setActiveTab("cancelled");
               } catch (error) {
                 Alert.alert(
                   "Lỗi",
@@ -260,7 +311,7 @@ export default function MyBookingsScreen() {
         ]
       );
     },
-    [dispatch]
+    [dispatch, setActiveTab]
   );
 
   const handleCheckIn = useCallback(
@@ -277,6 +328,7 @@ export default function MyBookingsScreen() {
                 await dispatch(checkInBooking(booking.bookingId)).unwrap();
                 Alert.alert("Thành công", "Check-in thành công");
                 dispatch(fetchMyBookings());
+                setActiveTab("checkin");
               } catch (error) {
                 Alert.alert(
                   "Lỗi",
@@ -288,7 +340,7 @@ export default function MyBookingsScreen() {
         ]
       );
     },
-    [dispatch]
+    [dispatch, setActiveTab]
   );
 
   const handleCheckOut = useCallback(
@@ -305,6 +357,7 @@ export default function MyBookingsScreen() {
                 await dispatch(checkOutBooking(booking.bookingId)).unwrap();
                 Alert.alert("Thành công", "Check-out thành công");
                 dispatch(fetchMyBookings());
+                setActiveTab("completed");
               } catch (error) {
                 Alert.alert(
                   "Lỗi",
@@ -316,7 +369,7 @@ export default function MyBookingsScreen() {
         ]
       );
     },
-    [dispatch]
+    [dispatch, setActiveTab]
   );
 
   const handleRefresh = useCallback(() => {
@@ -328,6 +381,16 @@ export default function MyBookingsScreen() {
       <BookingCard
         booking={item}
         tab={activeTab}
+        invoice={invoicesByBookingId?.[item.bookingId]}
+        invoiceFetched={
+          !!(
+            invoicesByBookingId &&
+            Object.prototype.hasOwnProperty.call(
+              invoicesByBookingId,
+              item.bookingId
+            )
+          )
+        }
         onView={(booking) =>
           navigation.navigate("BookingDetail", { id: booking.bookingId })
         }
@@ -337,7 +400,15 @@ export default function MyBookingsScreen() {
         onCheckOut={handleCheckOut}
       />
     ),
-    [activeTab, navigation, handleOpenInvoice, handleCancel, handleCheckIn, handleCheckOut]
+     [
+      activeTab,
+      navigation,
+      invoicesByBookingId,
+      handleOpenInvoice,
+      handleCancel,
+      handleCheckIn,
+      handleCheckOut,
+    ]
   );
 
   const listEmpty = (
@@ -378,21 +449,22 @@ export default function MyBookingsScreen() {
           style={{ marginLeft: 8, flex: 1, color: TEXT }}
         />
       </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 14 }}
-      >
-        {BOOKING_TABS.map((tab) => (
-          <TabButton
-            key={tab.key}
-            label={`${tab.label}${countsByTab[tab.key] ? ` (${countsByTab[tab.key]})` : ""}`}
-            active={tab.key === activeTab}
-            onPress={() => setActiveTab(tab.key)}
-          />
-        ))}
-      </ScrollView>
+      <View style={{ height: 55, marginTop: 10 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
+        >
+          {BOOKING_TABS.map((tab) => (
+            <TabButton
+              key={tab.key}
+              label={`${tab.label}${countsByTab[tab.key] ? ` (${countsByTab[tab.key]})` : ""}`}
+              active={tab.key === activeTab}
+              onPress={() => setActiveTab(tab.key)}
+            />
+          ))}
+        </ScrollView>
+      </View>
 
       {loading && bookings.length === 0 ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -460,13 +532,13 @@ function TabButton({ label, active, onPress }) {
     <TouchableOpacity
       onPress={onPress}
       style={{
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
         borderRadius: 24,
         borderWidth: active ? 0 : 1,
         borderColor: BORDER,
         backgroundColor: active ? ORANGE : "#fff",
-        marginRight: 10,
+        marginRight: 8,
         shadowColor: "#000",
         shadowOpacity: active ? 0.12 : 0.04,
         shadowRadius: active ? 4 : 2,
@@ -475,9 +547,12 @@ function TabButton({ label, active, onPress }) {
       }}
     >
       <Text
+        allowFontScaling={false} 
+        numberOfLines={1}
+        ellipsizeMode="tail"
         style={{
           color: active ? "#fff" : TEXT,
-          fontWeight: "600",
+          fontWeight: "700",
         }}
       >
         {label}
@@ -486,8 +561,30 @@ function TabButton({ label, active, onPress }) {
   );
 }
 
-function BookingCard({ booking, tab, onView, onPay, onCancel, onCheckIn, onCheckOut }) {
-  const checkInAvailable = booking.bookingStatus === "APPROVED";
+function BookingCard({
+  booking,
+  invoice,
+  invoiceFetched = false,
+  tab,
+  onView,
+  onPay,
+  onCancel,
+  onCheckIn,
+  onCheckOut,
+}) {
+  const invoiceStatus =
+    invoice?.status || booking.invoiceStatus || booking.invoice?.status;
+  const invoiceStatusLabel = getInvoiceStatusLabel(invoiceStatus);
+  const invoiceStatusColor = getInvoiceStatusColor(invoiceStatus);
+  const isInvoicePaid = invoiceStatus === "PAID";
+  const invoiceRowValue = invoiceStatusLabel
+    ? invoiceStatusLabel
+    : invoiceFetched
+    ? "Chưa có hóa đơn"
+    : "Đang tải hóa đơn...";
+  const checkInAvailable =
+    booking.bookingStatus === "APPROVED" ||
+    (booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL" && isInvoicePaid);
   const checkOutAvailable = booking.bookingStatus === "CHECKED_IN";
   const showCancelButton =
     tab === "pending" ||
@@ -495,6 +592,7 @@ function BookingCard({ booking, tab, onView, onPay, onCancel, onCheckIn, onCheck
       ["AWAITING_LANDLORD_APPROVAL", "APPROVED"].includes(booking.bookingStatus));
   const showPayButton = tab === "approved";
   const showCheckButtons = tab === "checkin";
+  const showInvoiceStatus = booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL";
   const media = booking.property?.media || [];
   const coverImage =
     media.find((item) => item.isCover) || media[0] || null;
@@ -558,6 +656,14 @@ function BookingCard({ booking, tab, onView, onPay, onCancel, onCheckIn, onCheck
 
           <View style={{ marginTop: 12 }}>
             <InfoRow label="Tổng tiền" value={formatCurrency(booking.totalPrice)} bold />
+            {showInvoiceStatus ? (
+              <InfoRow
+                label="Hóa đơn"
+                value={invoiceRowValue}
+                valueColor={invoiceStatusLabel ? invoiceStatusColor : MUTED}
+                bold={invoiceStatus === "PAID"}
+              />
+            ) : null}
             {booking.paymentStatus ? (
               <InfoRow
                 label="Thanh toán"
@@ -579,8 +685,14 @@ function BookingCard({ booking, tab, onView, onPay, onCancel, onCheckIn, onCheck
 
         {showPayButton && (
           <ActionButton
-            label="Thanh toán"
-            onPress={() => onPay(booking)}
+            label={isInvoicePaid ? "Check-in" : "Thanh toán"}
+            onPress={() =>
+              isInvoicePaid
+                ? checkInAvailable && onCheckIn(booking)
+                : onPay(booking)
+            }
+            backgroundColor={isInvoicePaid ? SUCCESS : undefined}
+            disabled={isInvoicePaid ? !checkInAvailable : false}
             style={{ marginRight: 10, marginBottom: 10 }}
           />
         )}
@@ -597,18 +709,18 @@ function BookingCard({ booking, tab, onView, onPay, onCancel, onCheckIn, onCheck
         {showCheckButtons && (
           <>
             <ActionButton
-                label="Check-in"
-                type="outline"
-                backgroundColor={SUCCESS}
-                disabled={!checkInAvailable}
-                onPress={() => checkInAvailable && onCheckIn(booking)}
-                style={{ marginRight: 10, marginBottom: 10 }}
-              />
-              <ActionButton
-                label="Check-out"
-                backgroundColor="#2563eb"
-                disabled={!checkOutAvailable}
-                onPress={() => checkOutAvailable && onCheckOut(booking)}
+              label="Check-in"
+              type="outline"
+              backgroundColor={SUCCESS}
+              disabled={!checkInAvailable}
+              onPress={() => checkInAvailable && onCheckIn(booking)}
+              style={{ marginRight: 10, marginBottom: 10 }}
+            />
+            <ActionButton
+              label="Check-out"
+              backgroundColor="#2563eb"
+              disabled={!checkOutAvailable}
+              onPress={() => checkOutAvailable && onCheckOut(booking)}
                 style={{ marginRight: 10, marginBottom: 10 }}
               />
           </>
@@ -635,12 +747,18 @@ function StatusBadge({ status }) {
   );
 }
 
-function InfoRow({ label, value, bold }) {
+function InfoRow({ label, value, bold, valueColor }) {
   if (!value) return null;
   return (
     <View style={{ flexDirection: "row", marginBottom: 6 }}>
       <Text style={{ color: MUTED, width: 90 }}>{label}</Text>
-      <Text style={{ color: TEXT, fontWeight: bold ? "700" : "500", flex: 1 }}>
+      <Text
+        style={{
+          color: valueColor || TEXT,
+          fontWeight: bold ? "700" : "500",
+          flex: 1,
+        }}
+      >
         {value}
       </Text>
     </View>
@@ -711,10 +829,7 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
         >
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <View>
-              <Text style={{ fontSize: 18, fontWeight: "700", color: TEXT }}>Thanh toán booking</Text>
-              {bookingId ? (
-                <Text style={{ color: MUTED, marginTop: 2, fontSize: 12 }}>Mã booking: {bookingId}</Text>
-              ) : null}
+              <Text style={{ fontSize: 18, fontWeight: "700", color: TEXT }}>Thanh toán đặt phòng</Text>
             </View>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={22} color={TEXT} />
@@ -759,15 +874,6 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
                   value={formatDateVN(invoice.dueAt)}
                 />
               </View>
-
-              {invoice.qrPayload ? (
-                <View style={{ backgroundColor: "#f3f4f6", borderRadius: 10, padding: 10 }}>
-                  <Text style={{ color: MUTED, fontSize: 12 }}>QR Payload</Text>
-                  <Text style={{ color: TEXT, marginTop: 4, fontSize: 12 }} selectable>
-                    {invoice.qrPayload}
-                  </Text>
-                </View>
-              ) : null}
 
               {formattedAmount ? (
                 <Text style={{ marginTop: 12, color: "#ef4444", fontStyle: "italic" }}>
