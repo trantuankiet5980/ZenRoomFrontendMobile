@@ -3,8 +3,8 @@ import { axiosInstance } from "../../api/axiosInstance";
 
 export const fetchProperties = createAsyncThunk(
   "properties/fetchProperties",
-  async ({ page = 0, size = 20, type,postStatus  }) => {
-    const params = { page, size, type,postStatus  };
+  async ({ page = 0, size = 20, type, postStatus, provinceCode, districtCode }) => {
+    const params = { page, size, type, postStatus, provinceCode, districtCode };
     const response = await axiosInstance.get("/properties", { params });
 
     return {
@@ -13,6 +13,7 @@ export const fetchProperties = createAsyncThunk(
     };
   }
 );
+
 
 // Đăng phòng mới
 export const createProperty = createAsyncThunk(
