@@ -12,6 +12,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Client } from "@stomp/stompjs";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import QRCode from "react-native-qrcode-svg";
@@ -35,9 +36,11 @@ import {
   selectInvoiceError,
   selectInvoiceLoading,
   selectInvoicesByBookingId,
+  selectInvoiceBookingId,
 } from "../features/invoices/invoiceSlice";
 import { axiosInstance } from "../api/axiosInstance";
 import useHideTabBar from "../hooks/useHideTabBar";
+import { getWsUrl } from "../utils/wsUrl";
 
 const ORANGE = "#f97316";
 const MUTED = "#9CA3AF";
@@ -187,12 +190,39 @@ export default function MyBookingsScreen() {
   const invoiceLoading = useSelector(selectInvoiceLoading);
   const invoiceError = useSelector(selectInvoiceError);
   const invoicesByBookingId = useSelector(selectInvoicesByBookingId);
+  const invoiceBookingId = useSelector(selectInvoiceBookingId);
+  const authToken = useSelector((state) => state.auth.token);
 
   const [activeTab, setActiveTab] = useState("pending");
   const [keyword, setKeyword] = useState("");
   const [invoiceVisible, setInvoiceVisible] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const pendingInvoiceRequests = useRef(new Set());
+  const paymentClientRef = useRef(null);
+  const paymentSubscriptionRef = useRef(null);
+  const [paymentEvent, setPaymentEvent] = useState(null);
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+
+  const cleanupPaymentConnection = useCallback(() => {
+    try {
+      if (paymentSubscriptionRef.current) {
+        paymentSubscriptionRef.current.unsubscribe();
+      }
+    } catch (e) {
+      console.log("[WS] unsubscribe payment topic error", e?.message);
+    }
+    paymentSubscriptionRef.current = null;
+
+    const client = paymentClientRef.current;
+    paymentClientRef.current = null;
+    if (client) {
+      try {
+        client.deactivate();
+      } catch (e) {
+        console.log("[WS] deactivate payment socket error", e?.message);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     dispatch(fetchMyBookings());
@@ -208,8 +238,99 @@ export default function MyBookingsScreen() {
     if (!invoiceVisible) {
       dispatch(clearInvoice());
       setSelectedBookingId(null);
+      cleanupPaymentConnection();
+      setPaymentEvent(null);
+      setShowPaymentSuccess(false);
     }
-  }, [invoiceVisible, dispatch]);
+  }, [invoiceVisible, dispatch, cleanupPaymentConnection]);
+
+  useEffect(() => {
+    cleanupPaymentConnection();
+
+    if (
+      !invoiceVisible ||
+      !invoice?.invoiceId ||
+      !selectedBookingId ||
+      invoiceBookingId !== selectedBookingId
+    ) {
+      return;
+    }
+
+    const wsUrl = getWsUrl();
+    if (!wsUrl) {
+      return;
+    }
+  
+    const client = new Client({
+      webSocketFactory: () => new WebSocket(wsUrl, ["v10.stomp", "v11.stomp", "v12.stomp"]),
+      connectHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      reconnectDelay: 0,
+      heartbeatIncoming: 20000,
+      heartbeatOutgoing: 20000,
+      forceBinaryWSFrames: true,
+      appendMissingNULLonIncoming: true,
+      debug: () => {},
+    });
+
+    client.onConnect = () => {
+      const destination = `/topic/payments/${invoice.invoiceId}`;
+      try {
+        paymentSubscriptionRef.current = client.subscribe(destination, (message) => {
+          if (!message?.body) return;
+          try {
+            const payload = JSON.parse(message.body);
+            if (payload?.type !== "PAYMENT_STATUS_CHANGED") return;
+            const incomingInvoiceId = `${payload?.invoiceId || ""}`;
+            if (incomingInvoiceId && incomingInvoiceId !== `${invoice.invoiceId}`) return;
+
+            if (payload.success) {
+              const bookingIdForRefresh = selectedBookingId;
+              cleanupPaymentConnection();
+              setPaymentEvent(payload);
+              setShowPaymentSuccess(true);
+              setInvoiceVisible(false);
+              dispatch(fetchMyBookings());
+              if (bookingIdForRefresh) {
+                dispatch(fetchInvoiceByBooking(bookingIdForRefresh));
+              }
+              setActiveTab("approved");
+            } else {
+              Alert.alert(
+                "Thanh toán thất bại",
+                "Không thể xác nhận giao dịch. Vui lòng thử lại."
+              );
+            }
+          } catch (error) {
+            console.log("[WS] parse payment message error", error?.message);
+          }
+        });
+      } catch (error) {
+        console.log("[WS] subscribe payment error", error?.message);
+      }
+    };
+
+    client.onStompError = (frame) => {
+      console.log("[WS] payment STOMP error", frame?.headers, frame?.body);
+    };
+    client.onWebSocketClose = (evt) => {
+      console.log("[WS] payment socket closed", evt?.code, evt?.reason);
+    };
+
+    paymentClientRef.current = client;
+    client.activate();
+
+    return () => {
+      cleanupPaymentConnection();
+    };
+  }, [
+    invoiceVisible,
+    invoice?.invoiceId,
+    invoiceBookingId,
+    selectedBookingId,
+    authToken,
+    cleanupPaymentConnection,
+    dispatch,
+  ]);
 
   useEffect(() => {
     const awaitingBookings = bookings.filter(
@@ -481,6 +602,14 @@ export default function MyBookingsScreen() {
         error={invoiceError}
         bookingId={selectedBookingId}
         onClose={closeInvoiceModal}
+      />
+      <PaymentSuccessModal
+        visible={showPaymentSuccess}
+        payload={paymentEvent}
+        onClose={() => {
+          setShowPaymentSuccess(false);
+          setPaymentEvent(null);
+        }}
       />
     </View>
   );
@@ -888,6 +1017,97 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
               ) : null}
             </ScrollView>
           ) : null}
+        </View>
+      </View>
+    </Modal>
+  );
+  }
+
+function PaymentSuccessModal({ visible, payload, onClose }) {
+  const amountLabel =
+    payload?.amount != null && !Number.isNaN(Number(payload.amount))
+      ? formatCurrency(Number(payload.amount))
+      : null;
+  const paidAtLabel = payload?.paidAt
+    ? formatDateVN(payload.paidAt)
+    : null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.35)",
+          padding: 24,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: 24,
+            padding: 28,
+            width: "100%",
+            maxWidth: 360,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 6,
+          }}
+        >
+          <View
+            style={{
+              width: 84,
+              height: 84,
+              borderRadius: 42,
+              backgroundColor: "#dcfce7",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 18,
+            }}
+          >
+            <Ionicons name="checkmark" size={42} color={SUCCESS} />
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: "700", color: SUCCESS, marginBottom: 8 }}>
+            Thanh toán thành công
+          </Text>
+          <Text style={{ color: TEXT, textAlign: "center", marginBottom: 16 }}>
+            Giao dịch của bạn đã được xác nhận thành công.
+          </Text>
+          {amountLabel ? (
+            <Text style={{ fontWeight: "600", color: TEXT, marginBottom: 4 }}>
+              Số tiền: <Text style={{ color: SUCCESS }}>{amountLabel}</Text>
+            </Text>
+          ) : null}
+          {payload?.invoiceNo ? (
+            <Text style={{ color: MUTED, marginBottom: 4 }}>Mã hóa đơn: {payload.invoiceNo}</Text>
+          ) : null}
+          {payload?.transactionId ? (
+            <Text style={{ color: MUTED, marginBottom: 4 }}>
+              Mã giao dịch: {payload.transactionId}
+            </Text>
+          ) : null}
+          {paidAtLabel ? (
+            <Text style={{ color: MUTED, marginBottom: 16 }}>Thời gian: {paidAtLabel}</Text>
+          ) : (
+            <View style={{ height: 8 }} />
+          )}
+
+          <TouchableOpacity
+            onPress={onClose}
+            style={{
+              backgroundColor: SUCCESS,
+              paddingVertical: 12,
+              paddingHorizontal: 32,
+              borderRadius: 999,
+              marginTop: 4,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Xác nhận</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
