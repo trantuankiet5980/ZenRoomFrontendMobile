@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import QRCode from "react-native-qrcode-svg";
 
 import {
   fetchMyBookings,
@@ -157,15 +158,6 @@ function getInvoiceStatusLabel(status) {
 function getInvoiceStatusColor(status) {
   if (!status) return MUTED;
   return INVOICE_STATUS_COLORS[status] || TEXT;
-}
-
-function buildVietQrImage(amount, invoiceNo) {
-  if (!amount || !invoiceNo) return null;
-  const rounded = Math.round(Number(amount));
-  if (!rounded) return null;
-  const encodedInfo = encodeURIComponent(invoiceNo);
-  const encodedName = encodeURIComponent(BANK_INFO.accountName);
-  return `https://img.vietqr.io/image/MB-${BANK_INFO.accountNumber}-compact.png?amount=${rounded}&addInfo=${encodedInfo}&accountName=${encodedName}`;
 }
 
 function hexToRgba(hex, alpha = 0.16) {
@@ -801,7 +793,7 @@ function ActionButton({
 
 function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) {
   const amount = invoice?.total ?? invoice?.dueAmount;
-  const qrImage = buildVietQrImage(amount, invoice?.invoiceNo);
+  const qrPayload = invoice?.qrPayload;
   const formattedAmount = formatCurrency(amount);
 
   return (
@@ -855,12 +847,26 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
                 Mở app ngân hàng bất kỳ để quét mã VietQR hoặc chuyển khoản chính xác số tiền bên dưới.
               </Text>
 
-              {qrImage ? (
-                <Image
-                  source={{ uri: qrImage }}
-                  style={{ width: "100%", aspectRatio: 1, borderRadius: 12, marginBottom: 16 }}
-                  resizeMode="contain"
-                />
+              {qrPayload ? (
+                <View style={{ alignItems: "center", marginBottom: 16 }}>
+                  <Text style={{ marginBottom: 12, fontSize: 16, fontWeight: "600", color: TEXT }}>
+                    Quét QR để thanh toán
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: "#fff",
+                      padding: 16,
+                      borderRadius: 16,
+                      shadowColor: "#000",
+                      shadowOpacity: 0.08,
+                      shadowRadius: 12,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 3,
+                    }}
+                  >
+                    <QRCode value={qrPayload} size={220} ecl="M" quietZone={10} backgroundColor="#fff" />
+                  </View>
+                </View>
               ) : null}
 
               <View style={{ backgroundColor: "#f9fafb", borderRadius: 12, padding: 12, marginBottom: 12 }}>
