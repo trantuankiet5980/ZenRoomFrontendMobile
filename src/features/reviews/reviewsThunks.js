@@ -13,6 +13,22 @@ const normalizeReviews = (data) => {
     };
 };
 
+const extractReviewPayload = (data) => {
+    if (!data) {
+        return null;
+    }
+
+    if (data?.data) {
+        return data.data;
+    }
+
+    if (data?.review) {
+        return data.review;
+    }
+
+    return data;
+};
+
 export const fetchPropertyReviewsSummary = createAsyncThunk(
     "reviews/fetchPropertyReviewsSummary",
     async (propertyId, { rejectWithValue }) => {
@@ -75,6 +91,126 @@ export const fetchPropertyReviewsSummary = createAsyncThunk(
                 },
                 reviews,
                 total: normalizedTotal,
+            };
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message || error);
+        }
+    }
+);
+
+export const createReviewThunk = createAsyncThunk(
+    "reviews/createReview",
+    async (
+        { bookingId, tenantId, propertyId, rating, comment },
+        { rejectWithValue }
+    ) => {
+        try {
+            if (!bookingId) {
+                return rejectWithValue("Thiếu mã đặt phòng để tạo đánh giá");
+            }
+            if (!tenantId) {
+                return rejectWithValue("Thiếu thông tin người thuê để tạo đánh giá");
+            }
+
+            const payload = {
+                booking: { bookingId },
+                tenantId:
+                    tenantId !== undefined && tenantId !== null
+                        ? String(tenantId)
+                        : tenantId,
+                rating,
+                comment: comment ?? "",
+            };
+
+            const response = await axiosInstance.post("/reviews", payload);
+            const review = extractReviewPayload(response?.data);
+
+            return {
+                bookingId,
+                tenantId,
+                propertyId: propertyId || null,
+                review: review && typeof review === "object" ? review : null,
+            };
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message || error);
+        }
+    }
+);
+
+export const updateReviewThunk = createAsyncThunk(
+    "reviews/updateReview",
+    async (
+        { reviewId, bookingId, propertyId, rating, comment },
+        { rejectWithValue }
+    ) => {
+        try {
+            if (!reviewId) {
+                return rejectWithValue("Thiếu mã đánh giá để cập nhật");
+            }
+
+            const payload = {
+                reviewId,
+                rating,
+                comment: comment ?? "",
+            };
+
+            const response = await axiosInstance.post("/reviews", payload);
+            const review = extractReviewPayload(response?.data);
+
+            return {
+                propertyId: propertyId || null,
+                bookingId: bookingId || review?.booking?.bookingId || review?.bookingId || null,
+                reviewId,
+                review: review && typeof review === "object" ? review : null,
+            };
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message || error);
+        }
+    }
+);
+
+export const deleteReviewThunk = createAsyncThunk(
+    "reviews/deleteReview",
+    async ({ reviewId, propertyId, bookingId }, { rejectWithValue }) => {
+        try {
+            if (!reviewId) {
+                return rejectWithValue("Thiếu mã đánh giá để xóa");
+            }
+
+            await axiosInstance.delete(`/reviews/${reviewId}`);
+            return {
+                propertyId: propertyId || null,
+                bookingId: bookingId || null,
+                reviewId,
+            };
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message || error);
+        }
+    }
+);
+
+export const fetchReviewByBookingThunk = createAsyncThunk(
+    "reviews/fetchByBooking",
+    async (bookingId, { rejectWithValue }) => {
+        try {
+            if (!bookingId) {
+                return rejectWithValue("Thiếu mã booking");
+            }
+
+            const response = await axiosInstance.get(`/reviews/by-booking/${bookingId}`);
+            const review = extractReviewPayload(response?.data);
+
+            if (Array.isArray(review)) {
+                const firstReview = review[0] || null;
+                return {
+                    bookingId,
+                    review: firstReview && typeof firstReview === "object" ? firstReview : null,
+                };
+            }
+
+            return {
+                bookingId,
+                review: review && typeof review === "object" ? review : null,
             };
         } catch (error) {
             return rejectWithValue(error.response?.data || error.message || error);
