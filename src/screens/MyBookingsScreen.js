@@ -72,7 +72,7 @@ const BOOKING_TABS = [
 const BOOKING_STATUS_LABELS = {
   PENDING_PAYMENT: "Chờ duyệt",
   AWAITING_LANDLORD_APPROVAL: "Chờ thanh toán",
-  APPROVED: "Đã duyệt",
+  APPROVED: "Đã thanh toán",
   CANCELLED: "Đã hủy",
   CHECKED_IN: "Đang lưu trú",
   COMPLETED: "Hoàn thành",
@@ -334,11 +334,18 @@ export default function MyBookingsScreen() {
   ]);
 
   useEffect(() => {
-    const awaitingBookings = bookings.filter(
-      (booking) => booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL"
+    const statusesNeedingInvoice = new Set([
+      "AWAITING_LANDLORD_APPROVAL",
+      "APPROVED",
+      "CHECKED_IN",
+      "COMPLETED",
+    ]);
+
+    const bookingsNeedingInvoice = bookings.filter((booking) =>
+      statusesNeedingInvoice.has(booking.bookingStatus)
     );
 
-    awaitingBookings.forEach((booking) => {
+    bookingsNeedingInvoice.forEach((booking) => {
       const bookingId = booking.bookingId;
       if (!bookingId) return;
       const hasInvoiceRecord =
@@ -698,7 +705,8 @@ function BookingCard({
     invoice?.status || booking.invoiceStatus || booking.invoice?.status;
   const invoiceStatusLabel = getInvoiceStatusLabel(invoiceStatus);
   const invoiceStatusColor = getInvoiceStatusColor(invoiceStatus);
-  const isInvoicePaid = invoiceStatus === "PAID";
+  const isInvoicePaid =
+    invoiceStatus === "PAID" || booking.paymentStatus === "PAID";
   const invoiceRowValue = invoiceStatusLabel
     ? invoiceStatusLabel
     : invoiceFetched

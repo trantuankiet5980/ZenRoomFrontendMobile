@@ -315,6 +315,37 @@ export default function BookingDetailScreen() {
         );
     }
 
+    const bottomActions = [];
+
+    if (["PENDING_PAYMENT", "AWAITING_LANDLORD_APPROVAL"].includes(booking.bookingStatus)) {
+        bottomActions.push({
+            key: "cancel",
+            label: "Hủy booking",
+            color: "#ef4444",
+            onPress: handleCancel,
+        });
+    }
+
+    if (booking.bookingStatus === "APPROVED") {
+        bottomActions.push({
+            key: "checkin",
+            label: "Check-in",
+            color: "#16a34a",
+            onPress: handleCheckIn,
+        });
+    }
+
+    if (booking.bookingStatus === "CHECKED_IN") {
+        bottomActions.push({
+            key: "checkout",
+            label: "Check-out",
+            color: "#2563eb",
+            onPress: handleCheckOut,
+        });
+    }
+
+    const hasBottomActions = bottomActions.length > 0;
+
     return (
         <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
             {/* Header */}
@@ -345,7 +376,7 @@ export default function BookingDetailScreen() {
             <ScrollView
                 contentContainerStyle={{
                     padding: 16,
-                    paddingBottom: 40,
+                    paddingBottom: hasBottomActions ? 140 : 40,
                     flexGrow: 1,
                 }}
                 showsVerticalScrollIndicator={false}
@@ -553,36 +584,42 @@ export default function BookingDetailScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* Action buttons */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 16 }}>
-                    {["PENDING_PAYMENT", "AWAITING_LANDLORD_APPROVAL"].includes(
-                        booking.bookingStatus
-                    ) && (
-                        <TouchableOpacity
-                            onPress={handleCancel}
-                            style={[btnStyle("#ef4444"), { marginRight: 12 }]}
-                        >
-                            <Text style={{ color: "#fff", fontWeight: "600" }}>Hủy booking</Text>
-                        </TouchableOpacity>
-                    )}
+                </ScrollView>
 
-                    {booking.bookingStatus === "APPROVED" && (
-                        <TouchableOpacity
-                            onPress={handleCheckIn}
-                            style={[btnStyle("#16a34a"), { marginRight: 12 }]}
-                        >
-                            <Text style={{ color: "#fff", fontWeight: "600" }}>Check-in</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {booking.bookingStatus === "CHECKED_IN" && (
-                        <TouchableOpacity onPress={handleCheckOut} style={btnStyle("#2563eb")}>
-                            <Text style={{ color: "#fff", fontWeight: "600" }}>Check-out</Text>
-                        </TouchableOpacity>
-                    )}
+                    {hasBottomActions && (
+                <View
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 16,
+                        backgroundColor: "#fff",
+                        borderTopWidth: 1,
+                        borderTopColor: "#e5e7eb",
+                    }}
+                >
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            
+                        }}
+                    >
+                        {bottomActions.map((action) => (
+                            <TouchableOpacity
+                                key={action.key}
+                                onPress={action.onPress}
+                                style={[
+                                    btnStyle(action.color),
+                                    { marginTop: 0, marginHorizontal: 8, marginBottom: 0, width: "100%" },
+                                ]}
+                            >
+                                <Text style={{ color: "#fff", fontWeight: "600" }}>{action.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
-
-            </ScrollView>
+            )}
         </View>
     );
 }
