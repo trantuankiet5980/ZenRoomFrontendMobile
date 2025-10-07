@@ -198,8 +198,17 @@ export default function BookingDetailScreen() {
                     onPress: async () => {
                         try {
                             await dispatch(cancelBooking(id)).unwrap();
-                            Alert.alert("Thành công", "Hủy booking thành công");
-                            navigation.goBack();
+                            Alert.alert("Thành công", "Hủy booking thành công", [
+                                {
+                                    text: "OK",
+                                    onPress: () =>
+                                        navigation.navigate({
+                                            name: "MyBookingsScreen",
+                                            params: { tab: "cancelled" },
+                                            merge: true,
+                                        }),
+                                },
+                            ]);
                         } catch (err) {
                             Alert.alert(
                                 "Lỗi",
@@ -223,7 +232,17 @@ export default function BookingDetailScreen() {
                     onPress: async () => {
                         try {
                             await dispatch(checkInBooking(id)).unwrap();
-                            Alert.alert("Thành công", "Check-in thành công");
+                            Alert.alert("Thành công", "Check-in thành công", [
+                                {
+                                    text: "OK",
+                                    onPress: () =>
+                                        navigation.navigate({
+                                            name: "MyBookingsScreen",
+                                            params: { tab: "checkin" },
+                                            merge: true,
+                                        }),
+                                },
+                            ]);
                         } catch (err) {
                             Alert.alert("Lỗi", err?.message || "Check-in thất bại");
                         }
@@ -243,8 +262,25 @@ export default function BookingDetailScreen() {
                     text: "Check-out",
                     onPress: async () => {
                         try {
-                            await dispatch(checkOutBooking(id)).unwrap();
+                            const updated = await dispatch(checkOutBooking(id)).unwrap();
+                            const normalizedBooking =
+                                (updated && (updated.booking || updated)) || booking || null;
+                            const resolvedBookingId =
+                                normalizedBooking?.bookingId ||
+                                normalizedBooking?.id ||
+                                normalizedBooking?.booking?.bookingId ||
+                                id;
                             Alert.alert("Thành công", "Check-out thành công");
+                            navigation.navigate({
+                                name: "MyBookingsScreen",
+                                params: {
+                                    tab: "completed",
+                                    openReviewForId: resolvedBookingId,
+                                    reviewBookingSnapshot: normalizedBooking,
+                                    reviewTrigger: Date.now(),
+                                },
+                                merge: true,
+                            });
                         } catch (err) {
                             Alert.alert("Lỗi", err?.message || "Check-out thất bại");
                         }
@@ -365,7 +401,7 @@ export default function BookingDetailScreen() {
                     name="chevron-back"
                     size={24}
                     color="#111"
-                    onPress={() => navigation.goBack()}
+                    onPress={() => navigation.navigate("MyBookingsScreen")}
                 />
                 <Text style={{ fontSize: 18, fontWeight: "700", flex: 1, marginLeft: 8 }}>
                     Chi tiết Booking

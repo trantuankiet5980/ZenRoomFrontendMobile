@@ -14,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Client } from "@stomp/stompjs";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import QRCode from "react-native-qrcode-svg";
 
 import {
@@ -249,6 +249,7 @@ export default function MyBookingsScreen() {
   useHideTabBar();
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const route = useRoute();
   const bookings = useSelector(selectMyBookings);
   const loading = useSelector(selectBookingsLoading);
   const invoice = useSelector(selectCurrentInvoice);
@@ -307,6 +308,60 @@ export default function MyBookingsScreen() {
   useEffect(() => {
     dispatch(fetchMyBookings());
   }, [dispatch]);
+
+ useEffect(() => {
+    const targetTab = route?.params?.tab;
+    if (typeof targetTab !== "string") {
+      return;
+    }
+
+    const tabExists = BOOKING_TABS.some((tab) => tab.key === targetTab);
+    if (!tabExists) {
+      return;
+    }
+
+    if (targetTab !== activeTab) {
+      setActiveTab(targetTab);
+    }
+
+    if (navigation && typeof navigation.setParams === "function") {
+      navigation.setParams({ tab: undefined });
+    }
+  }, [route?.params?.tab, activeTab, navigation]);
+
+  useEffect(() => {
+    const reviewBookingId = route?.params?.openReviewForId;
+    if (!reviewBookingId) {
+      return;
+    }
+
+    const bookingFromList = Array.isArray(bookings)
+      ? bookings.find(
+          (item) => String(item?.bookingId) === String(reviewBookingId)
+        )
+      : null;
+
+    const fallbackBooking =
+      bookingFromList || route?.params?.reviewBookingSnapshot || null;
+
+    if (fallbackBooking) {
+      openReviewModal(fallbackBooking);
+    }
+
+    if (navigation && typeof navigation.setParams === "function") {
+      navigation.setParams({
+        openReviewForId: undefined,
+        reviewBookingSnapshot: undefined,
+        reviewTrigger: undefined,
+      });
+    }
+  }, [
+    route?.params?.openReviewForId,
+    route?.params?.reviewTrigger,
+    bookings,
+    navigation,
+    openReviewModal,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
