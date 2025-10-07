@@ -160,26 +160,6 @@ export default function HomeScreen() {
         />
       </View>
 
-      {/* Banner */}
-      <TouchableOpacity
-        onPress={() => navigation.navigate("SearchRooms")}
-        style={{
-          alignItems: "center",
-          marginHorizontal: 20,
-          marginVertical: 20,
-        }}
-      >
-        <Image
-          source={require("../../assets/images/datPhong.png")}
-          style={{
-            height: 300,
-            width: screenWidth - 40,
-            resizeMode: "cover",
-            borderRadius: 15,
-          }}
-        />
-      </TouchableOpacity>
-
       {/* Căn hộ */}
       <View
         style={{
@@ -305,16 +285,24 @@ export default function HomeScreen() {
         )}
       />
 
-      <View
+      {/* Banner */}
+      <TouchableOpacity
+        onPress={() => navigation.navigate("SearchRooms")}
         style={{
-          height: 130,
-          backgroundColor: "#f36031",
+          alignItems: "center",
           marginHorizontal: 20,
-          marginTop: 8,
-          marginBottom: 4,
-          borderRadius: 15,
         }}
-      />
+      >
+        <Image
+          source={require("../../assets/images/datPhong.png")}
+          style={{
+            height: 300,
+            width: screenWidth - 40,
+            resizeMode: "cover",
+            borderRadius: 15,
+          }}
+        />
+      </TouchableOpacity>
     </ScrollView>
   );
 }

@@ -239,10 +239,11 @@ export default function MyBookingsScreen() {
       dispatch(clearInvoice());
       setSelectedBookingId(null);
       cleanupPaymentConnection();
-      setPaymentEvent(null);
-      setShowPaymentSuccess(false);
+      if (!showPaymentSuccess) {
+        setPaymentEvent(null);
+      }
     }
-  }, [invoiceVisible, dispatch, cleanupPaymentConnection]);
+  }, [invoiceVisible, dispatch, cleanupPaymentConnection, showPaymentSuccess]);
 
   useEffect(() => {
     cleanupPaymentConnection();
@@ -1021,16 +1022,27 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
       </View>
     </Modal>
   );
-  }
+}
+
+function formatDateTimeVN(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
 
 function PaymentSuccessModal({ visible, payload, onClose }) {
   const amountLabel =
     payload?.amount != null && !Number.isNaN(Number(payload.amount))
       ? formatCurrency(Number(payload.amount))
       : null;
-  const paidAtLabel = payload?.paidAt
-    ? formatDateVN(payload.paidAt)
-    : null;
+  const paidAtLabel = payload?.paidAt ? formatDateTimeVN(payload.paidAt) : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1050,7 +1062,7 @@ function PaymentSuccessModal({ visible, payload, onClose }) {
             padding: 28,
             width: "100%",
             maxWidth: 360,
-            alignItems: "center",
+            alignItems: "flex-start",
             shadowColor: "#000",
             shadowOpacity: 0.15,
             shadowRadius: 16,
@@ -1067,14 +1079,23 @@ function PaymentSuccessModal({ visible, payload, onClose }) {
               alignItems: "center",
               justifyContent: "center",
               marginBottom: 18,
+              alignSelf: "center",
             }}
           >
             <Ionicons name="checkmark" size={42} color={SUCCESS} />
           </View>
-          <Text style={{ fontSize: 20, fontWeight: "700", color: SUCCESS, marginBottom: 8 }}>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "700",
+              color: SUCCESS,
+              marginBottom: 8,
+              alignSelf: "center",
+            }}
+          >
             Thanh toán thành công
           </Text>
-          <Text style={{ color: TEXT, textAlign: "center", marginBottom: 16 }}>
+          <Text style={{ color: TEXT, marginBottom: 16 }}>
             Giao dịch của bạn đã được xác nhận thành công.
           </Text>
           {amountLabel ? (
@@ -1084,11 +1105,6 @@ function PaymentSuccessModal({ visible, payload, onClose }) {
           ) : null}
           {payload?.invoiceNo ? (
             <Text style={{ color: MUTED, marginBottom: 4 }}>Mã hóa đơn: {payload.invoiceNo}</Text>
-          ) : null}
-          {payload?.transactionId ? (
-            <Text style={{ color: MUTED, marginBottom: 4 }}>
-              Mã giao dịch: {payload.transactionId}
-            </Text>
           ) : null}
           {paidAtLabel ? (
             <Text style={{ color: MUTED, marginBottom: 16 }}>Thời gian: {paidAtLabel}</Text>
@@ -1104,6 +1120,7 @@ function PaymentSuccessModal({ visible, payload, onClose }) {
               paddingHorizontal: 32,
               borderRadius: 999,
               marginTop: 4,
+              alignSelf: "center",
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Xác nhận</Text>
