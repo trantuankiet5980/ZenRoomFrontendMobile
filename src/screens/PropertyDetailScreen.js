@@ -10,6 +10,8 @@ import {
     Linking,
     Dimensions,
     Platform,
+    Alert,
+    TouchableWithoutFeedback,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import MapView, { Marker } from "react-native-maps";
@@ -28,6 +30,8 @@ import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
 import { fetchPropertyReviewsSummary } from "../features/reviews/reviewsThunks";
 import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
+import ReviewModal from "../components/reviews/ReviewModal";
+import { updateReviewThunk, deleteReviewThunk } from "../features/reviews/reviewsThunks";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
 const { width } = Dimensions.get('window');
 
@@ -53,8 +57,21 @@ const parseCoordinate = (value) => {
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
     const { propertyId } = route.params;
+    const highlightReviewIdParam = route?.params?.highlightReviewId;
+    const scrollToReviewsParam = route?.params?.scrollToReviews;
     const [liked, setLiked] = useState(false);
     const [expandedReviews, setExpandedReviews] = useState({});
+    const [visibleReviewCount, setVisibleReviewCount] = useState(3);
+    const [highlightedReviewId, setHighlightedReviewId] = useState(
+        highlightReviewIdParam || null
+    );
+    const [reviewMenuVisibleId, setReviewMenuVisibleId] = useState(null);
+    const [reviewModalVisible, setReviewModalVisible] = useState(false);
+    const [selectedReview, setSelectedReview] = useState(null);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState("");
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [reviewError, setReviewError] = useState("");
     const dispatch = useDispatch();
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
@@ -72,15 +89,29 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const reviewsError = useSelector((state) => state.reviews.error[propertyId]);
     const isReviewsLoading = reviewsStatus === "loading";
     const propertyReviews = reviewsData.items || [];
+    const displayedReviews = propertyReviews.slice(0, visibleReviewCount);
+    const hasMoreReviews = propertyReviews.length > visibleReviewCount;
+    const canCollapse = visibleReviewCount > 3;
     const MAX_COMMENT_LENGTH = 160;
 
     const scrollViewRef = useRef(null);
     const bookingSectionYRef = useRef(null);
+    const reviewsSectionYRef = useRef(null);
     const [bookingSelection, setBookingSelection] = useState({
         startDate: null,
         endDate: null,
         nights: 0,
     });
+    const currentUserId =
+        currentUser?.userId !== undefined && currentUser?.userId !== null
+            ? String(currentUser.userId)
+            : null;
+    const currentTenantId =
+        currentUser?.tenant?.tenantId || currentUser?.tenantId || null;
+    const normalizedCurrentTenantId =
+        currentTenantId !== undefined && currentTenantId !== null
+            ? String(currentTenantId)
+            : null;
 
     const handleBookingSectionLayout = (event) => {
         bookingSectionYRef.current = event?.nativeEvent?.layout?.y ?? 0;
@@ -91,6 +122,15 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         scrollViewRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
     };
 
+    const handleReviewsSectionLayout = (event) => {
+        reviewsSectionYRef.current = event?.nativeEvent?.layout?.y ?? 0;
+    };
+
+    const handleScrollToReviews = useCallback(() => {
+        const y = reviewsSectionYRef.current ?? 0;
+        scrollViewRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
+    }, []);
+
     const handleBookingSelectionChange = useCallback(({ startDate, endDate, nights }) => {
         setBookingSelection({
             startDate: startDate || null,
@@ -99,9 +139,222 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         });
     }, []);
 
+    const isMyReview = useCallback(
+        (review) => {
+            if (!review) {
+                return false;
+            }
+
+            const reviewUserId =
+                review?.tenant?.userId ||
+                review?.booking?.tenant?.userId ||
+                review?.userId ||
+                null;
+            const reviewTenantId =
+                review?.tenant?.tenantId ||
+                review?.booking?.tenant?.tenantId ||
+                review?.tenantId ||
+                review?.booking?.tenantId ||
+                null;
+
+            if (
+                reviewUserId &&
+                currentUserId &&
+                String(reviewUserId) === String(currentUserId)
+            ) {
+                return true;
+            }
+
+            if (
+                reviewTenantId &&
+                normalizedCurrentTenantId &&
+                String(reviewTenantId) === String(normalizedCurrentTenantId)
+            ) {
+                return true;
+            }
+
+            return false;
+        },
+        [currentUserId, normalizedCurrentTenantId]
+    );
+
+    const handleShowMoreReviews = useCallback(() => {
+        setVisibleReviewCount((prev) =>
+            Math.min(propertyReviews.length, prev + 3)
+        );
+    }, [propertyReviews.length]);
+
+    const handleCollapseReviews = useCallback(() => {
+        setVisibleReviewCount(3);
+    }, []);
+
+    const handleToggleReviewMenu = useCallback((reviewKey) => {
+        setReviewMenuVisibleId((prev) => (prev === reviewKey ? null : reviewKey));
+    }, []);
+
+    const handleStartUpdateReview = useCallback((review) => {
+        if (!review) {
+            return;
+        }
+        setSelectedReview(review);
+        setReviewRating(review?.rating ? Number(review.rating) : 0);
+        setReviewComment(review?.comment || "");
+        setReviewError("");
+        setReviewMenuVisibleId(null);
+        setReviewModalVisible(true);
+    }, []);
+
+    const handleCloseReviewModal = useCallback(() => {
+        setReviewModalVisible(false);
+        setSelectedReview(null);
+        setReviewRating(0);
+        setReviewComment("");
+        setReviewError("");
+    }, []);
+
+    const handleSubmitReviewUpdate = useCallback(async () => {
+        if (!selectedReview?.reviewId) {
+            setReviewError("Không tìm thấy mã đánh giá");
+            return;
+        }
+        if (!reviewRating) {
+            setReviewError("Vui lòng chọn số sao trước khi gửi");
+            return;
+        }
+
+        const reviewId = selectedReview.reviewId;
+        const bookingId =
+            selectedReview?.booking?.bookingId ||
+            selectedReview?.bookingId ||
+            null;
+        setReviewSubmitting(true);
+        try {
+            await dispatch(
+                updateReviewThunk({
+                    reviewId,
+                    bookingId,
+                    propertyId,
+                    rating: reviewRating,
+                    comment: reviewComment,
+                })
+            ).unwrap();
+            Alert.alert("Thành công", "Cập nhật đánh giá thành công");
+            handleCloseReviewModal();
+            dispatch(fetchPropertyReviewsSummary(propertyId));
+            setHighlightedReviewId(reviewId);
+            setTimeout(() => {
+                handleScrollToReviews();
+            }, 250);
+        } catch (error) {
+            const message =
+                (typeof error === "string" && error) ||
+                error?.message ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                "Không thể cập nhật đánh giá. Vui lòng thử lại.";
+            setReviewError(
+                typeof message === "string"
+                    ? message
+                    : "Không thể cập nhật đánh giá. Vui lòng thử lại."
+            );
+        } finally {
+            setReviewSubmitting(false);
+        }
+    }, [
+        selectedReview,
+        reviewRating,
+        reviewComment,
+        dispatch,
+        propertyId,
+        handleCloseReviewModal,
+        handleScrollToReviews,
+    ]);
+
+    const handleDeleteReview = useCallback(
+        (review) => {
+            if (!review?.reviewId) {
+                return;
+            }
+
+            const bookingId =
+                review?.booking?.bookingId || review?.bookingId || null;
+
+            Alert.alert(
+                "Xóa đánh giá",
+                "Bạn có chắc chắn muốn xóa đánh giá này?",
+                [
+                    { text: "Hủy", style: "cancel" },
+                    {
+                        text: "Xóa",
+                        style: "destructive",
+                        onPress: async () => {
+                            try {
+                                await dispatch(
+                                    deleteReviewThunk({
+                                        reviewId: review.reviewId,
+                                        propertyId,
+                                        bookingId,
+                                    })
+                                ).unwrap();
+                                Alert.alert("Thành công", "Đã xóa đánh giá");
+                                dispatch(fetchPropertyReviewsSummary(propertyId));
+                                setReviewMenuVisibleId(null);
+                                setHighlightedReviewId(null);
+                            } catch (error) {
+                                const message =
+                                    (typeof error === "string" && error) ||
+                                    error?.message ||
+                                    error?.response?.data?.message ||
+                                    error?.response?.data?.error ||
+                                    "Không thể xóa đánh giá. Vui lòng thử lại.";
+                                Alert.alert(
+                                    "Lỗi",
+                                    typeof message === "string"
+                                        ? message
+                                        : "Không thể xóa đánh giá. Vui lòng thử lại."
+                                );
+                            }
+                        },
+                    },
+                ]
+            );
+        },
+        [dispatch, propertyId]
+    );
+
     useEffect(() => {
         setExpandedReviews({});
-    }, [propertyId]);
+        setVisibleReviewCount(3);
+        setReviewMenuVisibleId(null);
+        setHighlightedReviewId(highlightReviewIdParam || null);
+    }, [propertyId, highlightReviewIdParam]);
+
+    useEffect(() => {
+        if (scrollToReviewsParam && !isReviewsLoading) {
+            const timeout = setTimeout(() => {
+                handleScrollToReviews();
+            }, 250);
+            return () => clearTimeout(timeout);
+        }
+    }, [scrollToReviewsParam, isReviewsLoading, handleScrollToReviews]);
+
+    useEffect(() => {
+        let targetIndex = -1;
+        if (highlightReviewIdParam) {
+            targetIndex = propertyReviews.findIndex(
+                (review) => review?.reviewId === highlightReviewIdParam
+            );
+        }
+        if (targetIndex === -1) {
+            targetIndex = propertyReviews.findIndex((review) => isMyReview(review));
+        }
+
+        if (targetIndex !== -1) {
+            setVisibleReviewCount((prev) =>
+                targetIndex + 1 > prev ? targetIndex + 1 : prev
+            );
+        }
+    }, [propertyReviews, highlightReviewIdParam, isMyReview]);
 
     const formatReviewDate = (value) => {
         if (!value) {
@@ -512,6 +765,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 style={[styles.container, { paddingTop: 15 }]}
                 contentContainerStyle={{ paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
+                onScrollBeginDrag={() => setReviewMenuVisibleId(null)}
             >
                 {/* Media gallery */}
                 <FlatList
@@ -564,7 +818,11 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
                     </View>
                     <View style={styles.ratingBadgeRow}>
-                        <View style={styles.ratingBadge}>
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            style={styles.ratingBadge}
+                            onPress={handleScrollToReviews}
+                        >
                             <Ionicons name="star" size={16} color="#f5a623" />
                             <Text style={styles.ratingBadgeText}>
                                 {isReviewsLoading
@@ -575,12 +833,16 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                     ? Number(reviewsSummary.average || 0).toFixed(1)
                                     : "--"}
                             </Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.ratingBadge}>
                             <Icon name="crown" size={18} color="#f5a623" />
                             <Text style={styles.ratingBadgeText}>Được khách yêu thích</Text>
                         </View>
-                        <View style={styles.ratingBadge}>
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            style={styles.ratingBadge}
+                            onPress={handleScrollToReviews}
+                        >
                             <Icon name="comment-text-multiple-outline" size={18} color="#f5a623" />
                             <Text style={styles.ratingBadgeText}>
                                 {isReviewsLoading
@@ -589,7 +851,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                     ? "Lỗi"
                                     : `${reviewsSummary.total || 0} đánh giá`}
                             </Text>
-                        </View>
+                        </TouchableOpacity>
                     </View>
                     <View style={styles.metaRow}>
                         <View style={styles.metaItem}>
@@ -763,85 +1025,157 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     </View>
                 )}
                 <View style={styles.sectionDivider} />
-                <Text style={styles.sectionTitle}>Đánh giá</Text>
-                {isReviewsLoading ? (
-                    <Text style={styles.reviewsStatusText}>Đang tải đánh giá...</Text>
-                ) : reviewsStatus === "failed" ? (
-                    <Text style={[styles.reviewsStatusText, { color: "#d9534f" }]}>
-                        {reviewsError || "Không thể tải đánh giá"}
-                    </Text>
-                ) : propertyReviews.length > 0 ? (
-                    <View style={styles.reviewsContainer}>
-                        {propertyReviews.map((review, index) => {
-                            const reviewKey = review.reviewId || `${propertyId}-${index}`;
-                            const isExpanded = !!expandedReviews[reviewKey];
-                            const comment = getDisplayedComment(
-                                review.comment,
-                                isExpanded
-                            );
-                            const showToggle = shouldTruncateComment(review.comment);
+                <View onLayout={handleReviewsSectionLayout}>
+                    <Text style={styles.sectionTitle}>Đánh giá</Text>
+                    {isReviewsLoading ? (
+                        <Text style={styles.reviewsStatusText}>Đang tải đánh giá...</Text>
+                    ) : reviewsStatus === "failed" ? (
+                        <Text style={[styles.reviewsStatusText, { color: "#d9534f" }]}>
+                            {reviewsError || "Không thể tải đánh giá"}
+                        </Text>
+                    ) : propertyReviews.length > 0 ? (
+                        <>
+                            <View style={styles.reviewsContainer}>
+                                {displayedReviews.map((review, index) => {
+                                    const reviewKey = review.reviewId || `${propertyId}-${index}`;
+                                    const isExpanded = !!expandedReviews[reviewKey];
+                                    const comment = getDisplayedComment(review.comment, isExpanded);
+                                    const showToggle = shouldTruncateComment(review.comment);
+                                    const mine = isMyReview(review);
+                                    const isHighlighted =
+                                        mine ||
+                                        (highlightedReviewId &&
+                                            review.reviewId &&
+                                            review.reviewId === highlightedReviewId);
+                                    const menuVisible = reviewMenuVisibleId === reviewKey;
 
-                            return (
-                                <View
-                                    key={reviewKey}
-                                    style={[
-                                        styles.reviewCard,
-                                        index !== propertyReviews.length - 1 &&
-                                            styles.reviewCardSpacing,
-                                    ]}
-                                >
-                                    <View style={styles.reviewHeader}>
-                                        <Ionicons
-                                            name="person-circle-outline"
-                                            size={36}
-                                            color="#a0a0a0"
-                                            style={{ marginRight: 10 }}
-                                        />
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.reviewName} numberOfLines={1}>
-                                                {review?.tenant?.fullName ||
-                                                    review?.booking?.tenant?.fullName ||
-                                                    "Người dùng ẩn danh"}
-                                            </Text>
-                                            <Text style={styles.reviewDate}>
-                                                {formatReviewDate(review.createdAt)}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.reviewRating}>
-                                            <Ionicons
-                                                name="star"
-                                                size={16}
-                                                color="#f5a623"
-                                                style={{ marginRight: 4 }}
-                                            />
-                                            <Text style={styles.reviewRatingValue}>
-                                                {Number(review.rating || 0).toFixed(1)}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                    {comment ? (
-                                        <View style={styles.reviewBody}>
-                                            <Text style={styles.reviewComment}>{comment}</Text>
-                                            {showToggle && (
-                                                <TouchableOpacity
-                                                    onPress={() =>
-                                                        toggleReviewExpansion(reviewKey)
-                                                    }
-                                                >
-                                                    <Text style={styles.reviewToggle}>
-                                                        {isExpanded ? "Thu gọn" : "Xem thêm"}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    ) : null}
+                                    return (
+                                        <TouchableWithoutFeedback
+                                            key={reviewKey}
+                                            onPress={() => setReviewMenuVisibleId(null)}
+                                        >
+                                            <View
+                                                style={[
+                                                    styles.reviewCard,
+                                                    index !== displayedReviews.length - 1 &&
+                                                        styles.reviewCardSpacing,
+                                                    isHighlighted && styles.reviewCardHighlight,
+                                                ]}
+                                            >
+                                                <View style={styles.reviewHeader}>
+                                                    <Ionicons
+                                                        name="person-circle-outline"
+                                                        size={36}
+                                                        color="#a0a0a0"
+                                                        style={{ marginRight: 10 }}
+                                                    />
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={styles.reviewName} numberOfLines={1}>
+                                                            {review?.tenant?.fullName ||
+                                                                review?.booking?.tenant?.fullName ||
+                                                                "Người dùng ẩn danh"}
+                                                        </Text>
+                                                        <Text style={styles.reviewDate}>
+                                                            {formatReviewDate(review.createdAt)}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={styles.reviewRating}>
+                                                        <Ionicons
+                                                            name="star"
+                                                            size={16}
+                                                            color="#f5a623"
+                                                            style={{ marginRight: 4 }}
+                                                        />
+                                                        <Text style={styles.reviewRatingValue}>
+                                                            {Number(review.rating || 0).toFixed(1)}
+                                                        </Text>
+                                                    </View>
+                                                    {mine && (
+                                                        <TouchableOpacity
+                                                            style={styles.reviewMenuTrigger}
+                                                            onPress={() => handleToggleReviewMenu(reviewKey)}
+                                                        >
+                                                            <Ionicons
+                                                                name="ellipsis-horizontal"
+                                                                size={18}
+                                                                color="#6b7280"
+                                                            />
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                                {comment ? (
+                                                    <View style={styles.reviewBody}>
+                                                        <Text style={styles.reviewComment}>{comment}</Text>
+                                                        {showToggle && (
+                                                            <TouchableOpacity
+                                                                onPress={() => toggleReviewExpansion(reviewKey)}
+                                                            >
+                                                                <Text style={styles.reviewToggle}>
+                                                                    {isExpanded ? "Thu gọn" : "Xem thêm"}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                ) : null}
+                                                {menuVisible && (
+                                                    <View style={styles.reviewMenu}>
+                                                        <TouchableOpacity
+                                                            style={styles.reviewMenuOption}
+                                                            onPress={() => handleStartUpdateReview(review)}
+                                                        >
+                                                            <Text style={styles.reviewMenuOptionText}>Cập nhật</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            style={[
+                                                                styles.reviewMenuOption,
+                                                                styles.reviewMenuOptionDelete,
+                                                            ]}
+                                                            onPress={() => handleDeleteReview(review)}
+                                                        >
+                                                            <Text
+                                                                style={[
+                                                                    styles.reviewMenuOptionText,
+                                                                    styles.reviewMenuOptionDeleteText,
+                                                                ]}
+                                                            >
+                                                                Xóa
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                )}
+                                            </View>
+                                        </TouchableWithoutFeedback>
+                                    );
+                                })}
+                            </View>
+                            {(hasMoreReviews || canCollapse) && (
+                                <View style={styles.reviewsActionsRow}>
+                                    {hasMoreReviews && (
+                                        <TouchableOpacity
+                                            style={styles.reviewsActionButton}
+                                            onPress={handleShowMoreReviews}
+                                        >
+                                            <Text style={styles.reviewsActionText}>Hiển thị thêm đánh giá</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {canCollapse && (
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.reviewsActionButton,
+                                                styles.reviewsActionButtonGhost,
+                                            ]}
+                                            onPress={handleCollapseReviews}
+                                        >
+                                            <Text style={styles.reviewsActionText}>Thu gọn đánh giá</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-                            );
-                        })}
-                    </View>
-                ) : (
-                    <Text style={styles.reviewsStatusText}>Chưa có đánh giá</Text>
-                )}
+                             )}
+                        </>
+                    ) : (
+                        <Text style={styles.reviewsStatusText}>Chưa có đánh giá</Text>
+                    )}
+                </View>
 
                 <View style={styles.sectionDivider} />
 
@@ -905,6 +1239,31 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     </Text>
                 </View>
             </ScrollView>
+
+<ReviewModal
+                visible={reviewModalVisible}
+                title="Cập nhật đánh giá"
+                subtitle={property?.title ? `Cho ${property.title}` : undefined}
+                rating={reviewRating}
+                onRatingChange={(value) => {
+                    setReviewRating(value);
+                    if (reviewError) {
+                        setReviewError("");
+                    }
+                }}
+                comment={reviewComment}
+                onCommentChange={(text) => {
+                    setReviewComment(text);
+                    if (reviewError) {
+                        setReviewError("");
+                    }
+                }}
+                submitting={reviewSubmitting}
+                errorMessage={reviewError}
+                onCancel={handleCloseReviewModal}
+                onSubmit={handleSubmitReviewUpdate}
+                submitLabel="Cập nhật"
+            />
 
             {/* Thanh Action */}
             {isTenant ? (
@@ -1268,9 +1627,15 @@ const styles = StyleSheet.create({
         backgroundColor: "#f7f7f7",
         borderRadius: 12,
         padding: 12,
+        position: "relative",
     },
     reviewCardSpacing: {
         marginBottom: 12,
+    },
+    reviewCardHighlight: {
+        borderWidth: 1,
+        borderColor: "#f97316",
+        backgroundColor: "#fff7ed",
     },
     reviewHeader: {
         flexDirection: "row",
@@ -1308,6 +1673,67 @@ const styles = StyleSheet.create({
         marginTop: 6,
         color: "#f36031",
         fontWeight: "600",
+    },
+    reviewMenuTrigger: {
+        padding: 6,
+        marginLeft: 8,
+        borderRadius: 16,
+    },
+    reviewMenu: {
+        position: "absolute",
+        top: 12,
+        right: 12,
+        backgroundColor: "#fff",
+        borderRadius: 10,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
+        shadowColor: "#000",
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 3,
+        overflow: "hidden",
+        zIndex: 20,
+    },
+    reviewMenuOption: {
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        backgroundColor: "#fff",
+    },
+    reviewMenuOptionText: {
+        fontSize: 14,
+        color: "#1f2937",
+        fontWeight: "500",
+    },
+    reviewMenuOptionDelete: {
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "#e5e7eb",
+    },
+    reviewMenuOptionDeleteText: {
+        color: "#dc2626",
+        fontWeight: "600",
+    },
+    reviewsActionsRow: {
+        flexDirection: "row",
+        marginTop: 12,
+    },
+    reviewsActionButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: "#fff7ed",
+        borderWidth: 1,
+        borderColor: "#f97316",
+        marginRight: 12,
+    },
+    reviewsActionButtonGhost: {
+        backgroundColor: "#fff",
+        borderColor: "#d1d5db",
+    },
+    reviewsActionText: {
+        color: "#f97316",
+        fontWeight: "600",
+        fontSize: 13,
     },
     infoList: {
         paddingHorizontal: 12,

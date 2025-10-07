@@ -39,8 +39,16 @@ import {
   selectInvoiceBookingId,
 } from "../features/invoices/invoiceSlice";
 import { axiosInstance } from "../api/axiosInstance";
+import { 
+  createReviewThunk, 
+  updateReviewThunk,
+  fetchReviewByBookingThunk,
+  fetchPropertyReviewsSummary,
+ } from "../features/reviews/reviewsThunks";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { getWsUrl } from "../utils/wsUrl";
+import ReviewModal from "../components/reviews/ReviewModal";
+import { upsertBookingReview } from "../features/reviews/reviewsSlice";
 
 const ORANGE = "#f97316";
 const MUTED = "#9CA3AF";
@@ -163,6 +171,63 @@ function getInvoiceStatusColor(status) {
   return INVOICE_STATUS_COLORS[status] || TEXT;
 }
 
+function extractReviewFromBooking(booking) {
+  if (!booking) return null;
+  return (
+    booking.review ||
+    booking.myReview ||
+    booking.tenantReview ||
+    booking.reviewResponse ||
+    booking.reviewDto ||
+    booking.reviewResponseDto ||
+    null
+  );
+}
+
+function resolveBookingReview(booking, reviewsByBookingMap = {}) {
+  if (!booking) return null;
+  const bookingId = booking.bookingId || booking.id || null;
+  if (
+    bookingId &&
+    reviewsByBookingMap &&
+    Object.prototype.hasOwnProperty.call(reviewsByBookingMap, bookingId)
+  ) {
+    return reviewsByBookingMap[bookingId];
+  }
+  return extractReviewFromBooking(booking);
+}
+
+function getBookingTenantId(booking) {
+  if (!booking) return null;
+  const tenantKey =
+    booking.tenant?.tenantId ||
+    booking.tenant?.id ||
+    booking.tenantId ||
+    booking.tenant?.userId ||
+    null;
+  return tenantKey != null ? String(tenantKey) : null;
+}
+
+function getBookingPropertyId(booking) {
+  if (!booking) return null;
+  return (
+    booking.property?.propertyId ||
+    booking.propertyId ||
+    booking.property?.id ||
+    null
+  );
+}
+
+function getBookingPropertyTitle(booking) {
+  if (!booking) return "";
+  return (
+    booking.property?.title ||
+    booking.propertyName ||
+    booking.roomName ||
+    ""
+  );
+}
+
 function hexToRgba(hex, alpha = 0.16) {
   if (!hex) return `rgba(0,0,0,${alpha})`;
   let sanitized = hex.replace("#", "");
@@ -202,6 +267,21 @@ export default function MyBookingsScreen() {
   const paymentSubscriptionRef = useRef(null);
   const [paymentEvent, setPaymentEvent] = useState(null);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewTargetBooking, setReviewTargetBooking] = useState(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const reviewsByBooking = useSelector((state) => state.reviews.byBooking || {});
+  const bookingReviewStatus = useSelector(
+    (state) => state.reviews.bookingStatus || {}
+  );
+  const appliedReviewSnapshotRef = useRef(null);
+  const activeReview = useMemo(
+    () => resolveBookingReview(reviewTargetBooking, reviewsByBooking),
+    [reviewTargetBooking, reviewsByBooking]
+  );
 
   const cleanupPaymentConnection = useCallback(() => {
     try {
@@ -233,6 +313,73 @@ export default function MyBookingsScreen() {
       dispatch(fetchMyBookings());
     }, [dispatch])
   );
+
+  useEffect(() => {
+    if (!Array.isArray(bookings)) {
+      return;
+    }
+
+    bookings.forEach((booking) => {
+      const bookingId = booking?.bookingId;
+      if (!bookingId) {
+        return;
+      }
+
+      const reviewFromPayload = extractReviewFromBooking(booking);
+      if (
+        reviewFromPayload &&
+        (!reviewsByBooking[bookingId] ||
+          reviewsByBooking[bookingId]?.reviewId !== reviewFromPayload?.reviewId)
+      ) {
+        dispatch(
+          upsertBookingReview({
+            bookingId,
+            review: reviewFromPayload,
+          })
+        );
+        return;
+      }
+
+      const mergedReview = resolveBookingReview(booking, reviewsByBooking);
+      const status = bookingReviewStatus[bookingId];
+
+      if (
+        booking.bookingStatus === "COMPLETED" &&
+        !mergedReview &&
+        typeof status === "undefined"
+      ) {
+        dispatch(fetchReviewByBookingThunk(bookingId));
+      }
+    });
+  }, [bookings, reviewsByBooking, bookingReviewStatus, dispatch]);
+
+  useEffect(() => {
+    if (!reviewModalVisible || !reviewTargetBooking || !activeReview) {
+      return;
+    }
+    if (reviewSubmitting) {
+      return;
+    }
+
+    const snapshotKey =
+      activeReview.reviewId ||
+      `${activeReview.rating ?? ""}-${activeReview.comment ?? ""}`;
+
+    if (appliedReviewSnapshotRef.current === snapshotKey) {
+      return;
+    }
+
+    setReviewRating(
+      activeReview?.rating ? Number(activeReview.rating) : 0
+    );
+    setReviewComment(activeReview?.comment || "");
+    appliedReviewSnapshotRef.current = snapshotKey;
+  }, [
+    reviewModalVisible,
+    reviewTargetBooking,
+    activeReview,
+    reviewSubmitting,
+  ]);
 
   useEffect(() => {
     if (!invoiceVisible) {
@@ -464,6 +611,169 @@ export default function MyBookingsScreen() {
     [dispatch, setActiveTab]
   );
 
+  const openReviewModal = useCallback(
+    (booking) => {
+      if (!booking) return;
+      setReviewTargetBooking(booking);
+      const existingReview = resolveBookingReview(booking, reviewsByBooking);
+      setReviewRating(existingReview?.rating ? Number(existingReview.rating) : 0);
+      setReviewComment(existingReview?.comment || "");
+      setReviewError("");
+      setReviewModalVisible(true);
+      appliedReviewSnapshotRef.current = existingReview
+        ? existingReview.reviewId ||
+          `${existingReview.rating ?? ""}-${existingReview.comment ?? ""}`
+        : null;
+
+      const bookingId = booking?.bookingId;
+      const status = bookingId ? bookingReviewStatus[bookingId] : undefined;
+      if (
+        bookingId &&
+        !existingReview &&
+        status !== "loading" &&
+        status !== "succeeded"
+      ) {
+        dispatch(fetchReviewByBookingThunk(bookingId));
+      }
+    },
+    [dispatch, reviewsByBooking, bookingReviewStatus]
+  );
+
+  const closeReviewModal = useCallback(() => {
+    setReviewModalVisible(false);
+    setReviewTargetBooking(null);
+    setReviewRating(0);
+    setReviewComment("");
+    setReviewError("");
+    appliedReviewSnapshotRef.current = null;
+  }, []);
+
+  const handleOpenReview = useCallback(
+    (booking) => {
+      openReviewModal(booking);
+    },
+    [openReviewModal]
+  );
+
+  const handleViewReview = useCallback(
+    (booking) => {
+      if (!booking) return;
+      const propertyId = getBookingPropertyId(booking);
+      if (!propertyId) return;
+      const review = resolveBookingReview(booking, reviewsByBooking);
+      navigation.navigate("PropertyDetail", {
+        propertyId,
+        scrollToReviews: true,
+        highlightReviewId: review?.reviewId || null,
+      });
+    },
+    [navigation, reviewsByBooking]
+  );
+
+  const handleSubmitReview = useCallback(async () => {
+    if (!reviewTargetBooking) {
+      return;
+    }
+    if (!reviewRating) {
+      setReviewError("Vui lòng chọn số sao trước khi gửi đánh giá");
+      return;
+    }
+
+    const bookingId = reviewTargetBooking.bookingId;
+    const tenantId = getBookingTenantId(reviewTargetBooking);
+    const propertyId = getBookingPropertyId(reviewTargetBooking);
+    const existingReview = activeReview;
+
+    if (!bookingId) {
+      setReviewError("Không tìm thấy thông tin booking");
+      return;
+    }
+    if (!tenantId && !existingReview) {
+      setReviewError("Không tìm thấy thông tin người thuê");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      if (existingReview?.reviewId) {
+        await dispatch(
+          updateReviewThunk({
+            reviewId: existingReview.reviewId,
+            bookingId,
+            propertyId,
+            rating: reviewRating,
+            comment: reviewComment,
+          })
+        ).unwrap();
+        Alert.alert("Thành công", "Cập nhật đánh giá thành công");
+      } else {
+        await dispatch(
+          createReviewThunk({
+            bookingId,
+            tenantId,
+            propertyId,
+            rating: reviewRating,
+            comment: reviewComment,
+          })
+        ).unwrap();
+        Alert.alert("Thành công", "Cảm ơn bạn đã chia sẻ trải nghiệm");
+      }
+      closeReviewModal();
+      dispatch(fetchMyBookings());
+      if (propertyId) {
+        dispatch(fetchPropertyReviewsSummary(propertyId));
+      }
+    } catch (error) {
+      const message =
+        (typeof error === "string" && error) ||
+        error?.message ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Không thể gửi đánh giá. Vui lòng thử lại.";
+      const messageText =
+        typeof message === "string"
+          ? message
+          : "Không thể gửi đánh giá. Vui lòng thử lại.";
+
+      if (
+        typeof messageText === "string" &&
+        messageText.toLowerCase().includes("đánh giá booking này")
+      ) {
+        try {
+          const response = await dispatch(
+            fetchReviewByBookingThunk(bookingId)
+          ).unwrap();
+          const fetchedReview = response?.review;
+          if (fetchedReview) {
+            dispatch(
+              upsertBookingReview({ bookingId, review: fetchedReview })
+            );
+            setReviewRating(
+              fetchedReview?.rating ? Number(fetchedReview.rating) : reviewRating
+            );
+            setReviewComment(fetchedReview?.comment || reviewComment);
+          }
+        } catch (fetchError) {
+          console.warn("Không thể tải đánh giá đã tồn tại", fetchError);
+        }
+        setReviewError(
+          "Bạn đã đánh giá booking này. Bạn có thể cập nhật lại nếu muốn thay đổi."
+        );
+      } else {
+        setReviewError(messageText);
+      }
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }, [
+    reviewTargetBooking,
+    reviewRating,
+    reviewComment,
+    activeReview,
+    dispatch,
+    closeReviewModal,
+  ]);
+
   const handleCheckOut = useCallback(
     (booking) => {
       Alert.alert(
@@ -475,10 +785,17 @@ export default function MyBookingsScreen() {
             text: "Check-out",
             onPress: async () => {
               try {
-                await dispatch(checkOutBooking(booking.bookingId)).unwrap();
+                const updated = await dispatch(
+                  checkOutBooking(booking.bookingId)
+                ).unwrap();
                 Alert.alert("Thành công", "Check-out thành công");
                 dispatch(fetchMyBookings());
                 setActiveTab("completed");
+                if (updated) {
+                  openReviewModal(updated);
+                } else {
+                  openReviewModal(booking);
+                }
               } catch (error) {
                 Alert.alert(
                   "Lỗi",
@@ -490,7 +807,7 @@ export default function MyBookingsScreen() {
         ]
       );
     },
-    [dispatch, setActiveTab]
+    [dispatch, setActiveTab, openReviewModal]
   );
 
   const handleRefresh = useCallback(() => {
@@ -498,37 +815,46 @@ export default function MyBookingsScreen() {
   }, [dispatch]);
 
   const renderBooking = useCallback(
-    ({ item }) => (
-      <BookingCard
-        booking={item}
-        tab={activeTab}
-        invoice={invoicesByBookingId?.[item.bookingId]}
-        invoiceFetched={
-          !!(
-            invoicesByBookingId &&
-            Object.prototype.hasOwnProperty.call(
-              invoicesByBookingId,
-              item.bookingId
+    ({ item }) => {
+      const review = resolveBookingReview(item, reviewsByBooking);
+      return (
+        <BookingCard
+          booking={item}
+          review={review}
+          tab={activeTab}
+          invoice={invoicesByBookingId?.[item.bookingId]}
+          invoiceFetched={
+            !!(
+              invoicesByBookingId &&
+              Object.prototype.hasOwnProperty.call(
+                invoicesByBookingId,
+                item.bookingId
+              )
             )
-          )
-        }
-        onView={(booking) =>
-          navigation.navigate("BookingDetail", { id: booking.bookingId })
-        }
-        onPay={handleOpenInvoice}
-        onCancel={handleCancel}
-        onCheckIn={handleCheckIn}
-        onCheckOut={handleCheckOut}
-      />
-    ),
-     [
+          }
+          onView={(booking) =>
+            navigation.navigate("BookingDetail", { id: booking.bookingId })
+          }
+          onPay={handleOpenInvoice}
+          onCancel={handleCancel}
+          onCheckIn={handleCheckIn}
+          onCheckOut={handleCheckOut}
+          onReview={handleOpenReview}
+          onViewReview={handleViewReview}
+        />
+      );
+    },
+    [
       activeTab,
       navigation,
       invoicesByBookingId,
+      reviewsByBooking,
       handleOpenInvoice,
       handleCancel,
       handleCheckIn,
       handleCheckOut,
+      handleOpenReview,
+      handleViewReview,
     ]
   );
 
@@ -619,6 +945,39 @@ export default function MyBookingsScreen() {
           setPaymentEvent(null);
         }}
       />
+      <ReviewModal
+        visible={reviewModalVisible}
+        title={
+          activeReview
+            ? "Cập nhật đánh giá"
+            : "Đánh giá trải nghiệm"
+        }
+        subtitle={(() => {
+          const title = getBookingPropertyTitle(reviewTargetBooking);
+          return title ? `Cho ${title}` : undefined;
+        })()}
+        rating={reviewRating}
+        onRatingChange={(value) => {
+          setReviewRating(value);
+          if (reviewError) {
+            setReviewError("");
+          }
+        }}
+        comment={reviewComment}
+        onCommentChange={(text) => {
+          setReviewComment(text);
+          if (reviewError) {
+            setReviewError("");
+          }
+        }}
+        submitting={reviewSubmitting}
+        errorMessage={reviewError}
+        onCancel={closeReviewModal}
+        onSubmit={handleSubmitReview}
+        submitLabel={
+          activeReview ? "Cập nhật" : "Đánh giá"
+        }
+      />
     </View>
   );
 }
@@ -692,6 +1051,7 @@ function TabButton({ label, active, onPress }) {
 
 function BookingCard({
   booking,
+  review,
   invoice,
   invoiceFetched = false,
   tab,
@@ -700,6 +1060,8 @@ function BookingCard({
   onCancel,
   onCheckIn,
   onCheckOut,
+  onReview,
+  onViewReview,
 }) {
   const invoiceStatus =
     invoice?.status || booking.invoiceStatus || booking.invoice?.status;
@@ -722,6 +1084,7 @@ function BookingCard({
       ["AWAITING_LANDLORD_APPROVAL", "APPROVED"].includes(booking.bookingStatus));
   const showPayButton = tab === "approved";
   const showCheckButtons = tab === "checkin";
+  const showReviewActions = tab === "completed";
   const showInvoiceStatus = booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL";
   const media = booking.property?.media || [];
   const coverImage =
@@ -853,6 +1216,28 @@ function BookingCard({
               onPress={() => checkOutAvailable && onCheckOut(booking)}
                 style={{ marginRight: 10, marginBottom: 10 }}
               />
+          </>
+        )}
+
+        {showReviewActions && (
+          <>
+            <ActionButton
+              label={review ? "Xem lại đánh giá" : "Đánh giá"}
+              backgroundColor="#f97316"
+              onPress={() =>
+                review ? onViewReview?.(booking) : onReview?.(booking)
+              }
+              style={{ marginRight: 10, marginBottom: 10 }}
+            />
+            {review && (
+              <ActionButton
+                label="Cập nhật đánh giá"
+                type="outline"
+                backgroundColor="#f97316"
+                onPress={() => onReview?.(booking)}
+                style={{ marginRight: 10, marginBottom: 10 }}
+              />
+            )}
           </>
         )}
       </View>
