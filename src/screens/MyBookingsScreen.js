@@ -937,7 +937,20 @@ export default function MyBookingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
-      <Header onBack={() => navigation.goBack()} />
+      <Header
+        onBack={() => {
+          if (navigation?.canGoBack?.()) {
+            const state = navigation.getState?.();
+            const routes = state?.routes || [];
+            const previousRoute = routes[routes.length - 2];
+            if (previousRoute?.name === "ProfileMain") {
+              navigation.goBack();
+              return;
+            }
+          }
+          navigation.navigate("ProfileMain");
+        }}
+      />
 
       <View
         style={{
