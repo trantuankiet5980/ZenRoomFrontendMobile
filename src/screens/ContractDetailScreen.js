@@ -29,7 +29,7 @@ const MUTED = "#6B7280";
 const PRIMARY = "#0d9488";
 
 const CONTRACT_STATUS_LABELS = {
-  PENDING_REVIEW: "Chờ duyệt",
+  PENDING_REVIEW: "Chờ thanh toán",
   ACTIVE: "Có hiệu lực",
   CANCELLED: "Đã hủy",
 };
