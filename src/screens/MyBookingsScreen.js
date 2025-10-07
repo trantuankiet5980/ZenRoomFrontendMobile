@@ -661,11 +661,22 @@ export default function MyBookingsScreen() {
       const propertyId = getBookingPropertyId(booking);
       if (!propertyId) return;
       const review = resolveBookingReview(booking, reviewsByBooking);
-      navigation.navigate("PropertyDetail", {
+      const params = {
         propertyId,
         scrollToReviews: true,
         highlightReviewId: review?.reviewId || null,
-      });
+      };
+
+      const parentNavigation = navigation.getParent?.();
+      if (parentNavigation?.navigate) {
+        parentNavigation.navigate("HomeTab", {
+          screen: "PropertyDetail",
+          params,
+        });
+        return;
+      }
+
+      navigation.navigate("PropertyDetail", params);
     },
     [navigation, reviewsByBooking]
   );
@@ -1220,25 +1231,14 @@ function BookingCard({
         )}
 
         {showReviewActions && (
-          <>
-            <ActionButton
-              label={review ? "Xem lại đánh giá" : "Đánh giá"}
-              backgroundColor="#f97316"
-              onPress={() =>
-                review ? onViewReview?.(booking) : onReview?.(booking)
-              }
-              style={{ marginRight: 10, marginBottom: 10 }}
-            />
-            {review && (
-              <ActionButton
-                label="Cập nhật đánh giá"
-                type="outline"
-                backgroundColor="#f97316"
-                onPress={() => onReview?.(booking)}
-                style={{ marginRight: 10, marginBottom: 10 }}
-              />
-            )}
-          </>
+          <ActionButton
+            label={review ? "Xem lại đánh giá" : "Đánh giá"}
+            backgroundColor="#f97316"
+            onPress={() =>
+              review ? onViewReview?.(booking) : onReview?.(booking)
+            }
+            style={{ marginRight: 10, marginBottom: 10 }}
+          />
         )}
       </View>
     </View>

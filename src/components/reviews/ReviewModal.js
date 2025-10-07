@@ -140,6 +140,28 @@ export default function ReviewModal({
               ) : null}
               <View
                 style={{
+                  backgroundColor: "#f9fafb",
+                  padding: 10,
+                  borderRadius: 8,
+                  marginTop: 10,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "#374151",
+                    lineHeight: 15,
+                    fontWeight: "330",
+                  }}
+                >
+                  <Text style={{ fontWeight: "600", color: "red" }}>Lưu ý: </Text>Sau khi bạn gửi đánh giá, bạn chỉ có thể chỉnh sửa hoặc xóa đánh giá đó trong vòng{" "}
+                  <Text style={{ fontWeight: "600" }}>24h</Text>. 
+                  Sau thời hạn này, đánh giá sẽ được khóa và không thể thay đổi. 
+                  Vui lòng kiểm tra kỹ trước khi gửi!
+                </Text>
+              </View>
+              <View
+                style={{
                   flexDirection: "row",
                   justifyContent: "space-between",
                   marginTop: 18,
