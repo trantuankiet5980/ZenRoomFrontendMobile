@@ -98,7 +98,32 @@ export const fetchPropertyReviewsSummary = createAsyncThunk(
     }
 );
 
+export const fetchLandlordReviewStats = createAsyncThunk(
+    "reviews/fetchLandlordReviewStats",
+    async (landlordId, { rejectWithValue }) => {
+        try {
+            if (!landlordId) {
+                return rejectWithValue("Thiếu mã chủ nhà để tải thống kê đánh giá");
+            }
 
+            const response = await axiosInstance.get(
+                `/reviews/landlord/${landlordId}/stats`
+            );
+
+            const { totalReviews = 0, averageRating = 0 } = response?.data || {};
+
+            return {
+                landlordId,
+                stats: {
+                    totalReviews: Number(totalReviews) || 0,
+                    averageRating: Number(averageRating) || 0,
+                },
+            };
+        } catch (error) {
+            return rejectWithValue(error.response?.data || error.message || error);
+        }
+    }
+);
 
 export const createReviewThunk = createAsyncThunk(
     "reviews/createReview",

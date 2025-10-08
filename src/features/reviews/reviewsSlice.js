@@ -6,6 +6,7 @@ import {
     deleteReviewThunk,
     fetchReviewByBookingThunk,
     submitReviewReplyThunk,
+    fetchLandlordReviewStats,
  } from "./reviewsThunks";
 
 const initialState = {
@@ -16,6 +17,9 @@ const initialState = {
     byBooking: {},
     bookingStatus: {},
     bookingError: {},
+    landlordStats: {},
+    landlordStatsStatus: {},
+    landlordStatsError: {},
     mutations: {
         create: { status: "idle", error: null },
         update: { status: "idle", error: null },
@@ -178,6 +182,9 @@ const reviewsSlice = createSlice({
                 state.lists = {};
                 state.status = {};
                 state.error = {};
+                state.landlordStats = {};
+                state.landlordStatsStatus = {};
+                state.landlordStatsError = {};
             }
             state.mutations = {
                 create: { status: "idle", error: null },
@@ -185,6 +192,18 @@ const reviewsSlice = createSlice({
                 delete: { status: "idle", error: null },
                 reply: { status: "idle", error: null },
             };
+        },
+        resetLandlordStats: (state, action) => {
+            const landlordId = action.payload;
+            if (landlordId) {
+                delete state.landlordStats[landlordId];
+                delete state.landlordStatsStatus[landlordId];
+                delete state.landlordStatsError[landlordId];
+            } else {
+                state.landlordStats = {};
+                state.landlordStatsStatus = {};
+                state.landlordStatsError = {};
+            }
         },
     },
     extraReducers: (builder) => {
@@ -544,10 +563,40 @@ const reviewsSlice = createSlice({
                 }
                 state.bookingStatus[bookingId] = "failed";
                 state.bookingError[bookingId] = action.payload || action.error?.message || null;
+            })
+            .addCase(fetchLandlordReviewStats.pending, (state, action) => {
+                const landlordId = action.meta.arg;
+                if (landlordId) {
+                    state.landlordStatsStatus[landlordId] = "loading";
+                    state.landlordStatsError[landlordId] = null;
+                    state.landlordStats[landlordId] = { totalReviews: 0, averageRating: 0 };
+                }
+            })
+            .addCase(fetchLandlordReviewStats.fulfilled, (state, action) => {
+                const { landlordId, stats } = action.payload || {};
+                if (landlordId) {
+                    state.landlordStats[landlordId] = {
+                        totalReviews: stats?.totalReviews || 0,
+                        averageRating: stats?.averageRating || 0,
+                    };
+                    state.landlordStatsStatus[landlordId] = "succeeded";
+                    state.landlordStatsError[landlordId] = null;
+                }
+            })
+            .addCase(fetchLandlordReviewStats.rejected, (state, action) => {
+                const landlordId = action.meta.arg;
+                if (landlordId) {
+                    state.landlordStatsStatus[landlordId] = "failed";
+                    state.landlordStatsError[landlordId] = action.payload || action.error?.message || null;
+                }
             });
     },
 });
 
-export const { resetReviewsSummary, upsertBookingReview } = reviewsSlice.actions;
+export const { 
+    resetReviewsSummary, 
+    upsertBookingReview,
+    resetLandlordStats
+ } = reviewsSlice.actions;
 
 export default reviewsSlice.reducer;

@@ -34,8 +34,9 @@ import {
     updateReviewThunk,
     deleteReviewThunk,
     submitReviewReplyThunk,
-} from "../features/reviews/reviewsThunks";
-import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
+    fetchLandlordReviewStats,
+ } from "../features/reviews/reviewsThunks";
+import { resetReviewsSummary, resetLandlordStats } from "../features/reviews/reviewsSlice";
 import ReviewModal from "../components/reviews/ReviewModal";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
 const { width } = Dimensions.get('window');
@@ -46,9 +47,6 @@ const DEFAULT_MAP_REGION = {
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
 };
-
-const LANDLORD_TOTAL_REVIEWS = 186;
-const LANDLORD_AVERAGE_RATING = 4.8;
 
 const parseCoordinate = (value) => {
     if (value === null || value === undefined) {
@@ -96,6 +94,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     );
     const reviewsStatus = useSelector((state) => state.reviews.status[propertyId]);
     const reviewsError = useSelector((state) => state.reviews.error[propertyId]);
+    const landlordStatsMap = useSelector((state) => state.reviews.landlordStats || {});
+    const landlordStatsStatusMap = useSelector(
+        (state) => state.reviews.landlordStatsStatus || {}
+    );
     const isReviewsLoading = reviewsStatus === "loading";
     const propertyReviews = reviewsData.items || [];
     const displayedReviews = propertyReviews.slice(0, visibleReviewCount);
@@ -105,6 +107,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const replyMutation = rawReplyMutation || { status: "idle", error: null };
     const isReplySubmitting = replyMutation.status === "loading";
     const MAX_COMMENT_LENGTH = 160;
+    const landlordIdentifier =
+        property?.landlord?.landlordId ||
+        property?.landlord?.userId ||
+        property?.landlordId ||
+        property?.landlord?.id ||
+        property?.landlord?.landlordID ||
+        property?.landlord?.uuid ||
+        null;
 
     const scrollViewRef = useRef(null);
     const bookingSectionYRef = useRef(null);
@@ -124,6 +134,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         currentTenantId !== undefined && currentTenantId !== null
             ? String(currentTenantId)
             : null;
+            const landlordStats =
+        landlordStatsMap[landlordIdentifier] || {
+            totalReviews: 0,
+            averageRating: 0,
+        };
+    const landlordStatsStatus = landlordIdentifier
+        ? landlordStatsStatusMap[landlordIdentifier] || "idle"
+        : "idle";
     const isCurrentPropertyLandlord =
         isLandlord &&
         property?.landlord?.userId !== undefined &&
@@ -671,6 +689,18 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         };
     }, [dispatch, propertyId]);
 
+    useEffect(() => {
+        if (!landlordIdentifier) {
+            return;
+        }
+
+        dispatch(fetchLandlordReviewStats(landlordIdentifier));
+
+        return () => {
+            dispatch(resetLandlordStats(landlordIdentifier));
+        };
+    }, [dispatch, landlordIdentifier]);
+
     const locationAddress = property?.address || {};
     const latitude = parseCoordinate(locationAddress.latitude);
     const longitude = parseCoordinate(locationAddress.longitude);
@@ -700,6 +730,24 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         property?.landlord?.avatarUrl
             ? resolveAssetUrl(property.landlord.avatarUrl)
             : null;
+    const landlordTotalReviewsLabel =
+        landlordStatsStatus === "loading"
+            ? "Đang tải..."
+            : landlordStatsStatus === "failed"
+                ? "Không có dữ liệu"
+                : `${landlordStats.totalReviews} lượt đánh giá`;
+    const landlordAverageRatingValue =
+        landlordStats.totalReviews > 0 && typeof landlordStats.averageRating === "number"
+            ? Number.parseFloat(landlordStats.averageRating || 0).toFixed(1)
+            : null;
+    const landlordAverageLabel =
+        landlordStatsStatus === "loading"
+            ? "Đang tải..."
+            : landlordStatsStatus === "failed"
+                ? "Không có dữ liệu"
+                : landlordAverageRatingValue !== null
+                    ? `${landlordAverageRatingValue}/5 trung bình`
+                    : "Chưa có đánh giá";
 
     if (loading) {
         return (
@@ -741,6 +789,29 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     mediaType: "IMAGE",
                 },
             ];
+    const propertyDisplayName =
+        property?.propertyName ||
+        property?.name ||
+        property?.roomName ||
+        property?.buildingName ||
+        null;
+    const ratingAverage =
+        reviewsSummary.total > 0
+            ? Number.parseFloat(reviewsSummary.average || 0)
+            : null;
+    const normalizedRatingAverage =
+        typeof ratingAverage === "number" && !Number.isNaN(ratingAverage)
+            ? ratingAverage
+            : null;
+    const ratingStatus =
+        normalizedRatingAverage !== null
+            ? getRatingStatus(normalizedRatingAverage)
+            : null;
+    const ratingBadgeLabel = ratingStatus ? ratingStatus.label : "Chưa có đánh giá";
+    const ratingDisplayValue =
+        normalizedRatingAverage !== null
+            ? normalizedRatingAverage.toFixed(1)
+            : "--";
     const formatPriceWithUnit = (property) => {
         if (!property?.price) return "Giá liên hệ";
         const formatted = Number(property.price).toLocaleString("vi-VN");
@@ -896,6 +967,65 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         const basisLabel = getChargeBasisLabel(service.chargeBasis);
         return basisLabel ? `${formatted} · ${basisLabel}` : formatted;
     };
+
+    function getRatingStatus(average) {
+        if (typeof average !== "number" || Number.isNaN(average)) {
+            return null;
+        }
+
+        if (average >= 4.8) {
+            return {
+                label: "Được khách yêu thích",
+                backgroundColor: "#fff7ed",
+                textColor: "#c2410c",
+                icon: "crown",
+                iconColor: "#f97316",
+                borderColor: "#fed7aa",
+            };
+        }
+
+        if (average >= 4.5) {
+            return {
+                label: "Rất tốt",
+                backgroundColor: "#fefce8",
+                textColor: "#854d0e",
+                icon: "star-circle-outline",
+                iconColor: "#eab308",
+                borderColor: "#fde68a",
+            };
+        }
+
+        if (average >= 4.0) {
+            return {
+                label: "Tốt",
+                backgroundColor: "#ecfdf5",
+                textColor: "#047857",
+                icon: "check-circle-outline",
+                iconColor: "#10b981",
+                borderColor: "#bbf7d0",
+            };
+        }
+
+        if (average >= 3.0) {
+            return {
+                label: "Trung bình",
+                backgroundColor: "#f4f4f5",
+                textColor: "#4b5563",
+                icon: "information-outline",
+                iconColor: "#6b7280",
+                borderColor: "#d4d4d8",
+            };
+        }
+
+        return {
+            label: "Cần cải thiện",
+            backgroundColor: "#fef2f2",
+            textColor: "#b91c1c",
+            icon: "alert-circle-outline",
+            iconColor: "#ef4444",
+            borderColor: "#fecaca",
+        };
+    }
 
     const renderFurnishingSubtitle = (furnishing) => {
         if (furnishing.quantity && furnishing.quantity >= 1) {
@@ -1096,55 +1226,115 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
                 {/* Tiêu đề + Giá */}
                 <View style={styles.summaryCard}>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Ionicons name="home-outline" size={22} color="#f36031" style={{ marginRight: 6 }} />
-                        <Text style={styles.title} numberOfLines={2}>
-                            {property.title || "Phòng cho thuê"}
-                        </Text>
+                    <View style={styles.summaryInlineRow}>
+                        <View style={styles.summaryInlineItem}>
+                            <View style={styles.summaryInlineTextContainer}>
+                                <Text style={styles.summaryInlineLabel}>Tiêu đề:</Text>
+                                <Text style={styles.summaryInlineTitle}>
+                                    {property.title || "Phòng cho thuê"}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {propertyDisplayName ? (
+                            <View style={styles.summaryInlineItem}>
+                                <Icon
+                                    name="office-building-outline"
+                                    size={20}
+                                    color="#0ea5e9"
+                                    style={styles.summaryInlineIcon}
+                                />
+                                <View style={styles.summaryInlineTextContainer}>
+                                    <Text style={styles.summaryInlineLabel}>Tên căn hộ:</Text>
+                                    <Text style={styles.summaryInlineText}>
+                                        {propertyDisplayName}
+                                    </Text>
+                                </View>
+                            </View>
+                            ) : null}
+
+                    <View style={styles.summaryInlineItem}>
+                            <Ionicons
+                                name="pricetag-outline"
+                                size={18}
+                                color="#f97316"
+                                style={styles.summaryInlineIcon}
+                            />
+                            <View style={styles.summaryInlineTextContainer}>
+                                <Text style={styles.summaryInlineLabel}>Giá:</Text>
+                                <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.summaryInlineItem, styles.summaryInlineAddress]}>
+                            <Ionicons
+                                name="location-outline"
+                                size={16}
+                                color="#2563eb"
+                                style={styles.summaryInlineIcon}
+                            />
+                            <View style={styles.summaryInlineTextContainer}>
+                                <Text style={styles.summaryInlineLabel}>Địa chỉ:</Text>
+                                <Text style={styles.summaryInlineText}>
+                                    {addressFormatted}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
 
-                    {property.buildingName ? (
-                        <Text style={styles.buildingName} numberOfLines={2}>
-                            {property.buildingName}
-                        </Text>
-                    ) : null}
-                    <View style={styles.priceRow}>
-                        <Icon name="cash" size={20} color="#f36031" />
-                        <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
-                    </View>
-                    <View style={styles.locationRow}>
-                        <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
-                        <Text style={[styles.subText, { flex: 1 }]} numberOfLines={2}>
-                            {addressFormatted}
-                        </Text>
-                    </View>
                     <View style={styles.ratingBadgeRow}>
                         <TouchableOpacity
                             activeOpacity={0.8}
-                            style={styles.ratingBadge}
+                            style={[styles.ratingBadge, styles.ratingBadgeNumber]}
                             onPress={handleScrollToReviews}
                         >
-                            <Ionicons name="star" size={16} color="#f5a623" />
-                            <Text style={styles.ratingBadgeText}>
+                            <Ionicons name="star" size={16} color="#f59e0b" />
+                            <Text
+                                style={[styles.ratingBadgeText, styles.ratingBadgeNumberText]}
+                            >
                                 {isReviewsLoading
                                     ? "Đang tải"
                                     : reviewsStatus === "failed"
                                         ? "Không thể tải"
-                                        : reviewsSummary.total > 0
-                                            ? Number(reviewsSummary.average || 0).toFixed(1)
-                                            : "--"}
+                                        : ratingDisplayValue}
                             </Text>
                         </TouchableOpacity>
-                        <View style={styles.ratingBadge}>
-                            <Icon name="crown" size={18} color="#f5a623" />
-                            <Text style={styles.ratingBadgeText}>Được khách yêu thích</Text>
+                        <View
+                            style={[
+                                styles.ratingBadge,
+                                styles.ratingStatusBadge,
+                                ratingStatus
+                                    ? {
+                                          backgroundColor: ratingStatus.backgroundColor,
+                                          borderColor: ratingStatus.borderColor,
+                                      }
+                                    : styles.ratingStatusBadgeEmpty,
+                            ]}
+                        >
+                            <Icon
+                                name={ratingStatus?.icon || "star-outline"}
+                                size={18}
+                                color={ratingStatus?.iconColor || "#6b7280"}
+                            />
+                            <Text
+                                style={[
+                                    styles.ratingBadgeText,
+                                    { color: ratingStatus?.textColor || "#374151" },
+                                ]}
+                            >
+                                {ratingStatus ? ratingBadgeLabel : "Chưa có đánh giá"}
+                            </Text>
                         </View>
                         <TouchableOpacity
                             activeOpacity={0.8}
-                            style={styles.ratingBadge}
+                            style={[styles.ratingBadge, styles.ratingBadgeNeutral]}
                             onPress={handleScrollToReviews}
                         >
-                            <Icon name="comment-text-multiple-outline" size={18} color="#f5a623" />
+                            <Icon
+                                name="comment-text-multiple-outline"
+                                size={18}
+                                color="#2563eb"
+                            />
                             <Text style={styles.ratingBadgeText}>
                                 {isReviewsLoading
                                     ? "-- đánh giá"
@@ -1202,86 +1392,80 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
                 <View style={styles.sectionDivider} />
 
-                <View style={styles.rowContainer}>
-                    {/* Cột trái - Nội thất */}
-                    <View style={styles.columnLeft}>
-                        {property.furnishings?.length > 0 && (
-                            <>
-                                <Text style={styles.sectionTitle}>Nội thất & tiện nghi</Text>
-                                <View style={styles.infoList}>
-                                    {property.furnishings.map((furnishing, idx) => (
-                                        <View
-                                            key={furnishing.id || `${furnishing.furnishingId || idx}`}
-                                            style={[
-                                                styles.infoCard,
-                                                idx === property.furnishings.length - 1
-                                                    ? styles.infoCardLast
-                                                    : null,
-                                            ]}
-                                        >
-                                            <View style={styles.infoIconWrapper}>
-                                                <Icon
-                                                    name={getFurnishingIconName(furnishing.furnishingName || "")}
-                                                    size={22}
-                                                    color="#f36031"
-                                                />
-                                            </View>
-                                            <View style={styles.infoCardBody}>
-                                                <Text style={styles.infoCardTitle}>
-                                                    {furnishing.furnishingName || "Nội thất"}
-                                                </Text>
-                                                <Text style={styles.infoCardSubtitle}>
-                                                    {renderFurnishingSubtitle(furnishing)}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    ))}
+                {property.furnishings?.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Nội thất & tiện nghi</Text>
+                        <View style={styles.infoList}>
+                            {property.furnishings.map((furnishing, idx) => (
+                                <View
+                                    key={furnishing.id || `${furnishing.furnishingId || idx}`}
+                                    style={[
+                                        styles.infoCard,
+                                        styles.infoCardTwoColumn,
+                                        idx % 2 === 0
+                                            ? styles.infoCardTwoColumnLeft
+                                            : styles.infoCardTwoColumnRight,
+                                    ]}
+                                >
+                                    <View style={styles.infoIconWrapper}>
+                                        <Icon
+                                            name={getFurnishingIconName(furnishing.furnishingName || "")}
+                                            size={22}
+                                            color="#f36031"
+                                        />
+                                    </View>
+                                    <View style={styles.infoCardBody}>
+                                        <Text style={styles.infoCardTitle}>
+                                            {furnishing.furnishingName || "Nội thất"}
+                                        </Text>
+                                        <Text style={styles.infoCardSubtitle}>
+                                            {renderFurnishingSubtitle(furnishing)}
+                                        </Text>
+                                    </View>
                                 </View>
-                            </>
-                        )}
-                    </View>
+                            ))}
+                        </View>
+                    </>
+                )}
 
-                    {/* Cột phải - Dịch vụ */}
-                    <View style={styles.columnRight}>
-                        {property.services?.length > 0 && (
-                            <>
-                                <Text style={styles.sectionTitle}>Dịch vụ đi kèm</Text>
-                                <View style={styles.infoList}>
-                                    {property.services.map((service, idx) => (
-                                        <View
-                                            key={service.id || `${service.serviceName || idx}`}
-                                            style={[
-                                                styles.infoCard,
-                                                idx === property.services.length - 1
-                                                    ? styles.infoCardLast
-                                                    : null,
-                                            ]}
-                                        >
-                                            <View style={styles.infoIconWrapper}>
-                                                <Icon
-                                                    name={getServiceIconName(service.serviceName || "")}
-                                                    size={22}
-                                                    color="#0ea5e9"
-                                                />
-                                            </View>
-                                            <View style={styles.infoCardBody}>
-                                                <Text style={styles.infoCardTitle}>
-                                                    {service.serviceName || "Dịch vụ"}
-                                                </Text>
-                                                <Text style={styles.infoCardSubtitle}>
-                                                    {renderServiceFee(service)}
-                                                </Text>
-                                                {service.note ? (
-                                                    <Text style={styles.infoCardNote}>{service.note}</Text>
-                                                ) : null}
-                                            </View>
-                                        </View>
-                                    ))}
+                    {property.services?.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Dịch vụ đi kèm</Text>
+                        <View style={styles.infoList}>
+                            {property.services.map((service, idx) => (
+                                <View
+                                    key={service.id || `${service.serviceName || idx}`}
+                                    style={[
+                                        styles.infoCard,
+                                        styles.infoCardTwoColumn,
+                                        idx % 2 === 0
+                                            ? styles.infoCardTwoColumnLeft
+                                            : styles.infoCardTwoColumnRight,
+                                    ]}
+                                >
+                                    <View style={styles.infoIconWrapper}>
+                                        <Icon
+                                            name={getServiceIconName(service.serviceName || "")}
+                                            size={22}
+                                            color="#0ea5e9"
+                                        />
+                                    </View>
+                                    <View style={styles.infoCardBody}>
+                                        <Text style={styles.infoCardTitle}>
+                                            {service.serviceName || "Dịch vụ"}
+                                        </Text>
+                                        <Text style={styles.infoCardSubtitle}>
+                                            {renderServiceFee(service)}
+                                        </Text>
+                                        {service.note ? (
+                                            <Text style={styles.infoCardNote}>{service.note}</Text>
+                                        ) : null}
+                                    </View>
                                 </View>
-                            </>
-                        )}
-                    </View>
-                </View>
+                            ))}
+                        </View>
+                    </>
+                )}
 
                 <View style={styles.sectionDivider} />
 
@@ -1633,13 +1817,13 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             <View style={styles.landlordStatPill}>
                                 <Ionicons name="people" size={16} color="#f97316" />
                                 <Text style={styles.landlordStatText}>
-                                    {`${LANDLORD_TOTAL_REVIEWS} lượt đánh giá`}
+                                    {landlordTotalReviewsLabel}
                                 </Text>
                             </View>
                             <View style={styles.landlordStatPill}>
                                 <Ionicons name="star" size={16} color="#f97316" />
                                 <Text style={styles.landlordStatText}>
-                                    {`${LANDLORD_AVERAGE_RATING.toFixed(1)}/5 trung bình`}
+                                    {landlordAverageLabel}
                                 </Text>
                             </View>
                         </View>
@@ -1759,7 +1943,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         }}
                     >
                         <Icon name="message-text-outline" size={18} color="#f36031" />
-                        <Text style={styles.lightBtnText}>Chat</Text>
+                        <Text style={styles.lightBtnText}>Nhắn tin</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -1856,65 +2040,155 @@ const styles = StyleSheet.create({
         alignItems: "flex-start",
     },
 
-    title: {
-        fontSize: 25,
-        fontWeight: "700",
-        textAlign: "left",
-        marginBottom: 4,
-        color: "#111",
+     summaryInlineRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        width: "100%",
     },
 
-    buildingName: {
+    summaryInlineItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        maxWidth: "100%",
+        flexShrink: 1,
+        marginRight: 12,
+        marginBottom: 12,
+    },
+
+    summaryInlineIcon: {
+        marginRight: 6,
+    },
+
+    summaryInlineTextContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexShrink: 1,
+        flexWrap: "wrap",
+    },
+
+    summaryInlineLabel: {
         fontSize: 16,
-        color: "#6b7280",
-        textAlign: "left",
-        marginBottom: 8,
+        fontWeight: "600",
+        color: "#4b5563",
+        marginRight: 4,
+    },
+
+    summaryInlineTitle: {
+        fontSize: 22,
+        fontWeight: "700",
+        color: "#111",
+        flexShrink: 1,
+        textAlign: "center",
+    },
+
+    summaryInlineText: {
+        fontSize: 16,
+        color: "#1f2937",
+        fontWeight: "600",
+        lflexShrink: 1,
+    },
+
+    summaryInlineAddress: {
+        flexBasis: "100%",
+        alignItems: "flex-start",
+        marginRight: 0,
     },
 
     priceRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 10,
+    },
+
+    priceRowHighlighted: {
+        backgroundColor: "#fff7ed",
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#fed7aa",
+        marginLeft: 4,
     },
 
     price: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: "700",
-        marginLeft: 6,
+        marginLeft: 8,
         color: "#f36031",
     },
 
     ratingBadgeRow: {
         flexDirection: "row",
         flexWrap: "wrap",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         marginBottom: 12,
+        marginTop: 16,
     },
 
     ratingBadge: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#fff7ed",
         borderRadius: 20,
         paddingHorizontal: 12,
         paddingVertical: 6,
         marginRight: 6,
         marginVertical: 4,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
+        backgroundColor: "#f9fafb",
+    },
+
+    ratingBadgeNumber: {
+        backgroundColor: "#fff7ed",
+        borderColor: "#fed7aa",
+    },
+
+    ratingBadgeNeutral: {
+        backgroundColor: "#eff6ff",
+        borderColor: "#bfdbfe",
     },
 
     ratingBadgeText: {
         fontSize: 13,
         fontWeight: "600",
         marginLeft: 6,
-        color: "#b45309",
+        color: "#374151",
+    },
+
+    ratingBadgeNumberText: {
+        color: "#c2410c",
+    },
+
+    ratingStatusBadge: {
+        borderWidth: 1,
+    },
+
+    ratingStatusBadgeEmpty: {
+        backgroundColor: "#f3f4f6",
+        borderColor: "#e5e7eb",
     },
 
     metaRow: {
         flexDirection: "row",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         flexWrap: "wrap",
         marginBottom: 6,
+        gap: 12,
     },
+        metaItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginHorizontal: 8,
+        marginVertical: 4,
+    },
+
+    metaText: {
+        marginLeft: 6,
+        color: "#374151",
+        fontSize: 14,
+        textAlign: "center"
+    },
+
     locationContainer: {
         paddingHorizontal: 5,
     },
@@ -1973,25 +2247,6 @@ const styles = StyleSheet.create({
         color: "#f36031",
         fontWeight: "700",
     },
-    metaItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginRight: 12,
-        marginVertical: 4,
-    },
-
-    metaText: {
-        marginLeft: 6,
-        color: "#374151",
-        fontSize: 14,
-    },
-
-    locationRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        marginBottom: 8,
-    },
 
     subText: {
         fontSize: 14,
@@ -2024,21 +2279,7 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         marginTop: 2,
     },
-    rowContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 10,
-        marginTop: 10,
-    },
-    columnLeft: {
-        flex: 1,
-        marginRight: 5,
-    },
-    columnRight: {
-        flex: 1,
-        marginLeft: 5,
-    },
+    
     sectionTitle: {
         fontSize: 18,
         fontWeight: "600",
@@ -2339,6 +2580,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         marginTop: 8,
         marginBottom: 4,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "flex-start",
     },
     infoCard: {
         flexDirection: "row",
@@ -2347,9 +2591,17 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 12,
         marginBottom: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
     },
-    infoCardLast: {
-        marginBottom: 0,
+    infoCardTwoColumn: {
+        width: "48%",
+    },
+    infoCardTwoColumnLeft: {
+        marginRight: 12,
+    },
+    infoCardTwoColumnRight: {
+        marginRight: 0,
     },
     infoIconWrapper: {
         width: 40,
