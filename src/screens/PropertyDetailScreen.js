@@ -1,4 +1,4 @@
-import React, { useState, useEffect , useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
     View,
     Text,
@@ -112,6 +112,37 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         currentTenantId !== undefined && currentTenantId !== null
             ? String(currentTenantId)
             : null;
+
+
+    const mapRef = useRef(null);
+    const [zoomLevel, setZoomLevel] = useState(15);
+
+    const zoomIn = () => {
+        const newZoom = Math.min(zoomLevel + 1, 20);
+        setZoomLevel(newZoom);
+        const newRegion = {
+            latitude: latitude || DEFAULT_MAP_REGION.latitude,
+            longitude: longitude || DEFAULT_MAP_REGION.longitude,
+            latitudeDelta: mapRegion.latitudeDelta / 2, // Zoom in by halving delta
+            longitudeDelta: mapRegion.longitudeDelta / 2,
+        };
+        console.log("Zooming in to:", newRegion);
+        mapRef.current?.animateToRegion(newRegion, 300);
+    };
+
+    const zoomOut = () => {
+        const newZoom = Math.max(zoomLevel - 1, 1);
+        setZoomLevel(newZoom);
+        const newRegion = {
+            latitude: latitude || DEFAULT_MAP_REGION.latitude,
+            longitude: longitude || DEFAULT_MAP_REGION.longitude,
+            latitudeDelta: mapRegion.latitudeDelta * 2, // Zoom out by doubling delta
+            longitudeDelta: mapRegion.longitudeDelta * 2,
+        };
+        console.log("Zooming out to:", newRegion);
+        mapRef.current?.animateToRegion(newRegion, 300);
+    };
+
 
     const handleBookingSectionLayout = (event) => {
         bookingSectionYRef.current = event?.nativeEvent?.layout?.y ?? 0;
@@ -650,7 +681,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     };
 
     const renderFurnishingSubtitle = (furnishing) => {
-        if (furnishing.quantity && furnishing.quantity > 1) {
+        if (furnishing.quantity && furnishing.quantity >= 1) {
             return `Số lượng: ${furnishing.quantity}`;
         }
 
@@ -805,9 +836,13 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
                 {/* Tiêu đề + Giá */}
                 <View style={styles.summaryCard}>
-                    <Text style={styles.title} numberOfLines={2}>
-                        {property.title || "Phòng cho thuê"}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Ionicons name="home-outline" size={22} color="#f36031" style={{ marginRight: 6 }} />
+                        <Text style={styles.title} numberOfLines={2}>
+                            {property.title || "Phòng cho thuê"}
+                        </Text>
+                    </View>
+
                     {property.buildingName ? (
                         <Text style={styles.buildingName} numberOfLines={2}>
                             {property.buildingName}
@@ -816,6 +851,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     <View style={styles.priceRow}>
                         <Icon name="cash" size={20} color="#f36031" />
                         <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
+                    </View>
+                    <View style={styles.locationRow}>
+                        <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
+                        <Text style={[styles.subText, { flex: 1 }]} numberOfLines={2}>
+                            {addressFormatted}
+                        </Text>
                     </View>
                     <View style={styles.ratingBadgeRow}>
                         <TouchableOpacity
@@ -828,10 +869,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 {isReviewsLoading
                                     ? "Đang tải"
                                     : reviewsStatus === "failed"
-                                    ? "Không thể tải"
-                                    : reviewsSummary.total > 0
-                                    ? Number(reviewsSummary.average || 0).toFixed(1)
-                                    : "--"}
+                                        ? "Không thể tải"
+                                        : reviewsSummary.total > 0
+                                            ? Number(reviewsSummary.average || 0).toFixed(1)
+                                            : "--"}
                             </Text>
                         </TouchableOpacity>
                         <View style={styles.ratingBadge}>
@@ -848,8 +889,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 {isReviewsLoading
                                     ? "-- đánh giá"
                                     : reviewsStatus === "failed"
-                                    ? "Lỗi"
-                                    : `${reviewsSummary.total || 0} đánh giá`}
+                                        ? "Lỗi"
+                                        : `${reviewsSummary.total || 0} đánh giá`}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -857,7 +898,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <View style={styles.metaItem}>
                             <Icon name="account-group" size={18} color="#555" />
                             <Text style={styles.metaText}>
-                                {property.capacity ? `${property.capacity} khách` : "Đang cập nhật"}
+                                {property.capacity ? `${property.capacity} khách` : "Số khách đang cập nhật"}
                             </Text>
                         </View>
                         <View style={styles.metaItem}>
@@ -879,7 +920,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <View style={styles.metaItem}>
                             <Icon name="stairs-up" size={18} color="#555" />
                             <Text style={styles.metaText}>
-                                {property.floorNo ? `Tầng ${property.floorNo}` : "Không rõ tầng"}
+                                {property.floorNo ? `Tầng ${property.floorNo}` : "Tầng đang cập nhật"}
                             </Text>
                         </View>
                         <View style={styles.metaItem}>
@@ -888,12 +929,6 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 {property.area ? `${property.area} m²` : "Chưa rõ diện tích"}
                             </Text>
                         </View>
-                    </View>
-                    <View style={styles.locationRow}>
-                        <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
-                        <Text style={[styles.subText, { flex: 1 }]} numberOfLines={2}>
-                            {addressFormatted}
-                        </Text>
                     </View>
                 </View>
 
@@ -906,85 +941,87 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 </Text>
 
                 <View style={styles.sectionDivider} />
-            
-                {/* Nội thất */}
-                {property.furnishings?.length > 0 && (
-                    <>
-                        <Text style={styles.sectionTitle}>Nội thất & tiện nghi</Text>
-                        <View style={styles.infoList}>
-                            {property.furnishings.map((furnishing, idx) => (
-                                <View
-                                    key={furnishing.id || `${furnishing.furnishingId || idx}`}
-                                    style={[
-                                        styles.infoCard,
-                                        idx === property.furnishings.length - 1
-                                            ? styles.infoCardLast
-                                            : null,
-                                    ]}
-                                >
-                                    <View style={styles.infoIconWrapper}>
-                                        <Icon
-                                            name={getFurnishingIconName(
-                                                furnishing.furnishingName || ""
-                                            )}
-                                            size={22}
-                                            color="#f36031"
-                                        />
-                                    </View>
-                                    <View style={styles.infoCardBody}>
-                                        <Text style={styles.infoCardTitle}>
-                                            {furnishing.furnishingName || "Nội thất"}
-                                        </Text>
-                                        <Text style={styles.infoCardSubtitle}>
-                                            {renderFurnishingSubtitle(furnishing)}
-                                        </Text>
-                                    </View>
-                                </View>
-                            ))}
-                        </View>
-                    </>
-                )}
 
-                <View style={styles.sectionDivider} />
-
-                {/* Dịch vụ */}
-                {property.services?.length > 0 && (
-                    <>
-                        <Text style={styles.sectionTitle}>Dịch vụ đi kèm</Text>
-                        <View style={styles.infoList}>
-                            {property.services.map((service, idx) => (
-                                <View
-                                    key={service.id || `${service.serviceName || idx}`}
-                                    style={[
-                                        styles.infoCard,
-                                        idx === property.services.length - 1
-                                            ? styles.infoCardLast
-                                            : null,
-                                    ]}
-                                >
-                                    <View style={styles.infoIconWrapper}>
-                                        <Icon
-                                            name={getServiceIconName(service.serviceName || "")}
-                                            size={22}
-                                            color="#0ea5e9"
-                                        />
-                                    </View>
-                                    <View style={styles.infoCardBody}>
-                                        <Text style={styles.infoCardTitle}>
-                                            {service.serviceName || "Dịch vụ"}
-                                        </Text>
-                                        <Text style={styles.infoCardSubtitle}>
-                                            {renderServiceFee(service)}
-                                        </Text>
-                                        {service.note ? (
-                                            <Text style={styles.infoCardNote}>{service.note}</Text>
-                                        ) : null}
-                                    </View>
+                <View style={styles.rowContainer}>
+                    {/* Cột trái - Nội thất */}
+                    <View style={styles.columnLeft}>
+                        {property.furnishings?.length > 0 && (
+                            <>
+                                <Text style={styles.sectionTitle}>Nội thất & tiện nghi</Text>
+                                <View style={styles.infoList}>
+                                    {property.furnishings.map((furnishing, idx) => (
+                                        <View
+                                            key={furnishing.id || `${furnishing.furnishingId || idx}`}
+                                            style={[
+                                                styles.infoCard,
+                                                idx === property.furnishings.length - 1
+                                                    ? styles.infoCardLast
+                                                    : null,
+                                            ]}
+                                        >
+                                            <View style={styles.infoIconWrapper}>
+                                                <Icon
+                                                    name={getFurnishingIconName(furnishing.furnishingName || "")}
+                                                    size={22}
+                                                    color="#f36031"
+                                                />
+                                            </View>
+                                            <View style={styles.infoCardBody}>
+                                                <Text style={styles.infoCardTitle}>
+                                                    {furnishing.furnishingName || "Nội thất"}
+                                                </Text>
+                                                <Text style={styles.infoCardSubtitle}>
+                                                    {renderFurnishingSubtitle(furnishing)}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
                                 </View>
-                            ))}
-                        </View>
-                    </>
-                )}
+                            </>
+                        )}
+                    </View>
+
+                    {/* Cột phải - Dịch vụ */}
+                    <View style={styles.columnRight}>
+                        {property.services?.length > 0 && (
+                            <>
+                                <Text style={styles.sectionTitle}>Dịch vụ đi kèm</Text>
+                                <View style={styles.infoList}>
+                                    {property.services.map((service, idx) => (
+                                        <View
+                                            key={service.id || `${service.serviceName || idx}`}
+                                            style={[
+                                                styles.infoCard,
+                                                idx === property.services.length - 1
+                                                    ? styles.infoCardLast
+                                                    : null,
+                                            ]}
+                                        >
+                                            <View style={styles.infoIconWrapper}>
+                                                <Icon
+                                                    name={getServiceIconName(service.serviceName || "")}
+                                                    size={22}
+                                                    color="#0ea5e9"
+                                                />
+                                            </View>
+                                            <View style={styles.infoCardBody}>
+                                                <Text style={styles.infoCardTitle}>
+                                                    {service.serviceName || "Dịch vụ"}
+                                                </Text>
+                                                <Text style={styles.infoCardSubtitle}>
+                                                    {renderServiceFee(service)}
+                                                </Text>
+                                                {service.note ? (
+                                                    <Text style={styles.infoCardNote}>{service.note}</Text>
+                                                ) : null}
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
+                            </>
+                        )}
+                    </View>
+                </View>
 
                 <View style={styles.sectionDivider} />
 
@@ -998,18 +1035,35 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 </View>
 
                 {Platform.OS !== "web" && (
-                    <View style={styles.mapContainer}>
-                        <MapView style={styles.map} initialRegion={mapRegion}>
-                            {hasValidCoordinate ? (
+                    <View style={styles.mapWrapper}>
+                        <MapView
+                            ref={mapRef}
+                            style={styles.map}
+                            provider={Platform.OS === "android" ? "google" : undefined}
+                            initialRegion={mapRegion}
+                            onMapReady={() => console.log("Map is ready")} 
+                        >
+                            {hasValidCoordinate && (
                                 <Marker
                                     coordinate={{ latitude, longitude }}
                                     title={property.title || "Vị trí"}
                                     description={locationAddressText || undefined}
                                 />
-                            ) : null}
+                            )}
                         </MapView>
+
+                        {/* Nút phóng to / thu nhỏ */}
+                        <View style={styles.zoomControls}>
+                            <TouchableOpacity style={styles.zoomButton} onPress={zoomIn}>
+                                <Text style={styles.zoomText}>+</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.zoomButton} onPress={zoomOut}>
+                                <Text style={styles.zoomText}>-</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
+
 
                 <View style={styles.sectionDivider} />
 
@@ -1058,7 +1112,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                                 style={[
                                                     styles.reviewCard,
                                                     index !== displayedReviews.length - 1 &&
-                                                        styles.reviewCardSpacing,
+                                                    styles.reviewCardSpacing,
                                                     isHighlighted && styles.reviewCardHighlight,
                                                 ]}
                                             >
@@ -1170,7 +1224,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                         </TouchableOpacity>
                                     )}
                                 </View>
-                             )}
+                            )}
                         </>
                     ) : (
                         <Text style={styles.reviewsStatusText}>Chưa có đánh giá</Text>
@@ -1240,7 +1294,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 </View>
             </ScrollView>
 
-<ReviewModal
+            <ReviewModal
                 visible={reviewModalVisible}
                 title="Cập nhật đánh giá"
                 subtitle={property?.title ? `Cho ${property.title}` : undefined}
@@ -1398,10 +1452,69 @@ const styles = StyleSheet.create({
         borderRadius: 0,
     },
 
-    // Content
     summaryCard: {
         padding: 12,
+        alignItems: "flex-start",
+    },
+
+    title: {
+        fontSize: 25,
+        fontWeight: "700",
+        textAlign: "left",
+        marginBottom: 4,
+        color: "#111",
+    },
+
+    buildingName: {
+        fontSize: 16,
+        color: "#6b7280",
+        textAlign: "left",
+        marginBottom: 8,
+    },
+
+    priceRow: {
+        flexDirection: "row",
         alignItems: "center",
+        marginBottom: 10,
+    },
+
+    price: {
+        fontSize: 20,
+        fontWeight: "700",
+        marginLeft: 6,
+        color: "#f36031",
+    },
+
+    ratingBadgeRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "flex-start",
+        marginBottom: 12,
+    },
+
+    ratingBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#fff7ed",
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        marginRight: 6,
+        marginVertical: 4,
+    },
+
+    ratingBadgeText: {
+        fontSize: 13,
+        fontWeight: "600",
+        marginLeft: 6,
+        color: "#b45309",
+    },
+
+    metaRow: {
+        flexDirection: "row",
+        justifyContent: "flex-start",
+        flexWrap: "wrap",
+        marginBottom: 6,
     },
     locationContainer: {
         paddingHorizontal: 5,
@@ -1426,79 +1539,68 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         overflow: "hidden",
     },
+    mapWrapper: {
+        height: 300,
+        width: "100%",
+        marginVertical: 10,
+        borderRadius: 12,
+        overflow: "hidden",
+    },
     map: {
         flex: 1,
     },
-    title: {
-        fontSize: 22,
-        fontWeight: "700",
-        textAlign: "center",
-        marginBottom: 4,
-        color: "#111",
+    zoomControls: {
+        position: "absolute",
+        right: 10,
+        bottom: 10,
+        flexDirection: "column",
     },
-    buildingName: {
-        fontSize: 16,
-        color: "#6b7280",
-        textAlign: "center",
-        marginBottom: 8,
-    },
-    priceRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 10,
-    },
-    price: {
-        fontSize: 18,
-        fontWeight: "700",
-        marginLeft: 6,
-        color: "#f36031",
-    },
-    ratingBadgeRow: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "center",
-        marginBottom: 12,
-    },
-    ratingBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#fff7ed",
-        borderRadius: 20,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        marginHorizontal: 4,
+    zoomButton: {
+        backgroundColor: "#fff",
+        borderRadius: 25,
+        width: 40,
+        height: 40,
         marginVertical: 4,
-    },
-    ratingBadgeText: {
-        fontSize: 13,
-        fontWeight: "600",
-        marginLeft: 6,
-        color: "#b45309",
-    },
-    subText: { fontSize: 14, color: "#555", marginVertical: 2, textAlign: "center" },
-    metaRow: {
-        flexDirection: "row",
         justifyContent: "center",
-        flexWrap: "wrap",
-        marginBottom: 6,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 2,
+        elevation: 3,
+    },
+    zoomText: {
+        fontSize: 22,
+        color: "#f36031",
+        fontWeight: "700",
     },
     metaItem: {
         flexDirection: "row",
         alignItems: "center",
-        marginHorizontal: 8,
+        marginRight: 12,
         marginVertical: 4,
     },
+
     metaText: {
         marginLeft: 6,
         color: "#374151",
         fontSize: 14,
     },
+
     locationRow: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "center",
-        marginTop: 6,
+        justifyContent: "flex-start",
+        marginBottom: 8,
     },
+
+    subText: {
+        fontSize: 14,
+        color: "#555",
+        marginVertical: 2,
+        textAlign: "left",
+    },
+
 
     detailGrid: {
         flexDirection: "row",
@@ -1523,7 +1625,21 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         marginTop: 2,
     },
-
+    rowContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 10,
+        marginTop: 10,
+    },
+    columnLeft: {
+        flex: 1,
+        marginRight: 5,
+    },
+    columnRight: {
+        flex: 1,
+        marginLeft: 5,
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: "600",
@@ -1547,7 +1663,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingBottom: 4,
     },
-     landlordCard: {
+    landlordCard: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#f9fafb",
