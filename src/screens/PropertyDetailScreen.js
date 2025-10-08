@@ -12,6 +12,7 @@ import {
     Platform,
     Alert,
     TouchableWithoutFeedback,
+    TextInput,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import MapView, { Marker } from "react-native-maps";
@@ -28,10 +29,14 @@ import { resolveAssetUrl } from "../utils/cdn";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
-import { fetchPropertyReviewsSummary } from "../features/reviews/reviewsThunks";
+import { 
+    fetchPropertyReviewsSummary,
+    updateReviewThunk,
+    deleteReviewThunk,
+    submitReviewReplyThunk,
+ } from "../features/reviews/reviewsThunks";
 import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
 import ReviewModal from "../components/reviews/ReviewModal";
-import { updateReviewThunk, deleteReviewThunk } from "../features/reviews/reviewsThunks";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
 const { width } = Dimensions.get('window');
 
@@ -72,11 +77,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const [reviewComment, setReviewComment] = useState("");
     const [reviewSubmitting, setReviewSubmitting] = useState(false);
     const [reviewError, setReviewError] = useState("");
+    const [activeReplyReviewId, setActiveReplyReviewId] = useState(null);
+    const [replyInputValue, setReplyInputValue] = useState("");
+    const [replyInputError, setReplyInputError] = useState("");
     const dispatch = useDispatch();
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
     );
-    const { isTenant } = useRole();
+    const { isTenant, isLandlord } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
     const reviewsSummary = useSelector(
@@ -92,6 +100,9 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const displayedReviews = propertyReviews.slice(0, visibleReviewCount);
     const hasMoreReviews = propertyReviews.length > visibleReviewCount;
     const canCollapse = visibleReviewCount > 3;
+    const rawReplyMutation = useSelector((state) => state.reviews?.mutations?.reply);
+    const replyMutation = rawReplyMutation || { status: "idle", error: null };
+    const isReplySubmitting = replyMutation.status === "loading";
     const MAX_COMMENT_LENGTH = 160;
 
     const scrollViewRef = useRef(null);
@@ -112,6 +123,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         currentTenantId !== undefined && currentTenantId !== null
             ? String(currentTenantId)
             : null;
+    const isCurrentPropertyLandlord =
+        isLandlord &&
+        property?.landlord?.userId !== undefined &&
+        property?.landlord?.userId !== null &&
+        currentUser?.userId !== undefined &&
+        currentUser?.userId !== null &&
+        String(property.landlord.userId) === String(currentUser.userId);
+    const lastReplySubmittedIdRef = useRef(null);
 
     const handleBookingSectionLayout = (event) => {
         bookingSectionYRef.current = event?.nativeEvent?.layout?.y ?? 0;
@@ -191,6 +210,158 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const handleToggleReviewMenu = useCallback((reviewKey) => {
         setReviewMenuVisibleId((prev) => (prev === reviewKey ? null : reviewKey));
     }, []);
+    const extractReviewReply = useCallback((review) => {
+        if (!review || typeof review !== "object") {
+            return null;
+        }
+
+        if (review.reply && typeof review.reply === "object") {
+            return review.reply;
+        }
+        if (review.reviewReply && typeof review.reviewReply === "object") {
+            return review.reviewReply;
+        }
+        if (review.landlordReply && typeof review.landlordReply === "object") {
+            return review.landlordReply;
+        }
+        if (review.replyText !== undefined && review.replyText !== null) {
+            return {
+                replyId:
+                    review.replyId ||
+                    review.reviewReplyId ||
+                    review.replyID ||
+                    null,
+                replyText:
+                    typeof review.replyText === "string"
+                        ? review.replyText
+                        : String(review.replyText),
+                createdAt: review.replyCreatedAt || null,
+                updatedAt: review.replyUpdatedAt || null,
+            };
+        }
+
+        return null;
+    }, []);
+
+    const getReviewReplyText = useCallback(
+        (review) => {
+            const reply = extractReviewReply(review);
+            if (reply) {
+                const raw =
+                    reply.replyText ??
+                    reply.text ??
+                    reply.content ??
+                    reply.message ??
+                    reply.comment;
+                if (raw !== undefined && raw !== null) {
+                    return typeof raw === "string" ? raw : String(raw);
+                }
+            }
+            if (review && review.replyText !== undefined && review.replyText !== null) {
+                return typeof review.replyText === "string"
+                    ? review.replyText
+                    : String(review.replyText);
+            }
+            return "";
+        },
+        [extractReviewReply]
+    );
+
+    const handleStartReply = useCallback(
+        (review) => {
+            if (!review) {
+                return;
+            }
+            const identifier =
+                review?.reviewId ??
+                review?.id ??
+                review?.reviewID ??
+                review?.idReview ??
+                null;
+            if (identifier === null || identifier === undefined) {
+                showToast(
+                    "error",
+                    "top",
+                    "Không thể phản hồi",
+                    "Không tìm thấy mã đánh giá"
+                );
+                return;
+            }
+            const existingReply = extractReviewReply(review);
+            const initialValue = existingReply
+                ? existingReply.replyText ??
+                  existingReply.text ??
+                  existingReply.content ??
+                  existingReply.message ??
+                  ""
+                : review?.replyText ?? "";
+
+            setActiveReplyReviewId(String(identifier));
+            setReplyInputValue(
+                typeof initialValue === "string" ? initialValue : String(initialValue || "")
+            );
+            setReplyInputError("");
+            setReviewMenuVisibleId(null);
+        },
+        [extractReviewReply]
+    );
+
+    const handleCancelReply = useCallback(() => {
+        setActiveReplyReviewId(null);
+        setReplyInputValue("");
+        setReplyInputError("");
+        lastReplySubmittedIdRef.current = null;
+    }, []);
+
+    const handleSubmitReply = useCallback(
+        (review) => {
+            if (!review) {
+                return;
+            }
+
+            const identifier =
+                review?.reviewId ??
+                review?.id ??
+                review?.reviewID ??
+                review?.idReview ??
+                null;
+
+            if (identifier === null || identifier === undefined) {
+                showToast(
+                    "error",
+                    "top",
+                    "Không thể phản hồi",
+                    "Không tìm thấy mã đánh giá để phản hồi"
+                );
+                return;
+            }
+
+            const text = replyInputValue.trim();
+            if (!text) {
+                setReplyInputError("Vui lòng nhập nội dung phản hồi");
+                return;
+            }
+
+            if (isReplySubmitting) {
+                return;
+            }
+
+            const existingReply = extractReviewReply(review);
+            const resolvedReplyId = existingReply
+                ? existingReply.replyId || existingReply.id || existingReply.replyID || null
+                : null;
+
+            lastReplySubmittedIdRef.current = String(identifier);
+            dispatch(
+                submitReviewReplyThunk(
+                    resolvedReplyId
+                        ? { replyId: resolvedReplyId, reviewId: identifier, replyText: text }
+                        : { reviewId: identifier, replyText: text }
+                )
+            );
+        },
+        [dispatch, extractReviewReply, isReplySubmitting, replyInputValue]
+    );
 
     const handleStartUpdateReview = useCallback((review) => {
         if (!review) {
@@ -269,6 +440,51 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         handleCloseReviewModal,
         handleScrollToReviews,
     ]);
+
+    useEffect(() => {
+        if (!lastReplySubmittedIdRef.current) {
+            return;
+        }
+
+        if (replyMutation.status === "succeeded") {
+            if (activeReplyReviewId === lastReplySubmittedIdRef.current) {
+                setActiveReplyReviewId(null);
+                setReplyInputValue("");
+                setReplyInputError("");
+            }
+            lastReplySubmittedIdRef.current = null;
+        } else if (replyMutation.status === "failed") {
+            const resolveErrorMessage = (value) => {
+                if (!value) {
+                    return "Không thể gửi phản hồi";
+                }
+                if (typeof value === "string") {
+                    return value;
+                }
+                if (typeof value === "object") {
+                    if (typeof value.message === "string") {
+                        return value.message;
+                    }
+                    if (typeof value.error === "string") {
+                        return value.error;
+                    }
+                    if (typeof value.detail === "string") {
+                        return value.detail;
+                    }
+                }
+                return "Không thể gửi phản hồi";
+            };
+
+            const message = resolveErrorMessage(replyMutation.error);
+
+            if (activeReplyReviewId === lastReplySubmittedIdRef.current) {
+                setReplyInputError(message);
+            }
+
+            showToast("error", "top", "Không thể gửi phản hồi", message);
+            lastReplySubmittedIdRef.current = null;
+        }
+    }, [replyMutation.status, replyMutation.error, activeReplyReviewId]);
 
     const handleDeleteReview = useCallback(
         (review) => {
@@ -1049,6 +1265,28 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                             review.reviewId === highlightedReviewId);
                                     const menuVisible = reviewMenuVisibleId === reviewKey;
 
+                                    const reviewIdString =
+                                        review?.reviewId !== undefined && review?.reviewId !== null
+                                            ? String(review.reviewId)
+                                            : review?.id !== undefined && review?.id !== null
+                                            ? String(review.id)
+                                            : review?.reviewID !== undefined && review?.reviewID !== null
+                                            ? String(review.reviewID)
+                                            : review?.idReview !== undefined && review?.idReview !== null
+                                            ? String(review.idReview)
+                                            : null;
+                                    const reviewReplyText = getReviewReplyText(review);
+                                    const trimmedReplyText =
+                                        typeof reviewReplyText === "string"
+                                            ? reviewReplyText.trim()
+                                            : "";
+                                    const isReplyEditing =
+                                        reviewIdString &&
+                                        activeReplyReviewId === reviewIdString;
+                                    const shouldRenderReplySection =
+                                        (trimmedReplyText && trimmedReplyText.length > 0) ||
+                                        (isCurrentPropertyLandlord && !!reviewIdString);
+
                                     return (
                                         <TouchableWithoutFeedback
                                             key={reviewKey}
@@ -1115,6 +1353,97 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                                                 </Text>
                                                             </TouchableOpacity>
                                                         )}
+                                                    </View>
+                                                ) : null}
+                                                {shouldRenderReplySection ? (
+                                                    <View
+                                                        style={[
+                                                            styles.reviewReplySection,
+                                                            comment
+                                                                ? styles.reviewReplySectionWithComment
+                                                                : null,
+                                                        ]}
+                                                    >
+                                                        {trimmedReplyText ? (
+                                                            <View style={styles.reviewReplyBubble}>
+                                                                <Text style={styles.reviewReplyLabel}>
+                                                                    Phản hồi của chủ nhà
+                                                                </Text>
+                                                                <Text style={styles.reviewReplyText}>
+                                                                    {trimmedReplyText}
+                                                                </Text>
+                                                            </View>
+                                                        ) : null}
+                                                        {isCurrentPropertyLandlord && reviewIdString ? (
+                                                            isReplyEditing ? (
+                                                                <>
+                                                                    <TextInput
+                                                                        style={[
+                                                                            styles.reviewReplyInput,
+                                                                            replyInputError
+                                                                                ? styles.reviewReplyInputError
+                                                                                : null,
+                                                                        ]}
+                                                                        value={replyInputValue}
+                                                                        onChangeText={(value) => {
+                                                                            setReplyInputValue(value);
+                                                                            if (replyInputError) {
+                                                                                setReplyInputError("");
+                                                                            }
+                                                                        }}
+                                                                        placeholder="Nhập phản hồi của bạn..."
+                                                                        placeholderTextColor="#9ca3af"
+                                                                        multiline
+                                                                        textAlignVertical="top"
+                                                                        editable={!isReplySubmitting}
+                                                                    />
+                                                                    {replyInputError ? (
+                                                                        <Text style={styles.reviewReplyErrorText}>
+                                                                            {replyInputError}
+                                                                        </Text>
+                                                                    ) : null}
+                                                                    <View style={styles.reviewReplyActions}>
+                                                                        <TouchableOpacity
+                                                                            style={[
+                                                                                styles.reviewReplySubmitButton,
+                                                                                isReplySubmitting &&
+                                                                                    styles.reviewReplySubmitButtonDisabled,
+                                                                            ]}
+                                                                            onPress={() => handleSubmitReply(review)}
+                                                                            disabled={isReplySubmitting}
+                                                                        >
+                                                                            <Text style={styles.reviewReplySubmitText}>
+                                                                                {isReplySubmitting
+                                                                                    ? "Đang gửi..."
+                                                                                    : trimmedReplyText
+                                                                                    ? "Cập nhật phản hồi"
+                                                                                    : "Gửi phản hồi"}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                        <TouchableOpacity
+                                                                            style={styles.reviewReplyCancelButton}
+                                                                            onPress={handleCancelReply}
+                                                                            disabled={isReplySubmitting}
+                                                                        >
+                                                                            <Text style={styles.reviewReplyCancelText}>
+                                                                                Huỷ
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                </>
+                                                            ) : (
+                                                                <TouchableOpacity
+                                                                    style={styles.reviewReplyButton}
+                                                                    onPress={() => handleStartReply(review)}
+                                                                >
+                                                                    <Text style={styles.reviewReplyButtonText}>
+                                                                        {trimmedReplyText
+                                                                            ? "Cập nhật phản hồi"
+                                                                            : "Phản hồi"}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            )
+                                                        ) : null}
                                                     </View>
                                                 ) : null}
                                                 {menuVisible && (
@@ -1674,6 +2003,90 @@ const styles = StyleSheet.create({
         marginTop: 6,
         color: "#f36031",
         fontWeight: "600",
+    },
+    reviewReplySection: {
+        marginTop: 12,
+    },
+    reviewReplySectionWithComment: {
+        marginTop: 16,
+    },
+    reviewReplyBubble: {
+        backgroundColor: "#f3f4f6",
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    reviewReplyLabel: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: "#1f2937",
+        textTransform: "uppercase",
+        marginBottom: 4,
+    },
+    reviewReplyText: {
+        fontSize: 14,
+        color: "#374151",
+        lineHeight: 20,
+    },
+    reviewReplyButton: {
+        marginTop: 12,
+        alignSelf: "flex-start",
+    },
+    reviewReplyButtonText: {
+        color: "#f97316",
+        fontWeight: "600",
+        fontSize: 14,
+        textDecorationLine: "underline",
+    },
+    reviewReplyInput: {
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: "#e5e7eb",
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 14,
+        color: "#1f2937",
+        minHeight: 96,
+    },
+    reviewReplyInputError: {
+        borderColor: "#dc2626",
+    },
+    reviewReplyErrorText: {
+        color: "#dc2626",
+        fontSize: 12,
+        marginTop: 6,
+    },
+    reviewReplyActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 12,
+    },
+    reviewReplySubmitButton: {
+        backgroundColor: "#f97316",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginRight: 12,
+    },
+    reviewReplySubmitButtonDisabled: {
+        opacity: 0.6,
+    },
+    reviewReplySubmitText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    reviewReplyCancelButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+        backgroundColor: "#f3f4f6",
+    },
+    reviewReplyCancelText: {
+        color: "#1f2937",
+        fontWeight: "600",
+        fontSize: 14,
     },
     reviewMenuTrigger: {
         padding: 6,

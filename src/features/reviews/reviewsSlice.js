@@ -5,6 +5,7 @@ import {
     updateReviewThunk,
     deleteReviewThunk,
     fetchReviewByBookingThunk,
+    submitReviewReplyThunk,
  } from "./reviewsThunks";
 
 const initialState = {
@@ -19,6 +20,7 @@ const initialState = {
         create: { status: "idle", error: null },
         update: { status: "idle", error: null },
         delete: { status: "idle", error: null },
+        reply: { status: "idle", error: null },
     },
 };
 
@@ -29,6 +31,125 @@ const calculateAverage = (items) => {
 
     const total = items.reduce((sum, item) => sum + (Number(item?.rating) || 0), 0);
     return total / items.length;
+};
+
+const getReviewIdentifier = (review) => {
+    if (!review) {
+        return null;
+    }
+
+    const identifier =
+        review.reviewId ||
+        null;
+
+    return identifier !== null && identifier !== undefined
+        ? String(identifier)
+        : null;
+};
+
+const normalizeReplyPayload = (source, fallbackText = "") => {
+    if (!source) {
+        if (fallbackText === null || fallbackText === undefined) {
+            return null;
+        }
+        return {
+            replyId: null,
+            replyText: fallbackText,
+            createdAt: null,
+            updatedAt: null,
+        };
+    }
+
+    if (typeof source !== "object") {
+        return {
+            replyId: null,
+            replyText: String(source),
+            createdAt: null,
+            updatedAt: null,
+        };
+    }
+
+    const replyId =
+        source.replyId ||
+        null;
+    const replyText =
+        source.replyText ||
+        source.text ||
+        source.content ||
+        source.message ||
+        source.comment ||
+        fallbackText ||
+        "";
+    const createdAt =
+        source.createdAt ||
+        null;
+    const updatedAt =
+        source.updatedAt ||
+        null;
+
+    return {
+        replyId: replyId || null,
+        replyText: replyText !== undefined && replyText !== null ? String(replyText) : "",
+        createdAt: createdAt || null,
+        updatedAt: updatedAt || null,
+    };
+};
+
+const mergeReviewWithReply = (review, reply, fallbackText = "") => {
+    if (!review) {
+        return review;
+    }
+
+    const normalizedReply = normalizeReplyPayload(reply, fallbackText);
+    if (!normalizedReply) {
+        return { ...review };
+    }
+
+    const next = { ...review };
+    next.reply = normalizedReply;
+    next.reviewReply = normalizedReply;
+    next.landlordReply = normalizedReply;
+    next.replyText = normalizedReply.replyText;
+    next.replyId = normalizedReply.replyId || next.replyId || null;
+    if (normalizedReply.createdAt !== undefined) {
+        next.replyCreatedAt = normalizedReply.createdAt;
+    }
+    if (normalizedReply.updatedAt !== undefined) {
+        next.replyUpdatedAt = normalizedReply.updatedAt;
+    }
+    return next;
+};
+
+const updateReviewInLists = (state, reviewId, updater) => {
+    if (!reviewId) {
+        return null;
+    }
+
+    const reviewKey = String(reviewId);
+    const lists = state.lists || {};
+
+    for (const [propertyId, list] of Object.entries(lists)) {
+        if (!list || !Array.isArray(list.items)) {
+            continue;
+        }
+
+        const index = list.items.findIndex(
+            (item) => getReviewIdentifier(item) === reviewKey
+        );
+
+        if (index !== -1) {
+            const updated = updater(list.items[index], propertyId, index);
+            if (updated) {
+                list.items[index] = updated;
+            }
+            return {
+                propertyId,
+                review: list.items[index],
+            };
+        }
+    }
+
+    return null;
 };
 
 const reviewsSlice = createSlice({
@@ -62,6 +183,7 @@ const reviewsSlice = createSlice({
                 create: { status: "idle", error: null },
                 update: { status: "idle", error: null },
                 delete: { status: "idle", error: null },
+                reply: { status: "idle", error: null },
             };
         },
     },
@@ -228,6 +350,143 @@ const reviewsSlice = createSlice({
             .addCase(deleteReviewThunk.rejected, (state, action) => {
                 state.mutations.delete.status = "failed";
                 state.mutations.delete.error = action.payload || action.error?.message || null;
+            })
+            .addCase(submitReviewReplyThunk.pending, (state) => {
+                state.mutations.reply.status = "loading";
+                state.mutations.reply.error = null;
+            })
+            .addCase(submitReviewReplyThunk.fulfilled, (state, action) => {
+                state.mutations.reply.status = "succeeded";
+                state.mutations.reply.error = null;
+
+                const {
+                    reviewId,
+                    propertyId,
+                    review,
+                    reply,
+                    replyText,
+                    bookingId,
+                } = action.payload || {};
+
+                const resolvedReviewId =
+                    getReviewIdentifier(review) ||
+                    (reviewId !== undefined && reviewId !== null
+                        ? String(reviewId)
+                        : null);
+
+                const replySource =
+                    reply ||
+                    (review &&
+                        (review.reply ||
+                            review.reviewReply ||
+                            review.landlordReply)) ||
+                    null;
+
+                const fallbackText =
+                    (replySource && replySource.replyText) ||
+                    (review && review.replyText) ||
+                    replyText ||
+                    "";
+
+                const applyUpdate = (currentReview = null) => {
+                    const mergedBase = {
+                        ...(currentReview || {}),
+                        ...(review && typeof review === "object" ? review : {}),
+                    };
+
+                    const currentReply =
+                        replySource ||
+                        mergedBase.reply ||
+                        mergedBase.reviewReply ||
+                        mergedBase.landlordReply ||
+                        null;
+
+                    const resolvedFallback =
+                        fallbackText || mergedBase.replyText || "";
+
+                    return mergeReviewWithReply(
+                        mergedBase,
+                        currentReply,
+                        resolvedFallback
+                    );
+                };
+
+                let resolvedPropertyId =
+                    propertyId ||
+                    (review &&
+                        (review.property?.propertyId ||
+                            review.propertyId ||
+                            review.booking?.property?.propertyId ||
+                            review.booking?.propertyId ||
+                            null)) ||
+                    null;
+
+                let updatedReview = null;
+
+                if (
+                    resolvedPropertyId &&
+                    state.lists[resolvedPropertyId] &&
+                    Array.isArray(state.lists[resolvedPropertyId].items)
+                ) {
+                    const list = state.lists[resolvedPropertyId];
+                    const index = list.items.findIndex(
+                        (item) => getReviewIdentifier(item) === resolvedReviewId
+                    );
+                    if (index !== -1) {
+                        list.items[index] = applyUpdate(list.items[index]);
+                        updatedReview = list.items[index];
+                    }
+                }
+
+                if (!updatedReview) {
+                    const lookupId =
+                        resolvedReviewId || getReviewIdentifier(review);
+                    if (lookupId) {
+                        const result = updateReviewInLists(
+                            state,
+                            lookupId,
+                            (current, propertyKey) => {
+                                resolvedPropertyId =
+                                    resolvedPropertyId || propertyKey;
+                                return applyUpdate(current);
+                            }
+                        );
+                        if (result) {
+                            updatedReview = result.review;
+                        }
+                    }
+                }
+
+                const resolvedBookingId =
+                    bookingId ||
+                    (review &&
+                        (review.booking?.bookingId || review.bookingId || null)) ||
+                    (updatedReview &&
+                        (updatedReview.booking?.bookingId ||
+                            updatedReview.bookingId ||
+                            null)) ||
+                    null;
+
+                if (resolvedBookingId) {
+                    const baseBookingReview =
+                        (review && typeof review === "object" ? review : null) ||
+                        state.byBooking[resolvedBookingId] ||
+                        updatedReview ||
+                        null;
+
+                    if (baseBookingReview) {
+                        state.byBooking[resolvedBookingId] = applyUpdate(
+                            baseBookingReview
+                        );
+                        state.bookingStatus[resolvedBookingId] = "succeeded";
+                        state.bookingError[resolvedBookingId] = null;
+                    }
+                }
+            })
+            .addCase(submitReviewReplyThunk.rejected, (state, action) => {
+                state.mutations.reply.status = "failed";
+                state.mutations.reply.error =
+                    action.payload || action.error?.message || null;
             })
             .addCase(fetchReviewByBookingThunk.pending, (state, action) => {
                 const bookingId = action.meta.arg;
