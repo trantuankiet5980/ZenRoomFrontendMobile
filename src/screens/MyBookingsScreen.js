@@ -16,6 +16,8 @@ import { Client } from "@stomp/stompjs";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import QRCode from "react-native-qrcode-svg";
+import S3Image from "../components/S3Image";
+import { resolveAssetUrl } from "../utils/cdn";
 
 import {
   fetchMyBookings,
@@ -925,15 +927,15 @@ export default function MyBookingsScreen() {
   );
 
   const listEmpty = (
-    <View style={{ alignItems: "center", marginTop: 48 }}>
-      <Image
-        source={require("../../assets/images/empty_building.jpg")}
-        style={{ width: 140, height: 140, marginBottom: 16, borderRadius: 16, opacity: 0.9 }}
-        resizeMode="cover"
-      />
-      <Text style={{ color: MUTED }}>Chưa có booking phù hợp</Text>
-    </View>
-  );
+  <View style={{ alignItems: "center", marginTop: 48 }}>
+    <S3Image
+      src="https://picsum.photos/140/140"
+      style={{ width: 140, height: 140, marginBottom: 16, borderRadius: 16, opacity: 0.9 }}
+      alt="empty-building"
+    />
+    <Text style={{ color: MUTED }}>Chưa có booking phù hợp</Text>
+  </View>
+);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
@@ -1168,11 +1170,7 @@ function BookingCard({
   const media = booking.property?.media || [];
   const coverImage =
     media.find((item) => item.isCover) || media[0] || null;
-  const imageUrl = coverImage?.url
-    ? coverImage.url.startsWith("http")
-      ? coverImage.url
-      : `${MEDIA_BASE_URL}/${coverImage.url.replace(/^\/+/, "")}`
-    : null;
+  const imageUrl = coverImage?.url ? resolveAssetUrl(coverImage.url) : null;
 
   const handleViewPress = useCallback(() => onView(booking), [onView, booking]);
 
@@ -1204,14 +1202,14 @@ function BookingCard({
           }}
         >
           {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-            />
-          ) : (
-            <Ionicons name="home-outline" size={28} color={ORANGE} />
-          )}
+  <S3Image
+    src={imageUrl}
+    style={{ width: "100%", height: "100%" }}
+    alt={`booking-${booking.bookingId}`}
+  />
+) : (
+  <Ionicons name="home-outline" size={28} color={ORANGE} />
+)}
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
