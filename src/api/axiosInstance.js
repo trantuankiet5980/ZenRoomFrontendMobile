@@ -14,13 +14,21 @@ export const axiosInstance = axios.create({
 
 let accessTokenCache = null;
 
+export const setAccessTokenCache = (token) => {
+  accessTokenCache = token || null;
+};
+
+export const clearAccessTokenCache = () => {
+  accessTokenCache = null;
+};
+
 const goAuthOnce = (() => {
   let done = false;
   return () => {
     if (done) return;
     done = true;
     showToast('info', 'top', 'Thông báo', 'Phiên đăng nhập đã hết.');
-    navigationRef.current?.reset({ index: 0, routes: [{ name: 'Auth' }] });
+    navigationRef.current?.resetRoot({ index: 0, routes: [{ name: 'Login' }] });
     setTimeout(() => (done = false), 1000);
   };
 })();
@@ -45,7 +53,7 @@ axiosInstance.interceptors.response.use(
     const status = error.response.status;
 
     if (status === 401 || status === 403) {
-      accessTokenCache = null;
+      clearAccessTokenCache();
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('userLogin'); // lưu role/userId
       goAuthOnce();
