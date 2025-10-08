@@ -1,37 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, FlatList, ScrollView, TouchableOpacity
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  FlatList,
+  TouchableOpacity
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
 import { searchProperties } from "../features/properties/propertiesThunks";
 import SortModal from "../components/modal/SortModal";
 import PriceRangeModal from "../components/modal/PriceRangeModal";
+import FilterModal from "../components/modal/FilterModal";
 import useHideTabBar from '../hooks/useHideTabBar';
 import { useNavigation, useRoute } from "@react-navigation/native";
-import FilterModal from "../components/modal/FilterModal";
 import S3Image from "../components/S3Image";
+import SelectCityModal from "../components/modal/SelectCityModal";
+import SelectDistrictModal from "../components/modal/SelectDistrictModal";
+import { fetchDistricts } from "../features/administrative/administrativeThunks";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
 
 export default function SearchPostScreen() {
+  useHideTabBar();
+  const dispatch = useDispatch();
+  const navigation = useNavigation();
+  const route = useRoute();
+
+  const { provinceCode: routeProvinceCode, districtCode: routeDistrictCode } = route.params || {};
+
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [priceRange, setPriceRange] = useState([0, 15000000]);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
-  useHideTabBar();
-  const navigation = useNavigation();
-  const dispatch = useDispatch();
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [districtModalVisible, setDistrictModalVisible] = useState(false);
+  const [selectedCity, setSelectedCity] = useState(routeProvinceCode || null);
+  const [selectedDistrict, setSelectedDistrict] = useState(routeDistrictCode || null);
 
-  const { searchResults, loading } = useSelector((state) => state.properties);
-  const route = useRoute();
-  const { provinceCode, districtCode, provinceName, districtName } = route.params || {};
+  const provinces = useSelector((s) => s.administrative.provinces);
+  const districts = useSelector((s) => s.administrative.districts);
+  const { searchResults, loading } = useSelector((s) => s.properties);
 
-
+  const selectedCityName = provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
+  const selectedDistrictName = districts.find(d => d.code === selectedDistrict)?.name_with_type;
 
   const formatPrice = (p) => {
     const n = Number(p);
@@ -50,14 +67,13 @@ export default function SearchPostScreen() {
       postStatus: "APPROVED",
       page: 0,
       size: 20,
-      provinceCode,
-      districtCode,
+      provinceCode: selectedCity,
+      districtCode: selectedDistrict,
     }));
-  }, [dispatch, searchKeyword, priceRange, provinceCode, districtCode]);
+  }, [dispatch, searchKeyword, priceRange, selectedCity, selectedDistrict]);
 
   const renderItem = ({ item }) => {
     const priceUnit = "ngày";
-
     return (
       <TouchableOpacity
         onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.propertyId })}
@@ -101,13 +117,27 @@ export default function SearchPostScreen() {
       keyword: searchKeyword || undefined,
       priceMin: priceRange[0],
       priceMax: priceRange[1],
-      propertyType: "BUILDING", // 🔥 cố định căn hộ
+      propertyType: "BUILDING",
       postStatus: "APPROVED",
       page: 0,
       size: 20,
+      provinceCode: selectedCity,
+      districtCode: selectedDistrict,
       ...filters,
     }));
     setFilterModalVisible(false);
+  };
+
+  const handleSelectCity = (provinceCode) => {
+    setSelectedCity(provinceCode);
+    setSelectedDistrict(null); // reset district khi đổi tỉnh
+    dispatch(fetchDistricts(provinceCode));
+    setCityModalVisible(false);
+  };
+
+  const handleSelectDistrict = (districtCode) => {
+    setSelectedDistrict(districtCode);
+    setDistrictModalVisible(false);
   };
 
   return (
@@ -133,69 +163,68 @@ export default function SearchPostScreen() {
       </View>
 
       {/* Filter row */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, alignItems: 'center', height: 35 }}
-      >
+      <View style={{ flexDirection: 'row', paddingHorizontal: 12, alignItems: 'center', height: 35 }}>
         <Pressable
           onPress={() => setSortModalVisible(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: GRAY, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}
         >
           <Text style={{ fontWeight: '600' }}>Sắp xếp theo</Text>
           <Ionicons name="chevron-down" size={16} />
         </Pressable>
+
         <Pressable
           onPress={() => setPriceModalVisible(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
+          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: GRAY, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}
         >
           <Text style={{ fontWeight: '600' }}>Khoảng giá</Text>
           <Ionicons name="chevron-down" size={16} />
         </Pressable>
+
         <Pressable
-          style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}
           onPress={() => setFilterModalVisible(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: GRAY, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}
         >
           <Ionicons name="filter" size={16} />
           <Text style={{ fontWeight: '600', marginLeft: 4 }}>Lọc</Text>
         </Pressable>
+      </View>
 
-
-
-      </ScrollView>
-      {/* Location info */}
-
-      <View style={{ paddingHorizontal: 12, marginBottom: 6 }}>
-        {provinceName && (
-          <Text style={{ fontSize: 14, fontWeight: "600" }}>
-            Kết quả tại: {districtName ? `${districtName}, ` : ""}{provinceName}
+      {/* Location button dưới hàng filter */}
+      <View style={{ flexDirection: 'row', paddingHorizontal: 12, alignItems: 'center', marginTop: 6, height: 35 }}>
+        <Pressable
+          onPress={() => setCityModalVisible(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: GRAY, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}
+        >
+          <Text style={{ fontWeight: '600' }}>
+            {selectedDistrictName
+              ? `${selectedDistrictName}, ${selectedCityName}`
+              : `Khu vực: ${selectedCityName || "Chọn tỉnh"}`}
           </Text>
-        )}
+          <Ionicons name="chevron-down" size={16} color="#000" style={{ marginLeft: 4 }} />
+        </Pressable>
       </View>
 
       {/* List */}
-      {
-        loading ? (
-          <Text style={{ textAlign: "center", marginTop: 20 }}>Đang tải...</Text>
-        ) : (
-          <FlatList
-            data={searchResults?.content || []}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.propertyId}
-            numColumns={2}
-            contentContainerStyle={{
-              paddingHorizontal: 6,
-              paddingBottom: 80,
-              flexGrow: 1,
-            }}
-            ListEmptyComponent={
-              <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
-                Không tìm thấy kết quả phù hợp
-              </Text>
-            }
-          />
-        )
-      }
+      {loading ? (
+        <Text style={{ textAlign: "center", marginTop: 20 }}>Đang tải...</Text>
+      ) : (
+        <FlatList
+          data={searchResults?.content || []}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.propertyId}
+          numColumns={2}
+          contentContainerStyle={{
+            paddingHorizontal: 6,
+            paddingBottom: 80,
+            flexGrow: 1,
+          }}
+          ListEmptyComponent={
+            <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
+              Không tìm thấy kết quả phù hợp
+            </Text>
+          }
+        />
+      )}
 
       {/* Map button */}
       <TouchableOpacity
@@ -231,18 +260,28 @@ export default function SearchPostScreen() {
           setSortModalVisible(false);
         }}
       />
-
       <PriceRangeModal
         visible={priceModalVisible}
         onClose={() => setPriceModalVisible(false)}
         priceRange={priceRange}
         setPriceRange={setPriceRange}
       />
-
       <FilterModal
         visible={filterModalVisible}
         onClose={() => setFilterModalVisible(false)}
         onApply={handleApplyFilters}
+      />
+      <SelectCityModal
+        visible={cityModalVisible}
+        onClose={() => setCityModalVisible(false)}
+        provinces={provinces}
+        onSelectCity={handleSelectCity}
+      />
+      <SelectDistrictModal
+        visible={districtModalVisible}
+        onClose={() => setDistrictModalVisible(false)}
+        districts={districts}
+        onSelectDistrict={handleSelectDistrict}
       />
     </View>
   );
