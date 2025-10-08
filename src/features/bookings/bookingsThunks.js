@@ -167,24 +167,28 @@ export const cancelBooking = createAsyncThunk(
 
 export const checkInBooking = createAsyncThunk(
   "bookings/checkIn",
-  async (bookingId, thunkAPI) => {
+  async (bookingId, { rejectWithValue, getState }) => {
     try {
-      const res = await axiosInstance.post(`/bookings/${bookingId}/check-in`);
-      return res.data;
-    } catch (err) {
-      return thunkAPI.rejectWithValue(err.response?.data || err.message);
+      const state = getState();
+      const userId = state.auth.userId; // Lấy userId từ state
+      const response = await axiosInstance.post(`/bookings/${bookingId}/check-in`, { userId });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { message: "Check-in failed" });
     }
   }
 );
 
 export const checkOutBooking = createAsyncThunk(
   "bookings/checkOut",
-  async (bookingId, thunkAPI) => {
+  async (bookingId, { rejectWithValue, getState }) => {
     try {
-      const res = await axiosInstance.post(`/bookings/${bookingId}/check-out`);
-      return res.data;
-    } catch (err) {
-      return thunkAPI.rejectWithValue(err.response?.data || err.message);
+      const state = getState();
+      const userId = state.auth.userId; // Lấy userId từ state
+      const response = await axiosInstance.post(`/bookings/${bookingId}/check-out`, { userId });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { message: "Check-out failed" });
     }
   }
 );

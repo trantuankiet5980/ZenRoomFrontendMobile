@@ -51,7 +51,7 @@ export default function HomeStack() {
       <Stack.Screen name="ChatDetail" component={ChatDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ChatList" component={ChatListScreen} />
       <Stack.Screen name="BookingForm" component={BookingForm} options={{ title: 'Đặt phòng' }} />
-      <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Chi tiết booking' }} />
+      <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Chi tiết booking',headerShown: false  }} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
 
       {/* Create Post */}
