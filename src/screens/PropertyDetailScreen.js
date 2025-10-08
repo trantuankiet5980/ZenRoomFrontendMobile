@@ -29,12 +29,12 @@ import { resolveAssetUrl } from "../utils/cdn";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
-import { 
+import {
     fetchPropertyReviewsSummary,
     updateReviewThunk,
     deleteReviewThunk,
     submitReviewReplyThunk,
- } from "../features/reviews/reviewsThunks";
+} from "../features/reviews/reviewsThunks";
 import { resetReviewsSummary } from "../features/reviews/reviewsSlice";
 import ReviewModal from "../components/reviews/ReviewModal";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
@@ -80,6 +80,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const [activeReplyReviewId, setActiveReplyReviewId] = useState(null);
     const [replyInputValue, setReplyInputValue] = useState("");
     const [replyInputError, setReplyInputError] = useState("");
+    const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
     const dispatch = useDispatch();
     const { current: property, loading, error } = useSelector(
         (state) => state.properties
@@ -321,10 +322,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             const existingReply = extractReviewReply(review);
             const initialValue = existingReply
                 ? existingReply.replyText ??
-                  existingReply.text ??
-                  existingReply.content ??
-                  existingReply.message ??
-                  ""
+                existingReply.text ??
+                existingReply.content ??
+                existingReply.message ??
+                ""
                 : review?.replyText ?? "";
 
             setActiveReplyReviewId(String(identifier));
@@ -933,6 +934,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         bookingSelection.startDate
     );
 
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
             {/* HEADER */}
@@ -1015,40 +1017,82 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 onScrollBeginDrag={() => setReviewMenuVisibleId(null)}
             >
                 {/* Media gallery */}
-                <FlatList
-                    horizontal
-                    data={mediaList}
-                    keyExtractor={(item, index) =>
-                        item.mediaId || index.toString()
-                    }
-                    renderItem={({ item }) =>
-                        item.mediaType === "VIDEO" ? (
+                <View style={styles.mediaContainer}>
+                    {/* Main Media Viewer */}
+                    {mediaList.length > 0 ? (
+                        mediaList[selectedMediaIndex].mediaType === "VIDEO" ? (
                             <Video
-                                source={{ uri: item.fullUrl }}
+                                source={{ uri: mediaList[selectedMediaIndex].fullUrl }}
                                 style={styles.mainImage}
                                 useNativeControls
                                 resizeMode="cover"
                                 posterSource={
-                                    item.poster ? { uri: item.poster } : null
+                                    mediaList[selectedMediaIndex].poster
+                                        ? { uri: mediaList[selectedMediaIndex].poster }
+                                        : null
                                 }
                                 posterStyle={styles.mainImage}
-                                onError={(e) =>
-                                    console.warn("VIDEO ERROR:", e)
-                                }
+                                onError={(e) => console.warn("VIDEO ERROR:", e)}
                             />
                         ) : (
                             <S3Image
-                                src={item.fullUrl}
+                                src={mediaList[selectedMediaIndex].fullUrl}
                                 style={styles.mainImage}
-                                alt={item.mediaId}
+                                alt={mediaList[selectedMediaIndex].mediaId || `media-${selectedMediaIndex}`}
                             />
                         )
-                    }
-                    showsHorizontalScrollIndicator={false}
-                    pagingEnabled
-                    snapToInterval={width}
-                    decelerationRate="fast"
-                />
+                    ) : (
+                        <S3Image
+                            src="https://picsum.photos/600/400"
+                            style={styles.mainImage}
+                            alt="placeholder"
+                        />
+                    )}
+
+                    {/* Thumbnail Selector */}
+                    {mediaList.length > 1 && (
+                        <FlatList
+                            horizontal
+                            data={mediaList}
+                            keyExtractor={(item, index) =>
+                                item.mediaId || index.toString()
+                            }
+                            renderItem={({ item, index }) => (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.thumbnailWrapper,
+                                        selectedMediaIndex === index && styles.thumbnailSelected,
+                                    ]}
+                                    onPress={() => setSelectedMediaIndex(index)}
+                                >
+                                    {item.mediaType === "VIDEO" ? (
+                                        <Video
+                                            source={{ uri: item.fullUrl }}
+                                            style={styles.thumbnail}
+                                            usePoster
+                                            posterSource={
+                                                item.poster ? { uri: item.poster } : null
+                                            }
+                                            posterStyle={styles.thumbnail}
+                                            isMuted
+                                            shouldPlay={false}
+                                            onError={(e) => console.warn("THUMBNAIL VIDEO ERROR:", e)}
+                                        />
+                                    ) : (
+                                        <S3Image
+                                            src={item.fullUrl}
+                                            style={styles.thumbnail}
+                                            alt={item.mediaId || `thumbnail-${index}`}
+                                        />
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.thumbnailList}
+                            contentContainerStyle={styles.thumbnailListContent}
+                        />
+                    )}
+                </View>
 
                 {/* Tiêu đề + Giá */}
                 <View style={styles.summaryCard}>
@@ -1257,7 +1301,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             style={styles.map}
                             provider={Platform.OS === "android" ? "google" : undefined}
                             initialRegion={mapRegion}
-                            onMapReady={() => console.log("Map is ready")} 
+                            onMapReady={() => console.log("Map is ready")}
                         >
                             {hasValidCoordinate && (
                                 <Marker
@@ -1323,12 +1367,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                         review?.reviewId !== undefined && review?.reviewId !== null
                                             ? String(review.reviewId)
                                             : review?.id !== undefined && review?.id !== null
-                                            ? String(review.id)
-                                            : review?.reviewID !== undefined && review?.reviewID !== null
-                                            ? String(review.reviewID)
-                                            : review?.idReview !== undefined && review?.idReview !== null
-                                            ? String(review.idReview)
-                                            : null;
+                                                ? String(review.id)
+                                                : review?.reviewID !== undefined && review?.reviewID !== null
+                                                    ? String(review.reviewID)
+                                                    : review?.idReview !== undefined && review?.idReview !== null
+                                                        ? String(review.idReview)
+                                                        : null;
                                     const reviewReplyText = getReviewReplyText(review);
                                     const trimmedReplyText =
                                         typeof reviewReplyText === "string"
@@ -1461,7 +1505,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                                                             style={[
                                                                                 styles.reviewReplySubmitButton,
                                                                                 isReplySubmitting &&
-                                                                                    styles.reviewReplySubmitButtonDisabled,
+                                                                                styles.reviewReplySubmitButtonDisabled,
                                                                             ]}
                                                                             onPress={() => handleSubmitReply(review)}
                                                                             disabled={isReplySubmitting}
@@ -1470,8 +1514,8 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                                                                 {isReplySubmitting
                                                                                     ? "Đang gửi..."
                                                                                     : trimmedReplyText
-                                                                                    ? "Cập nhật phản hồi"
-                                                                                    : "Gửi phản hồi"}
+                                                                                        ? "Cập nhật phản hồi"
+                                                                                        : "Gửi phản hồi"}
                                                                             </Text>
                                                                         </TouchableOpacity>
                                                                         <TouchableOpacity
@@ -1780,7 +1824,33 @@ const styles = StyleSheet.create({
         height: 400,
         borderRadius: 0,
     },
-
+    mediaContainer: {
+        marginBottom: 12,
+    },
+    thumbnailList: {
+        marginTop: 8,
+        marginHorizontal: 12,
+    },
+    thumbnailListContent: {
+        paddingHorizontal: 4,
+    },
+    thumbnailWrapper: {
+        marginHorizontal: 4,
+        borderRadius: 8,
+        overflow: "hidden",
+        borderWidth: 2,
+        borderColor: "transparent",
+    },
+    thumbnailSelected: {
+        borderColor: "#f36031",
+        opacity: 1,
+    },
+    thumbnail: {
+        width: 80,
+        height: 80,
+        borderRadius: 6,
+        opacity: 0.7,
+    },
     summaryCard: {
         padding: 12,
         alignItems: "flex-start",
