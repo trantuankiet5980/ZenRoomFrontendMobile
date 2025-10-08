@@ -60,9 +60,15 @@ export const fetchPropertiesByLandlord = createAsyncThunk(
 
 export const updateProperty = createAsyncThunk(
   "properties/updateProperty",
-  async ({ id, data }) => {
-    const res = await axiosInstance.put(`/properties/${id}`, data);
-    return res.data;
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      console.log("Updating property with ID:", id, "Payload:", data);
+      const res = await axiosInstance.put(`/properties/${id}`, data);
+      return res.data;
+    } catch (err) {
+      console.error("Update property error:", err.response?.data || err.message);
+      return rejectWithValue(err.response?.data || err.message);
+    }
   }
 );
 
