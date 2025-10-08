@@ -403,15 +403,10 @@ export default function BookingDetailScreen() {
                     color="#111"
                     onPress={() => {
                         if (navigation?.canGoBack?.()) {
-                            const state = navigation.getState?.();
-                            const routes = state?.routes || [];
-                            const previousRoute = routes[routes.length - 2];
-                            if (previousRoute?.name === "MyBookingsScreen") {
-                                navigation.goBack();
-                                return;
-                            }
+                            navigation.goBack();
+                            return;
                         }
-                        navigation.navigate("MyBookingsScreen");
+                        navigation?.navigate?.("MyBookingsScreen");
                     }}
                 />
                 <Text style={{ fontSize: 18, fontWeight: "700", flex: 1, marginLeft: 8 }}>
