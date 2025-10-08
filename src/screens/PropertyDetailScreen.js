@@ -967,7 +967,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         return basisLabel ? `${formatted} · ${basisLabel}` : formatted;
     };
 
-    const getRatingStatus = (average) => {
+    function getRatingStatus(average) {
         if (typeof average !== "number" || Number.isNaN(average)) {
             return null;
         }
@@ -1024,7 +1024,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             iconColor: "#ef4444",
             borderColor: "#fecaca",
         };
-    };
+    }
 
     const renderFurnishingSubtitle = (furnishing) => {
         if (furnishing.quantity && furnishing.quantity >= 1) {
@@ -1182,67 +1182,60 @@ const PropertyDetailScreen = ({ route, navigation }) => {
 
                 {/* Tiêu đề + Giá */}
                 <View style={styles.summaryCard}>
-                    <View style={styles.summaryBlock}>
-                        <View style={styles.summaryLabelRow}>
-                            <Ionicons
-                                name="home-outline"
-                                size={20}
-                                color="#f36031"
-                                style={styles.summaryLabelIcon}
-                            />
-                            <Text style={styles.summaryLabel}>Tiêu đề</Text>
+                    <View style={styles.summaryInlineRow}>
+                        <View style={styles.summaryInlineItem}>
+                            <View style={styles.summaryInlineTextContainer}>
+                                <Text style={styles.summaryInlineLabel}>Tiêu đề:</Text>
+                                <Text style={styles.summaryInlineTitle}>
+                                    {property.title || "Phòng cho thuê"}
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={styles.title} numberOfLines={2}>
-                            {property.title || "Phòng cho thuê"}
-                        </Text>
-                    </View>
 
-                    {propertyDisplayName ? (
-                        <View style={styles.summaryBlock}>
-                            <View style={styles.summaryLabelRow}>
+                        {propertyDisplayName ? (
+                            <View style={styles.summaryInlineItem}>
                                 <Icon
                                     name="office-building-outline"
                                     size={20}
                                     color="#0ea5e9"
-                                    style={styles.summaryLabelIcon}
+                                    style={styles.summaryInlineIcon}
                                 />
-                                <Text style={styles.summaryLabel}>Tên chỗ ở</Text>
+                                <View style={styles.summaryInlineTextContainer}>
+                                    <Text style={styles.summaryInlineLabel}>Tên căn hộ:</Text>
+                                    <Text style={styles.summaryInlineText}>
+                                        {propertyDisplayName}
+                                    </Text>
+                                </View>
                             </View>
-                            <Text style={styles.propertyName} numberOfLines={2}>
-                                {propertyDisplayName}
-                            </Text>
-                        </View>
-                    ) : null}
+                            ) : null}
 
-                    <View style={styles.summaryBlock}>
-                        <View style={styles.summaryLabelRow}>
+                    <View style={styles.summaryInlineItem}>
                             <Ionicons
                                 name="pricetag-outline"
                                 size={18}
                                 color="#f97316"
-                                style={styles.summaryLabelIcon}
+                                style={styles.summaryInlineIcon}
                             />
-                            <Text style={styles.summaryLabel}>Giá</Text>
+                            <View style={styles.summaryInlineTextContainer}>
+                                <Text style={styles.summaryInlineLabel}>Giá:</Text>
+                                <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
+                            </View>
                         </View>
-                        <View style={[styles.priceRow, styles.priceRowHighlighted]}>
-                            <Icon name="cash" size={20} color="#f97316" />
-                            <Text style={styles.price}>{formatPriceWithUnit(property)}</Text>
-                        </View>
-                    </View>
 
-                    <View style={styles.summaryBlock}>
-                        <View style={styles.summaryLabelRow}>
+                        <View style={[styles.summaryInlineItem, styles.summaryInlineAddress]}>
                             <Ionicons
                                 name="location-outline"
                                 size={16}
                                 color="#2563eb"
-                                style={styles.summaryLabelIcon}
+                                style={styles.summaryInlineIcon}
                             />
-                            <Text style={styles.summaryLabel}>Địa chỉ</Text>
+                            <View style={styles.summaryInlineTextContainer}>
+                                <Text style={styles.summaryInlineLabel}>Địa chỉ:</Text>
+                                <Text style={styles.summaryInlineText}>
+                                    {addressFormatted}
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={[styles.subText, styles.summarySubText]} numberOfLines={2}>
-                            {addressFormatted}
-                        </Text>
                     </View>
 
                     <View style={styles.ratingBadgeRow}>
@@ -1977,41 +1970,59 @@ const styles = StyleSheet.create({
         alignItems: "flex-start",
     },
 
-    summaryBlock: {
+     summaryInlineRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
         width: "100%",
+    },
+
+    summaryInlineItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        maxWidth: "100%",
+        flexShrink: 1,
+        marginRight: 12,
         marginBottom: 12,
     },
 
-    summaryLabelRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 4,
-    },
-
-    summaryLabelIcon: {
+    summaryInlineIcon: {
         marginRight: 6,
     },
 
-    summaryLabel: {
-        fontSize: 12,
+    summaryInlineTextContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexShrink: 1,
+        flexWrap: "wrap",
+    },
+
+    summaryInlineLabel: {
+        fontSize: 16,
         fontWeight: "600",
-        color: "#6b7280",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
+        color: "#4b5563",
+        marginRight: 4,
     },
 
-    title: {
-        fontSize: 25,
+    summaryInlineTitle: {
+        fontSize: 22,
         fontWeight: "700",
-        textAlign: "left",
         color: "#111",
+        flexShrink: 1,
+        textAlign: "center",
     },
 
-    propertyName: {
+    summaryInlineText: {
         fontSize: 16,
         color: "#1f2937",
         fontWeight: "600",
-        lineHeight: 22,
+        lflexShrink: 1,
+    },
+
+    summaryInlineAddress: {
+        flexBasis: "100%",
+        alignItems: "flex-start",
+        marginRight: 0,
     },
 
     priceRow: {
@@ -2026,27 +2037,22 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: "#fed7aa",
+        marginLeft: 4,
     },
 
     price: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: "700",
         marginLeft: 8,
         color: "#f36031",
     },
 
-    summarySubText: {
-        flex: 1,
-        color: "#4b5563",
-        lineHeight: 20,
-    },
-
     ratingBadgeRow: {
         flexDirection: "row",
         flexWrap: "wrap",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         marginBottom: 12,
-        marginTop: 4,
+        marginTop: 16,
     },
 
     ratingBadge: {
@@ -2094,10 +2100,25 @@ const styles = StyleSheet.create({
 
     metaRow: {
         flexDirection: "row",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         flexWrap: "wrap",
         marginBottom: 6,
+        gap: 12,
     },
+        metaItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginHorizontal: 8,
+        marginVertical: 4,
+    },
+
+    metaText: {
+        marginLeft: 6,
+        color: "#374151",
+        fontSize: 14,
+        textAlign: "center"
+    },
+
     locationContainer: {
         paddingHorizontal: 5,
     },
@@ -2155,18 +2176,6 @@ const styles = StyleSheet.create({
         fontSize: 22,
         color: "#f36031",
         fontWeight: "700",
-    },
-    metaItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginRight: 12,
-        marginVertical: 4,
-    },
-
-    metaText: {
-        marginLeft: 6,
-        color: "#374151",
-        fontSize: 14,
     },
 
     subText: {
