@@ -1616,6 +1616,7 @@ const styles = StyleSheet.create({
     rulesList: {
         paddingHorizontal: 18,
         marginTop: 8,
+        marginBottom: 18,
     },
     ruleItem: {
         fontSize: 14,
@@ -1716,13 +1717,12 @@ const styles = StyleSheet.create({
     reviewsActionsRow: {
         flexDirection: "row",
         marginTop: 12,
+        justifyContent: "flex-start",
     },
     reviewsActionButton: {
-        paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,
-        backgroundColor: "#fff7ed",
-        borderWidth: 1,
+        backgroundColor: "transparent",
         borderColor: "#f97316",
         marginRight: 12,
     },
@@ -1734,6 +1734,7 @@ const styles = StyleSheet.create({
         color: "#f97316",
         fontWeight: "600",
         fontSize: 13,
+        textDecorationLine: "underline",
     },
     infoList: {
         paddingHorizontal: 12,
