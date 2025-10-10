@@ -12,15 +12,22 @@ import LandlordPanel from "../components/LandlordPanel";
 import TenantPanel from "../components/TenantPanel";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { districtImages } from "../data/districtImages";
 import { fetchProperties } from "../features/properties/propertiesThunks";
 import {
   fetchProvinces,
   fetchDistricts,
 } from "../features/administrative/administrativeThunks";
 import S3Image from "../components/S3Image";
+import {
+  ADMIN_ALL_LABEL,
+  ADMIN_ALL_VALUE,
+  isAllAdministrativeValue,
+} from "../constants/administrative";
+import { clearDistricts } from "../features/administrative/administrativeSlice";
+import * as Location from "expo-location";
+import { showToast } from "../utils/AppUtils";
 
 export default function HomeScreen() {
   const screenWidth = Dimensions.get("window").width;
@@ -37,59 +44,193 @@ export default function HomeScreen() {
   const provinces = useSelector((s) => s.administrative.provinces || []);
   const districts = useSelector((s) => s.administrative.districts || []);
 
-  const [selectedCity, setSelectedCity] = useState("");
-  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [selectedCity, setSelectedCity] = useState(ADMIN_ALL_VALUE);
+  const [selectedDistrict, setSelectedDistrict] = useState(ADMIN_ALL_VALUE);
+  const [locating, setLocating] = useState(false);
 
-  const selectedCityName =
-    provinces.find((p) => p.code === selectedCity)?.name_with_type ||
-    selectedCity;
+  const selectedCityName = useMemo(() => {
+    if (isAllAdministrativeValue(selectedCity)) {
+      return ADMIN_ALL_LABEL;
+    }
+    return (
+      provinces.find((p) => p.code === selectedCity)?.name_with_type ||
+      selectedCity
+    );
+  }, [provinces, selectedCity]);
 
   // Load danh sách tỉnh khi mount
   useEffect(() => {
     dispatch(fetchProvinces());
   }, [dispatch]);
 
-  // Nếu có danh sách tỉnh thì chọn mặc định tỉnh đầu tiên
-  useEffect(() => {
-    if (provinces.length > 0 && !selectedCity) {
-      const firstCity = provinces[0].code;
-      setSelectedCity(firstCity);
-      dispatch(fetchDistricts(firstCity));
-    }
-  }, [provinces, selectedCity, dispatch]);
-
   // Khi chọn tỉnh -> load huyện
-  const handleSelectCity = (cityCode) => {
-    setSelectedCity(cityCode);
-    setSelectedDistrict(""); // reset huyện khi đổi tỉnh
-    dispatch(fetchDistricts(cityCode));
-  };
+  const handleSelectCity = useCallback(
+    (cityCode) => {
+      const nextCity = cityCode || ADMIN_ALL_VALUE;
+      if (isAllAdministrativeValue(nextCity) || nextCity === ADMIN_ALL_VALUE) {
+        setSelectedCity(ADMIN_ALL_VALUE);
+        setSelectedDistrict(ADMIN_ALL_VALUE);
+        dispatch(clearDistricts());
+        return;
+      }
+      setSelectedCity(nextCity);
+      setSelectedDistrict(ADMIN_ALL_VALUE);
+      dispatch(fetchDistricts(nextCity));
+    },
+    [dispatch]
+  );
 
   // Khi chọn huyện
-  const handleSelectDistrict = (districtCode) => {
+  const handleSelectDistrict = useCallback((districtCode) => {
+    if (isAllAdministrativeValue(districtCode)) {
+      setSelectedDistrict(ADMIN_ALL_VALUE);
+      return;
+    }
     setSelectedDistrict(districtCode);
-  };
+  }, []);
+
+  const normalizeText = useCallback((text) => {
+    if (!text) return "";
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/đ/g, "d")
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+  }, []);
+
+  const handleUseLocation = useCallback(async () => {
+    try {
+      setLocating(true);
+      if (!provinces || provinces.length === 0) {
+        showToast(
+          "error",
+          "top",
+          "Thông báo",
+          "Danh sách tỉnh/thành phố đang được tải. Vui lòng thử lại sau."
+        );
+        return;
+      }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showToast(
+          "error",
+          "top",
+          "Thông báo",
+          "Vui lòng cấp quyền truy cập vị trí để sử dụng chức năng này."
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({});
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+
+      if (!place) {
+        showToast("error", "top", "Thông báo", "Không xác định được vị trí hiện tại.");
+        return;
+      }
+
+      const locationTokens = [
+        place.city,
+        place.region,
+        place.subregion,
+        place.district,
+        place.province,
+      ]
+        .filter(Boolean)
+        .map(normalizeText)
+        .filter(Boolean);
+
+      const matchedProvince = provinces.find((province) => {
+        const provinceTokens = [
+          normalizeText(province.name_with_type),
+          normalizeText(province.name),
+        ].filter(Boolean);
+        return provinceTokens.some((provinceToken) =>
+          locationTokens.some(
+            (token) =>
+              provinceToken.includes(token) || token.includes(provinceToken)
+          )
+        );
+      });
+
+      if (!matchedProvince) {
+        showToast(
+          "error",
+          "top",
+          "Thông báo",
+          "Không tìm thấy tỉnh/thành phố phù hợp với vị trí hiện tại."
+        );
+        return;
+      }
+
+      setSelectedCity(matchedProvince.code);
+      setSelectedDistrict(ADMIN_ALL_VALUE);
+      const districtsData = await dispatch(
+        fetchDistricts(matchedProvince.code)
+      ).unwrap();
+
+      const districtTokens = [
+        place.subregion,
+        place.district,
+        place.city,
+      ]
+        .filter(Boolean)
+        .map(normalizeText)
+        .filter(Boolean);
+
+      const matchedDistrict = districtsData?.find((district) => {
+        const districtToken = normalizeText(district.name_with_type);
+        return districtTokens.some(
+          (token) =>
+            districtToken.includes(token) || token.includes(districtToken)
+        );
+      });
+
+      if (matchedDistrict) {
+        setSelectedDistrict(matchedDistrict.code);
+      }
+    } catch (error) {
+      showToast(
+        "error",
+        "top",
+        "Thông báo",
+        "Không thể lấy vị trí hiện tại. Vui lòng thử lại sau."
+      );
+    } finally {
+      setLocating(false);
+    }
+  }, [dispatch, normalizeText, provinces]);
 
   // Fetch properties khi thay đổi tỉnh/huyện
   useEffect(() => {
-    if (selectedCity) {
-      const commonFilter = {
-        page: 0,
-        size: 20,
-        postStatus: "APPROVED",
-        provinceCode: selectedCity,
-        districtCode: selectedDistrict || undefined,
-      };
-      dispatch(fetchProperties({ ...commonFilter, type: "BUILDING" }));
-      dispatch(fetchProperties({ ...commonFilter, type: "ROOM" }));
-    }
-  }, [selectedCity, selectedDistrict, dispatch]);
+    const provinceFilter = isAllAdministrativeValue(selectedCity)
+      ? undefined
+      : selectedCity;
+    const districtFilter = isAllAdministrativeValue(selectedDistrict)
+      ? undefined
+      : selectedDistrict;
 
-  const districtItems = districts.map((district) => ({
-    key: district.code,
-    label: district.name_with_type,
-    imageUri: districtImages[district.name_with_type],
-  }));
+    const commonFilter = {
+      page: 0,
+      size: 20,
+      postStatus: "APPROVED",
+    };
+
+    if (provinceFilter) {
+      commonFilter.provinceCode = provinceFilter;
+    }
+    if (districtFilter) {
+      commonFilter.districtCode = districtFilter;
+    }
+
+    dispatch(fetchProperties({ ...commonFilter, type: "BUILDING" }));
+    dispatch(fetchProperties({ ...commonFilter, type: "ROOM" }));
+  }, [selectedCity, selectedDistrict, dispatch]);
 
   const formatPrice = (p) => {
     const n = Number(p);
@@ -152,11 +293,21 @@ export default function HomeScreen() {
       <View style={{ marginTop: -40 }}>
         <LandlordPanel
           selectedCity={selectedCity}
-          setSelectedCity={handleSelectCity}
+          onSelectCity={handleSelectCity}
+          selectedDistrict={selectedDistrict}
+          onSelectDistrict={handleSelectDistrict}
+          onUseLocation={handleUseLocation}
+          locating={locating}
+          disableDistrictSelect={isAllAdministrativeValue(selectedCity)}
         />
         <TenantPanel
           selectedCity={selectedCity}
-          setSelectedCity={handleSelectCity}
+          onSelectCity={handleSelectCity}
+          selectedDistrict={selectedDistrict}
+          onSelectDistrict={handleSelectDistrict}
+          onUseLocation={handleUseLocation}
+          locating={locating}
+          disableDistrictSelect={isAllAdministrativeValue(selectedCity)}
         />
       </View>
 
