@@ -20,6 +20,7 @@ import SelectCityModal from "../components/modal/SelectCityModal";
 import SelectDistrictModal from "../components/modal/SelectDistrictModal";
 import { fetchDistricts } from "../features/administrative/administrativeThunks";
 import {
+  addSearchHistory as addSearchHistoryThunk,
   clearSearchHistory as clearSearchHistoryThunk,
   deleteSearchHistory as deleteSearchHistoryThunk,
   fetchSearchHistory,
@@ -92,6 +93,7 @@ export default function SearchPostScreen() {
   }, [dispatch, historySize]);
 
   useEffect(() => {
+    let isActive = true;
     const filters = buildFiltersPayload();
     const params = {
       keyword: lastSearchKeyword || undefined,
@@ -102,18 +104,36 @@ export default function SearchPostScreen() {
       ...filters,
     };
 
-    let isActive = true;
-
-    dispatch(searchProperties(params))
-      .unwrap()
-      .catch(() => {})
-      .finally(() => {
+    const runSearch = async () => {
+      try {
+        await dispatch(searchProperties(params)).unwrap();
         if (!isActive) return;
-        if (shouldRefreshHistoryRef.current) {
+
+        if (shouldRefreshHistoryRef.current && lastSearchKeyword) {
+          try {
+            await dispatch(
+              addSearchHistoryThunk({
+                keyword: lastSearchKeyword,
+                filters,
+              })
+            ).unwrap();
+          } catch (error) {
+            // ignore add history errors
+          }
+
+          if (!isActive) return;
           dispatch(fetchSearchHistory({ page: 0, size: 3 }));
+        }
+      } catch (error) {
+        // ignore search errors
+      } finally {
+        if (isActive) {
           shouldRefreshHistoryRef.current = false;
         }
-      });
+      }
+    };
+
+    runSearch();
 
     return () => {
       isActive = false;
