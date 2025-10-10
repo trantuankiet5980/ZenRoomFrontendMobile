@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,11 @@ import S3Image from "../components/S3Image";
 import SelectCityModal from "../components/modal/SelectCityModal";
 import SelectDistrictModal from "../components/modal/SelectDistrictModal";
 import { fetchDistricts } from "../features/administrative/administrativeThunks";
+import {
+  clearSearchHistory as clearSearchHistoryThunk,
+  deleteSearchHistory as deleteSearchHistoryThunk,
+  fetchSearchHistory,
+} from "../features/searchHistory/searchHistoryThunks";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
@@ -36,16 +41,23 @@ export default function SearchPostScreen() {
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [priceRange, setPriceRange] = useState([0, 15000000]);
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [lastSearchKeyword, setLastSearchKeyword] = useState("");
+  const [searchTrigger, setSearchTrigger] = useState(0);
+  const shouldRefreshHistoryRef = useRef(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   const [cityModalVisible, setCityModalVisible] = useState(false);
   const [districtModalVisible, setDistrictModalVisible] = useState(false);
   const [selectedCity, setSelectedCity] = useState(routeProvinceCode || null);
   const [selectedDistrict, setSelectedDistrict] = useState(routeDistrictCode || null);
+  const [appliedFilters, setAppliedFilters] = useState({});
+  const [historySize, setHistorySize] = useState(3);
 
   const provinces = useSelector((s) => s.administrative.provinces);
   const districts = useSelector((s) => s.administrative.districts);
   const { searchResults, loading } = useSelector((s) => s.properties);
+  const searchHistoryState = useSelector((s) => s.searchHistory);
+  const historyItems = searchHistoryState.items || [];
 
   const selectedCityName = provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
   const selectedDistrictName = districts.find(d => d.code === selectedDistrict)?.name_with_type;
@@ -57,20 +69,107 @@ export default function SearchPostScreen() {
 
   const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
 
-  // gọi API mỗi khi keyword / priceRange thay đổi
-  useEffect(() => {
-    dispatch(searchProperties({
-      keyword: searchKeyword || undefined,
+  const buildFiltersPayload = useCallback(() => {
+    const raw = {
       priceMin: priceRange[0],
       priceMax: priceRange[1],
+      provinceCode: selectedCity,
+      districtCode: selectedDistrict,
+      ...appliedFilters,
+    };
+
+    const cleaned = {};
+    Object.entries(raw).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        cleaned[key] = value;
+      }
+    });
+    return cleaned;
+  }, [priceRange, selectedCity, selectedDistrict, appliedFilters]);
+
+  useEffect(() => {
+    dispatch(fetchSearchHistory({ page: 0, size: historySize }));
+  }, [dispatch, historySize]);
+
+  useEffect(() => {
+    const filters = buildFiltersPayload();
+    const params = {
+      keyword: lastSearchKeyword || undefined,
       propertyType: "BUILDING",
       postStatus: "APPROVED",
       page: 0,
       size: 20,
-      provinceCode: selectedCity,
-      districtCode: selectedDistrict,
-    }));
-  }, [dispatch, searchKeyword, priceRange, selectedCity, selectedDistrict]);
+      ...filters,
+    };
+
+    let isActive = true;
+
+    dispatch(searchProperties(params))
+      .unwrap()
+      .catch(() => {})
+      .finally(() => {
+        if (!isActive) return;
+        if (shouldRefreshHistoryRef.current) {
+          dispatch(fetchSearchHistory({ page: 0, size: 3 }));
+          shouldRefreshHistoryRef.current = false;
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [dispatch, buildFiltersPayload, lastSearchKeyword, searchTrigger]);
+
+  const handleSearchSubmit = useCallback(() => {
+    const trimmed = searchKeyword.trim();
+    setSearchKeyword(trimmed);
+    setLastSearchKeyword(trimmed);
+    setSearchTrigger((prev) => prev + 1);
+    if (historySize !== 3) {
+      setHistorySize(3);
+    }
+    shouldRefreshHistoryRef.current = Boolean(trimmed);
+  }, [historySize, searchKeyword]);
+
+  const handleSelectHistoryKeyword = useCallback((keyword) => {
+    setSearchKeyword(keyword);
+    setLastSearchKeyword(keyword);
+    setSearchTrigger((prev) => prev + 1);
+    if (historySize !== 3) {
+      setHistorySize(3);
+    }
+    shouldRefreshHistoryRef.current = Boolean(keyword);
+  }, [historySize]);
+
+  const handleDeleteHistory = useCallback((searchId) => {
+    dispatch(deleteSearchHistoryThunk(searchId))
+      .unwrap()
+      .finally(() => {
+        dispatch(fetchSearchHistory({ page: 0, size: historySize }));
+      });
+  }, [dispatch, historySize]);
+
+  const handleClearHistory = useCallback(() => {
+    dispatch(clearSearchHistoryThunk())
+      .unwrap()
+      .finally(() => {
+        setHistorySize(3);
+        dispatch(fetchSearchHistory({ page: 0, size: 3 }));
+      });
+  }, [dispatch]);
+
+  const handleLoadMoreHistory = useCallback(() => {
+    setHistorySize((prev) => prev + 10);
+  }, []);
+
+  const displayedHistory = useMemo(() => {
+    return historyItems.slice(0, historySize);
+  }, [historyItems, historySize]);
+
+  const canLoadMoreHistory = useMemo(() => {
+    const total = searchHistoryState.total || 0;
+    return total > historySize;
+  }, [searchHistoryState.total, historySize]);
 
   const renderItem = ({ item }) => {
     const priceUnit = "ngày";
@@ -113,18 +212,7 @@ export default function SearchPostScreen() {
 
   // handler áp dụng filter nâng cao
   const handleApplyFilters = (filters) => {
-    dispatch(searchProperties({
-      keyword: searchKeyword || undefined,
-      priceMin: priceRange[0],
-      priceMax: priceRange[1],
-      propertyType: "BUILDING",
-      postStatus: "APPROVED",
-      page: 0,
-      size: 20,
-      provinceCode: selectedCity,
-      districtCode: selectedDistrict,
-      ...filters,
-    }));
+    setAppliedFilters(filters || {});
     setFilterModalVisible(false);
   };
 
@@ -144,22 +232,86 @@ export default function SearchPostScreen() {
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Search box */}
       <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
         margin: 12,
         paddingHorizontal: 12,
         borderRadius: 12,
         backgroundColor: '#f5f5f5',
-        height: 40,
+        height: 44,
+        flexDirection: 'row',
+        alignItems: 'center',
       }}>
-        <Ionicons name="search" size={20} color={TEXT_MUTED} />
         <TextInput
           placeholder="Nhập tiêu đề tin đăng"
           placeholderTextColor={TEXT_MUTED}
-          style={{ flex: 1, marginLeft: 8 }}
+          style={{ flex: 1, marginRight: 12 }}
           value={searchKeyword}
           onChangeText={setSearchKeyword}
+          returnKeyType="search"
+          onSubmitEditing={handleSearchSubmit}
         />
+        <Pressable
+          onPress={handleSearchSubmit}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: ORANGE,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="search" size={18} color="#fff" />
+        </Pressable>
+      </View>
+
+      {/* Search history */}
+      <View style={{ paddingHorizontal: 12, marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontWeight: '700', fontSize: 16 }}>Lịch sử tìm kiếm</Text>
+          {historyItems.length > 0 && (
+            <TouchableOpacity onPress={handleClearHistory}>
+              <Text style={{ color: ORANGE, fontWeight: '600' }}>Xóa lịch sử tìm kiếm</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {searchHistoryState.loading && historyItems.length === 0 ? (
+          <Text style={{ marginTop: 12, color: TEXT_MUTED }}>Đang tải lịch sử...</Text>
+        ) : displayedHistory.length === 0 ? (
+          <Text style={{ marginTop: 12, color: TEXT_MUTED }}>Chưa có lịch sử tìm kiếm</Text>
+        ) : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
+            {displayedHistory.map((history) => (
+              <View
+                key={history.searchId}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#f0f0f0',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  marginRight: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <TouchableOpacity onPress={() => handleSelectHistoryKeyword(history.keyword)}>
+                  <Text style={{ fontWeight: '600', marginRight: 6 }}>{history.keyword}</Text>
+                </TouchableOpacity>
+                <Pressable onPress={() => handleDeleteHistory(history.searchId)}>
+                  <Ionicons name="close" size={16} color={TEXT_MUTED} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+        {canLoadMoreHistory && (
+          <TouchableOpacity
+            onPress={handleLoadMoreHistory}
+            style={{ marginTop: 4 }}
+          >
+            <Text style={{ color: ORANGE, fontWeight: '600' }}>Hiển thị thêm tìm kiếm</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Filter row */}

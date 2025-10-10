@@ -539,7 +539,7 @@ function TenantCard({ item, tab, dispatch, navigation, userId }) {
         Ngày đặt: {formatDateVN(item.when)}
       </Text>
       <View style={{ marginTop: 12 }}>
-        <InfoRow label="Phòng" value={item.room} bold />
+        <InfoRow label="Bài đăng" value={item.room} bold />
         <InfoRow label="SĐT" value={item.phone} />
         {item.note ? <InfoRow label="Ghi chú" value={item.note} /> : null}
       </View>

@@ -17,6 +17,7 @@ import bookingReducer from '../features/bookings/bookingSlice';
 import contractReducer from "../features/contracts/contractSlice";
 import reviewsReducer from '../features/reviews/reviewsSlice';
 import invoicesReducer from '../features/invoices/invoiceSlice';
+import searchHistoryReducer from "../features/searchHistory/searchHistorySlice";
 
 export const store = configureStore({
   reducer: {
@@ -38,6 +39,7 @@ export const store = configureStore({
     contracts: contractReducer,
     reviews: reviewsReducer,
     invoices: invoicesReducer,
+    searchHistory: searchHistoryReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
