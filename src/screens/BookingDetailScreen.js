@@ -201,7 +201,12 @@ export default function BookingDetailScreen() {
                             Alert.alert("Thành công", "Hủy booking thành công", [
                                 {
                                     text: "OK",
-                                    onPress: () => navigation.goBack(),
+                                    onPress: () =>
+                                        navigation.navigate({
+                                            name: "MyBookingsScreen",
+                                            params: { tab: "cancelled" },
+                                            merge: true,
+                                        }),
                                 },
                             ]);
                         } catch (err) {
@@ -230,7 +235,12 @@ export default function BookingDetailScreen() {
                             Alert.alert("Thành công", "Check-in thành công", [
                                 {
                                     text: "OK",
-                                    onPress: () => navigation.goBack(),
+                                    onPress: () =>
+                                        navigation.navigate({
+                                            name: "MyBookingsScreen",
+                                            params: { tab: "checkin" },
+                                            merge: true,
+                                        }),
                                 },
                             ]);
                         } catch (err) {
@@ -261,7 +271,16 @@ export default function BookingDetailScreen() {
                                 normalizedBooking?.booking?.bookingId ||
                                 id;
                             Alert.alert("Thành công", "Check-out thành công");
-                            navigation.goBack();
+                            navigation.navigate({
+                                name: "MyBookingsScreen",
+                                params: {
+                                    tab: "completed",
+                                    openReviewForId: resolvedBookingId,
+                                    reviewBookingSnapshot: normalizedBooking,
+                                    reviewTrigger: Date.now(),
+                                },
+                                merge: true,
+                            });
                         } catch (err) {
                             Alert.alert("Lỗi", err?.message || "Check-out thất bại");
                         }
