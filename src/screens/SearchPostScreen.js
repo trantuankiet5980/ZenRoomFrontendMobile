@@ -236,6 +236,25 @@ export default function SearchPostScreen() {
       .trim();
   }, []);
 
+  const buildTokenSet = useCallback(
+    (values = []) => {
+      const tokenSet = new Set();
+      values
+        .filter(Boolean)
+        .map(normalizeText)
+        .filter(Boolean)
+        .forEach((token) => {
+          tokenSet.add(token);
+          const compactToken = token.replace(/\s+/g, "");
+          if (compactToken) {
+            tokenSet.add(compactToken);
+          }
+        });
+      return Array.from(tokenSet);
+    },
+    [normalizeText]
+  );
+
   const handleUseLocation = useCallback(async () => {
     try {
       setIsLocating(true);
@@ -270,22 +289,19 @@ export default function SearchPostScreen() {
         return;
       }
 
-      const locationTokens = [
+      const locationTokens = buildTokenSet([
         place.city,
         place.region,
         place.subregion,
         place.district,
         place.province,
-      ]
-        .filter(Boolean)
-        .map(normalizeText)
-        .filter(Boolean);
+      ]);
 
       const matchedProvince = provinces.find((province) => {
-        const provinceTokens = [
-          normalizeText(province.name_with_type),
-          normalizeText(province.name),
-        ].filter(Boolean);
+        const provinceTokens = buildTokenSet([
+          province.name_with_type,
+          province.name,
+        ]);
         return provinceTokens.some((provinceToken) =>
           locationTokens.some(
             (token) =>
@@ -310,20 +326,22 @@ export default function SearchPostScreen() {
         fetchDistricts(matchedProvince.code)
       ).unwrap();
 
-      const districtTokens = [
+      const districtTokens = buildTokenSet([
         place.subregion,
         place.district,
         place.city,
-      ]
-        .filter(Boolean)
-        .map(normalizeText)
-        .filter(Boolean);
+      ]);
 
       const matchedDistrict = districtsData?.find((district) => {
-        const districtToken = normalizeText(district.name_with_type);
+        const districtTokensNormalized = buildTokenSet([
+          district.name_with_type,
+        ]);
         return districtTokens.some(
           (token) =>
-            districtToken.includes(token) || token.includes(districtToken)
+            districtTokensNormalized.some(
+              (districtToken) =>
+                districtToken.includes(token) || token.includes(districtToken)
+            )
         );
       });
 
@@ -340,7 +358,7 @@ export default function SearchPostScreen() {
     } finally {
       setIsLocating(false);
     }
-  }, [dispatch, normalizeText, provinces]);
+  }, [buildTokenSet, dispatch, provinces]);
 
   const renderItem = ({ item }) => {
     const priceUnit = "ngày";
