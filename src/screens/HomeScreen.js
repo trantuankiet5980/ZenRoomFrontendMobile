@@ -495,8 +495,6 @@ export default function HomeScreen() {
       </View>
 
       {/* Bản đồ hiển thị căn hộ */}
-      
-        {/* //neu tat ca thi khong hien thi */}
         <Text
           style={{
             fontSize: 20,
@@ -537,46 +535,17 @@ export default function HomeScreen() {
                 longitudeDelta: mapRegion.longitudeDelta,
               }}
             >
-              {propertiesWithCoordinates.map((property) => {
-                const priceLabel = property.price
-                  ? `đ${formatPrice(property.price)}`
-                  : "Liên hệ";
-                return (
-                  <Marker
-                    key={property.propertyId}
-                    coordinate={{
-                      latitude: property.latitude,
-                      longitude: property.longitude,
-                    }}
-                    onPress={() => setSelectedProperty(property)}
-                  >
-                    <View
-                      style={{
-                        backgroundColor: "#fff",
-                        borderRadius: 18,
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderWidth: 1,
-                        borderColor: "#f36031",
-                        shadowColor: "#000",
-                        shadowOpacity: 0.15,
-                        shadowRadius: 4,
-                        elevation: 3,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: "#f36031",
-                          fontWeight: "700",
-                          fontSize: 13,
-                        }}
-                      >
-                        {priceLabel}
-                      </Text>
-                    </View>
-                  </Marker>
-                );
-              })}
+              {propertiesWithCoordinates.map((property) => (
+                <Marker
+                  key={property.propertyId}
+                  coordinate={{
+                    latitude: property.latitude,
+                    longitude: property.longitude,
+                  }}
+                  pinColor="#f36031"
+                  onPress={() => setSelectedProperty(property)}
+                />
+              ))}
             </MapView>
           ) : (
             <View
@@ -772,9 +741,33 @@ export default function HomeScreen() {
                 fontWeight: "700",
               }}
             >
-              {selectedProperty?.propertyName || selectedProperty?.title ||
-                "Thông tin căn hộ"}
+              Thông tin căn hộ
             </Text>
+            {role === "tenant" && (
+              <TouchableOpacity
+                onPress={handleToggleFavorite}
+                disabled={favoriteActionLoading}
+                style={{
+                  position: "absolute",
+                  top: -5,
+                  right: 30,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(255,255,255,0.9)",
+                  borderWidth: 1,
+                  borderColor: "#f36031",
+                }}
+              >
+                <Ionicons
+                  name={selectedPropertyFavorite ? "heart" : "heart-outline"}
+                  size={20}
+                  color="#f36031"
+                />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => setSelectedProperty(null)}>
               <Ionicons name="close" size={24} color="#111" />
             </TouchableOpacity>
@@ -847,31 +840,6 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
 
-            {role === "tenant" && (
-              <TouchableOpacity
-                onPress={handleToggleFavorite}
-                disabled={favoriteActionLoading}
-                style={{
-                  position: "absolute",
-                  top: 12,
-                  right: 12,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "rgba(255,255,255,0.9)",
-                  borderWidth: 1,
-                  borderColor: "#f36031",
-                }}
-              >
-                <Ionicons
-                  name={selectedPropertyFavorite ? "heart" : "heart-outline"}
-                  size={22}
-                  color="#f36031"
-                />
-              </TouchableOpacity>
-            )}
           </View>
         </View>
       </Modal>
