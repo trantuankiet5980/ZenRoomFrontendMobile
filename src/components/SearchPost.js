@@ -1,6 +1,7 @@
 import React from "react";
-import { View, TouchableOpacity, Text } from "react-native";
+import { View, TouchableOpacity, Text, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ADMIN_ALL_LABEL, isAllAdministrativeValue } from "../constants/administrative";
 
 export default function SearchPost({
   city,                     // tên hiển thị
@@ -10,7 +11,16 @@ export default function SearchPost({
   onPressCity,
   onPressDistrict,
   onPressSearch,
+  onPressUseLocation,
+  locating,
+  disableDistrictSelect,
 }) {
+  const normalizedCityLabel = city || (isAllAdministrativeValue(provinceCode) ? ADMIN_ALL_LABEL : "Chọn Tỉnh/Thành phố");
+  const normalizedDistrictLabel =
+    selectedDistrictName ||
+    (isAllAdministrativeValue(districtCode) ? ADMIN_ALL_LABEL : "Chọn Quận/Huyện");
+  const isDistrictDisabled = disableDistrictSelect || isAllAdministrativeValue(provinceCode);
+
   return (
     <View style={{ gap: 12 }}>
       {/* Hàng chọn tỉnh & quận */}
@@ -29,13 +39,14 @@ export default function SearchPost({
         >
           <Ionicons name="location-outline" size={18} color="#333" />
           <Text style={{ marginLeft: 6, fontSize: 14 }}>
-            {city || "Chọn Tỉnh/Thành phố"}
+            {normalizedCityLabel}
           </Text>
         </TouchableOpacity>
 
         {/* Chọn quận/huyện */}
         <TouchableOpacity
           onPress={onPressDistrict}
+          disabled={isDistrictDisabled}
           style={{
             flex: 1,
             flexDirection: "row",
@@ -43,19 +54,40 @@ export default function SearchPost({
             backgroundColor: "#f4f4f4",
             padding: 10,
             borderRadius: 8,
+            opacity: isDistrictDisabled ? 0.5 : 1,
           }}
         >
           <Ionicons name="business-outline" size={18} color="#333" />
           <Text style={{ marginLeft: 6, fontSize: 14 }}>
-            {selectedDistrictName || "Chọn Quận/Huyện"}
+            {normalizedDistrictLabel}
           </Text>
         </TouchableOpacity>
       </View>
 
+      {onPressUseLocation && (
+        <TouchableOpacity
+          onPress={onPressUseLocation}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Ionicons name="navigate-circle-outline" size={18} color="#f36031" />
+          <Text style={{ color: "#f36031", fontWeight: "600" }}>
+            Sử dụng vị trí của tôi
+          </Text>
+          {locating && <ActivityIndicator size="small" color="#f36031" />}
+        </TouchableOpacity>
+      )}
+
       {/* Nút tìm kiếm */}
       <TouchableOpacity
         onPress={() =>
-          onPressSearch({ provinceCode, districtCode })
+          onPressSearch({
+            provinceCode: isAllAdministrativeValue(provinceCode)
+              ? undefined
+              : provinceCode,
+            districtCode: isAllAdministrativeValue(districtCode)
+              ? undefined
+              : districtCode,
+          })
         }
         style={{
           backgroundColor: "#f36031",

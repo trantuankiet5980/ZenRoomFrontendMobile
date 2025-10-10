@@ -5,7 +5,8 @@ import {
   TextInput,
   Pressable,
   FlatList,
-  TouchableOpacity
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
@@ -18,13 +19,17 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import S3Image from "../components/S3Image";
 import SelectCityModal from "../components/modal/SelectCityModal";
 import SelectDistrictModal from "../components/modal/SelectDistrictModal";
-import { fetchDistricts } from "../features/administrative/administrativeThunks";
+import { fetchDistricts, fetchProvinces } from "../features/administrative/administrativeThunks";
 import {
   addSearchHistory as addSearchHistoryThunk,
   clearSearchHistory as clearSearchHistoryThunk,
   deleteSearchHistory as deleteSearchHistoryThunk,
   fetchSearchHistory,
 } from "../features/searchHistory/searchHistoryThunks";
+import { ADMIN_ALL_LABEL, ADMIN_ALL_VALUE, isAllAdministrativeValue } from "../constants/administrative";
+import { clearDistricts } from "../features/administrative/administrativeSlice";
+import * as Location from "expo-location";
+import { showToast } from "../utils/AppUtils";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
@@ -49,10 +54,13 @@ export default function SearchPostScreen() {
 
   const [cityModalVisible, setCityModalVisible] = useState(false);
   const [districtModalVisible, setDistrictModalVisible] = useState(false);
-  const [selectedCity, setSelectedCity] = useState(routeProvinceCode || null);
-  const [selectedDistrict, setSelectedDistrict] = useState(routeDistrictCode || null);
+  const initialProvince = routeProvinceCode || ADMIN_ALL_VALUE;
+  const initialDistrict = routeDistrictCode || ADMIN_ALL_VALUE;
+  const [selectedCity, setSelectedCity] = useState(initialProvince);
+  const [selectedDistrict, setSelectedDistrict] = useState(initialDistrict);
   const [appliedFilters, setAppliedFilters] = useState({});
   const [historySize, setHistorySize] = useState(3);
+  const [isLocating, setIsLocating] = useState(false);
 
   const provinces = useSelector((s) => s.administrative.provinces);
   const districts = useSelector((s) => s.administrative.districts);
@@ -60,8 +68,12 @@ export default function SearchPostScreen() {
   const searchHistoryState = useSelector((s) => s.searchHistory);
   const historyItems = searchHistoryState.items || [];
 
-  const selectedCityName = provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
-  const selectedDistrictName = districts.find(d => d.code === selectedDistrict)?.name_with_type;
+  const selectedCityName = isAllAdministrativeValue(selectedCity)
+    ? ADMIN_ALL_LABEL
+    : provinces.find(p => p.code === selectedCity)?.name_with_type || selectedCity;
+  const selectedDistrictName = isAllAdministrativeValue(selectedDistrict)
+    ? ADMIN_ALL_LABEL
+    : districts.find(d => d.code === selectedDistrict)?.name_with_type;
 
   const formatPrice = (p) => {
     const n = Number(p);
@@ -74,8 +86,12 @@ export default function SearchPostScreen() {
     const raw = {
       priceMin: priceRange[0],
       priceMax: priceRange[1],
-      provinceCode: selectedCity,
-      districtCode: selectedDistrict,
+      provinceCode: isAllAdministrativeValue(selectedCity)
+        ? undefined
+        : selectedCity,
+      districtCode: isAllAdministrativeValue(selectedDistrict)
+        ? undefined
+        : selectedDistrict,
       ...appliedFilters,
     };
 
@@ -89,8 +105,26 @@ export default function SearchPostScreen() {
   }, [priceRange, selectedCity, selectedDistrict, appliedFilters]);
 
   useEffect(() => {
+    dispatch(fetchProvinces());
+  }, [dispatch]);
+
+  useEffect(() => {
     dispatch(fetchSearchHistory({ page: 0, size: historySize }));
   }, [dispatch, historySize]);
+
+  useEffect(() => {
+    if (isAllAdministrativeValue(selectedCity)) {
+      dispatch(clearDistricts());
+      return;
+    }
+    dispatch(fetchDistricts(selectedCity));
+  }, [dispatch, selectedCity]);
+
+  useEffect(() => {
+    if (routeProvinceCode && !isAllAdministrativeValue(routeProvinceCode)) {
+      dispatch(fetchDistricts(routeProvinceCode));
+    }
+  }, [dispatch, routeProvinceCode]);
 
   useEffect(() => {
     let isActive = true;
@@ -191,6 +225,123 @@ export default function SearchPostScreen() {
     return total > historySize;
   }, [searchHistoryState.total, historySize]);
 
+  const normalizeText = useCallback((text) => {
+    if (!text) return "";
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/đ/g, "d")
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+  }, []);
+
+  const handleUseLocation = useCallback(async () => {
+    try {
+      setIsLocating(true);
+      if (!provinces || provinces.length === 0) {
+        showToast(
+          "error",
+          "top",
+          "Thông báo",
+          "Danh sách tỉnh/thành phố đang được tải. Vui lòng thử lại sau."
+        );
+        return;
+      }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showToast(
+          "error",
+          "top",
+          "Thông báo",
+          "Vui lòng cấp quyền truy cập vị trí để sử dụng chức năng này."
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({});
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+
+      if (!place) {
+        showToast("error", "top", "Thông báo", "Không xác định được vị trí hiện tại.");
+        return;
+      }
+
+      const locationTokens = [
+        place.city,
+        place.region,
+        place.subregion,
+        place.district,
+        place.province,
+      ]
+        .filter(Boolean)
+        .map(normalizeText)
+        .filter(Boolean);
+
+      const matchedProvince = provinces.find((province) => {
+        const provinceTokens = [
+          normalizeText(province.name_with_type),
+          normalizeText(province.name),
+        ].filter(Boolean);
+        return provinceTokens.some((provinceToken) =>
+          locationTokens.some(
+            (token) =>
+              provinceToken.includes(token) || token.includes(provinceToken)
+          )
+        );
+      });
+
+      if (!matchedProvince) {
+        showToast(
+          "error",
+          "top",
+          "Thông báo",
+          "Không tìm thấy tỉnh/thành phố phù hợp với vị trí hiện tại."
+        );
+        return;
+      }
+
+      setSelectedCity(matchedProvince.code);
+      setSelectedDistrict(ADMIN_ALL_VALUE);
+      const districtsData = await dispatch(
+        fetchDistricts(matchedProvince.code)
+      ).unwrap();
+
+      const districtTokens = [
+        place.subregion,
+        place.district,
+        place.city,
+      ]
+        .filter(Boolean)
+        .map(normalizeText)
+        .filter(Boolean);
+
+      const matchedDistrict = districtsData?.find((district) => {
+        const districtToken = normalizeText(district.name_with_type);
+        return districtTokens.some(
+          (token) =>
+            districtToken.includes(token) || token.includes(districtToken)
+        );
+      });
+
+      if (matchedDistrict) {
+        setSelectedDistrict(matchedDistrict.code);
+      }
+    } catch (error) {
+      showToast(
+        "error",
+        "top",
+        "Thông báo",
+        "Không thể lấy vị trí hiện tại. Vui lòng thử lại sau."
+      );
+    } finally {
+      setIsLocating(false);
+    }
+  }, [dispatch, normalizeText, provinces]);
+
   const renderItem = ({ item }) => {
     const priceUnit = "ngày";
     return (
@@ -237,16 +388,28 @@ export default function SearchPostScreen() {
   };
 
   const handleSelectCity = (provinceCode) => {
+    if (isAllAdministrativeValue(provinceCode)) {
+      setSelectedCity(ADMIN_ALL_VALUE);
+      setSelectedDistrict(ADMIN_ALL_VALUE);
+      setCityModalVisible(false);
+      dispatch(clearDistricts());
+      return;
+    }
     setSelectedCity(provinceCode);
-    setSelectedDistrict(null); // reset district khi đổi tỉnh
-    dispatch(fetchDistricts(provinceCode));
+    setSelectedDistrict(ADMIN_ALL_VALUE);
     setCityModalVisible(false);
   };
 
   const handleSelectDistrict = (districtCode) => {
-    setSelectedDistrict(districtCode);
+    if (isAllAdministrativeValue(districtCode)) {
+      setSelectedDistrict(ADMIN_ALL_VALUE);
+    } else {
+      setSelectedDistrict(districtCode);
+    }
     setDistrictModalVisible(false);
   };
+
+  const disableDistrictSelect = isAllAdministrativeValue(selectedCity);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
@@ -361,19 +524,62 @@ export default function SearchPostScreen() {
         </Pressable>
       </View>
 
-      {/* Location button dưới hàng filter */}
-      <View style={{ flexDirection: 'row', paddingHorizontal: 12, alignItems: 'center', marginTop: 6, height: 35 }}>
-        <Pressable
-          onPress={() => setCityModalVisible(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: GRAY, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 }}
+      {/* City / District selectors */}
+      <View style={{ paddingHorizontal: 12, marginTop: 12, gap: 10 }}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity
+            onPress={() => setCityModalVisible(true)}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#f4f4f4',
+              padding: 10,
+              borderRadius: 8,
+            }}
+          >
+            <Ionicons name="location-outline" size={18} color="#333" />
+            <Text style={{ marginLeft: 6, fontSize: 14 }}>
+              {selectedCityName || 'Chọn Tỉnh/Thành phố'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (!disableDistrictSelect) {
+                setDistrictModalVisible(true);
+              }
+            }}
+            disabled={disableDistrictSelect}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#f4f4f4',
+              padding: 10,
+              borderRadius: 8,
+              opacity: disableDistrictSelect ? 0.5 : 1,
+            }}
+          >
+            <Ionicons name="business-outline" size={18} color="#333" />
+            <Text style={{ marginLeft: 6, fontSize: 14 }}>
+              {disableDistrictSelect
+                ? ADMIN_ALL_LABEL
+                : selectedDistrictName || 'Chọn Quận/Huyện'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleUseLocation}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
         >
-          <Text style={{ fontWeight: '600' }}>
-            {selectedDistrictName
-              ? `${selectedDistrictName}, ${selectedCityName}`
-              : `Khu vực: ${selectedCityName || "Chọn tỉnh"}`}
+          <Ionicons name="navigate-circle-outline" size={18} color={ORANGE} />
+          <Text style={{ color: ORANGE, fontWeight: '600' }}>
+            Sử dụng vị trí của tôi
           </Text>
-          <Ionicons name="chevron-down" size={16} color="#000" style={{ marginLeft: 4 }} />
-        </Pressable>
+          {isLocating && <ActivityIndicator size="small" color={ORANGE} />}
+        </TouchableOpacity>
       </View>
 
       {/* List */}

@@ -1,7 +1,16 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Modal, View, Text, FlatList, TouchableOpacity } from "react-native";
+import { ADMIN_ALL_LABEL, ADMIN_ALL_VALUE } from "../../constants/administrative";
 
 export default function SelectDistrictModal({ visible, onClose, onSelectDistrict, districts }) {
+  const options = useMemo(
+    () => [
+      { code: ADMIN_ALL_VALUE, name_with_type: ADMIN_ALL_LABEL },
+      ...(districts || []),
+    ],
+    [districts]
+  );
+
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View
@@ -25,7 +34,7 @@ export default function SelectDistrictModal({ visible, onClose, onSelectDistrict
           </Text>
 
           <FlatList
-            data={districts}
+            data={options}
             keyExtractor={(item) => item.code}
             renderItem={({ item }) => (
               <TouchableOpacity
