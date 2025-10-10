@@ -1,9 +1,9 @@
 import { createSlice } from "@reduxjs/toolkit";
 import {
-    clearSearchHistory,
-    deleteSearchHistory,
-    fetchRecentKeywords,
-    fetchSearchHistory,
+  clearSearchHistory,
+  deleteSearchHistory,
+  fetchRecentKeywords,
+  fetchSearchHistory,
 } from "./searchHistoryThunks";
 
 const initialState = {

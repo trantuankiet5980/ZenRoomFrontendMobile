@@ -1,6 +1,21 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { axiosInstance } from "../../api/axiosInstance";
 
+export const addSearchHistory = createAsyncThunk(
+  "searchHistory/add",
+  async ({ keyword, filters = {} } = {}, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post("/search-history", {
+        keyword,
+        filters,
+      });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
 export const fetchSearchHistory = createAsyncThunk(
   "searchHistory/fetch",
   async ({ page = 0, size = 3 } = {}, { rejectWithValue }) => {
