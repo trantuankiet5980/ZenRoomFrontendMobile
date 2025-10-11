@@ -28,12 +28,15 @@ import {
 } from "../features/searchHistory/searchHistoryThunks";
 import { ADMIN_ALL_LABEL, ADMIN_ALL_VALUE, isAllAdministrativeValue } from "../constants/administrative";
 import { clearDistricts } from "../features/administrative/administrativeSlice";
+import { fetchSearchSuggestions, logSearchSuggestionEvent } from "../features/searchSuggestions/searchSuggestionsThunks";
+import { clearSearchSuggestions } from "../features/searchSuggestions/searchSuggestionsSlice";
 import * as Location from "expo-location";
 import { showToast } from "../utils/AppUtils";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
 const TEXT_MUTED = '#6B7280';
+const SUGGESTION_LIMIT = 10;
 
 export default function SearchPostScreen() {
   useHideTabBar();
@@ -51,6 +54,11 @@ export default function SearchPostScreen() {
   const [searchTrigger, setSearchTrigger] = useState(0);
   const shouldRefreshHistoryRef = useRef(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const searchInputRef = useRef(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showSuggestionsOverlay, setShowSuggestionsOverlay] = useState(false);
+  const [searchBoxBottom, setSearchBoxBottom] = useState(null);
+  const [historyTop, setHistoryTop] = useState(null);
 
   const [cityModalVisible, setCityModalVisible] = useState(false);
   const [districtModalVisible, setDistrictModalVisible] = useState(false);
@@ -67,6 +75,10 @@ export default function SearchPostScreen() {
   const { searchResults, loading } = useSelector((s) => s.properties);
   const searchHistoryState = useSelector((s) => s.searchHistory);
   const historyItems = searchHistoryState.items || [];
+  const searchSuggestionsState = useSelector((s) => s.searchSuggestions);
+  const suggestionItems = searchSuggestionsState.items || [];
+  const suggestionsLoading = searchSuggestionsState.loading;
+  const suggestionsError = searchSuggestionsState.error;
 
   const selectedCityName = isAllAdministrativeValue(selectedCity)
     ? ADMIN_ALL_LABEL
@@ -111,6 +123,22 @@ export default function SearchPostScreen() {
   useEffect(() => {
     dispatch(fetchSearchHistory({ page: 0, size: historySize }));
   }, [dispatch, historySize]);
+
+  useEffect(() => {
+    const trimmedKeyword = searchKeyword.trim();
+    if (!isSearchFocused || trimmedKeyword.length === 0) {
+      setShowSuggestionsOverlay(false);
+      dispatch(clearSearchSuggestions());
+      return;
+    }
+
+    setShowSuggestionsOverlay(true);
+    const handler = setTimeout(() => {
+      dispatch(fetchSearchSuggestions({ query: trimmedKeyword, limit: SUGGESTION_LIMIT }));
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [dispatch, searchKeyword, isSearchFocused]);
 
   useEffect(() => {
     if (isAllAdministrativeValue(selectedCity)) {
@@ -174,16 +202,35 @@ export default function SearchPostScreen() {
     };
   }, [dispatch, buildFiltersPayload, lastSearchKeyword, searchTrigger]);
 
+  const submitSearch = useCallback(
+    (keywordOverride, { logQueryEvent = true } = {}) => {
+      const rawKeyword =
+        typeof keywordOverride === "string" ? keywordOverride : searchKeyword;
+      const trimmed = rawKeyword.trim();
+
+      setSearchKeyword(trimmed);
+      setLastSearchKeyword(trimmed);
+      setSearchTrigger((prev) => prev + 1);
+      if (historySize !== 3) {
+        setHistorySize(3);
+      }
+      shouldRefreshHistoryRef.current = Boolean(trimmed);
+      setShowSuggestionsOverlay(false);
+      dispatch(clearSearchSuggestions());
+      setIsSearchFocused(false);
+      searchInputRef.current?.blur?.();
+      if (trimmed && logQueryEvent) {
+        dispatch(logSearchSuggestionEvent({ type: "QUERY", query: trimmed }));
+      }
+
+      return trimmed;
+    },
+    [dispatch, historySize, searchKeyword]
+  );
+
   const handleSearchSubmit = useCallback(() => {
-    const trimmed = searchKeyword.trim();
-    setSearchKeyword(trimmed);
-    setLastSearchKeyword(trimmed);
-    setSearchTrigger((prev) => prev + 1);
-    if (historySize !== 3) {
-      setHistorySize(3);
-    }
-    shouldRefreshHistoryRef.current = Boolean(trimmed);
-  }, [historySize, searchKeyword]);
+    submitSearch();
+  }, [submitSearch]);
 
   const handleSelectHistoryKeyword = useCallback((keyword) => {
     setSearchKeyword(keyword);
@@ -194,6 +241,29 @@ export default function SearchPostScreen() {
     }
     shouldRefreshHistoryRef.current = Boolean(keyword);
   }, [historySize]);
+
+  const handleSelectSuggestionKeyword = useCallback(
+    (item) => {
+      const keyword = item?.keyword?.trim?.();
+      if (!keyword) {
+        return;
+      }
+
+      const typedQuery = searchKeyword.trim();
+      submitSearch(keyword);
+
+      if (typedQuery || keyword) {
+        dispatch(
+          logSearchSuggestionEvent({
+            type: "CLICK",
+            query: typedQuery || keyword,
+            suggestionId: item?.suggestionId,
+          })
+        );
+      }
+    },
+    [dispatch, searchKeyword, submitSearch]
+  );
 
   const handleDeleteHistory = useCallback((searchId) => {
     dispatch(deleteSearchHistoryThunk(searchId))
@@ -254,6 +324,144 @@ export default function SearchPostScreen() {
     },
     [normalizeText]
   );
+
+  const suggestionKeywords = useMemo(() => {
+    if (!Array.isArray(suggestionItems) || suggestionItems.length === 0) {
+      return [];
+    }
+
+    const normalizedQuery = normalizeText(searchKeyword);
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const normalizedQueryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    const seenKeywords = new Set();
+    const sortedSuggestions = [...suggestionItems].sort(
+      (a, b) => (b?.score ?? 0) - (a?.score ?? 0)
+    );
+
+    const keywordList = [];
+
+    for (const suggestion of sortedSuggestions) {
+      if (!suggestion) {
+        continue;
+      }
+
+      const rawKeywords = [];
+
+      if (typeof suggestion.keywords === "string") {
+        rawKeywords.push(
+          ...suggestion.keywords
+            .split("|")
+            .map((keyword) => keyword.trim())
+            .filter(Boolean)
+        );
+      } else if (Array.isArray(suggestion.keywords)) {
+        rawKeywords.push(
+          ...suggestion.keywords
+            .map((keyword) =>
+              typeof keyword === "string" ? keyword.trim() : ""
+            )
+            .filter(Boolean)
+        );
+      }
+
+      if (rawKeywords.length === 0) {
+        continue;
+      }
+
+      const keywordsWithMeta = rawKeywords
+        .map((keyword) => {
+          const normalizedKeyword = normalizeText(keyword);
+          if (!normalizedKeyword) {
+            return null;
+          }
+
+          const keywordTokens = normalizedKeyword.split(/\s+/).filter(Boolean);
+          const normalizedKeywordCompact = keywordTokens.join("");
+          const keywordJoined = keywordTokens.join(" ");
+
+          const fullPrefixMatch = normalizedKeyword.startsWith(normalizedQuery);
+          const fullContainsMatch = normalizedKeyword.includes(normalizedQuery);
+
+          const tokenPrefixIndex = keywordTokens.findIndex((token) =>
+            normalizedQueryTokens.some((queryToken) =>
+              token.startsWith(queryToken)
+            )
+          );
+
+          const tokenContainsIndex = keywordTokens.findIndex((token) =>
+            normalizedQueryTokens.some((queryToken) => token.includes(queryToken))
+          );
+
+          return {
+            keyword: keyword.replace(/\s+/g, " ").trim(),
+            normalizedKeyword,
+            normalizedKeywordCompact,
+            keywordJoined,
+            fullPrefixMatch,
+            fullContainsMatch,
+            tokenPrefixIndex: tokenPrefixIndex === -1
+              ? Number.MAX_SAFE_INTEGER
+              : tokenPrefixIndex,
+            tokenContainsIndex: tokenContainsIndex === -1
+              ? Number.MAX_SAFE_INTEGER
+              : tokenContainsIndex,
+          };
+        })
+        .filter(Boolean);
+
+      keywordsWithMeta.sort((a, b) => {
+        const fullPrefixDelta = Number(b.fullPrefixMatch) - Number(a.fullPrefixMatch);
+        if (fullPrefixDelta !== 0) {
+          return fullPrefixDelta;
+        }
+
+        const tokenPrefixDelta = a.tokenPrefixIndex - b.tokenPrefixIndex;
+        if (tokenPrefixDelta !== 0) {
+          return tokenPrefixDelta;
+        }
+
+        const tokenContainsDelta = a.tokenContainsIndex - b.tokenContainsIndex;
+        if (tokenContainsDelta !== 0) {
+          return tokenContainsDelta;
+        }
+
+        const fullContainsDelta = Number(b.fullContainsMatch) - Number(a.fullContainsMatch);
+        if (fullContainsDelta !== 0) {
+          return fullContainsDelta;
+        }
+
+        if (a.keywordJoined.length !== b.keywordJoined.length) {
+          return a.keywordJoined.length - b.keywordJoined.length;
+        }
+
+        return a.keyword.localeCompare(b.keyword, "vi", { sensitivity: "base" });
+      });
+
+      const selectedKeyword = keywordsWithMeta.find(
+        (keywordMeta) => !seenKeywords.has(keywordMeta.normalizedKeywordCompact)
+      );
+
+      if (!selectedKeyword) {
+        continue;
+      }
+
+      seenKeywords.add(selectedKeyword.normalizedKeywordCompact);
+      keywordList.push({
+        keyword: selectedKeyword.keyword,
+        suggestionId: suggestion.suggestionId,
+        normalizedKeyword: selectedKeyword.normalizedKeywordCompact,
+      });
+
+      if (keywordList.length >= SUGGESTION_LIMIT) {
+        break;
+      }
+    }
+
+    return keywordList;
+  }, [normalizeText, searchKeyword, suggestionItems]);
 
   const handleUseLocation = useCallback(async () => {
     try {
@@ -360,6 +568,25 @@ export default function SearchPostScreen() {
     }
   }, [buildTokenSet, dispatch, provinces]);
 
+  const renderSuggestionItem = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        onPress={() => handleSelectSuggestionKeyword(item)}
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          borderBottomWidth: 1,
+          borderBottomColor: '#E5E7EB',
+        }}
+      >
+        <Text style={{ fontSize: 16, fontWeight: '500', color: '#111827' }}>
+          {item.keyword}
+        </Text>
+      </TouchableOpacity>
+    ),
+    [handleSelectSuggestionKeyword]
+  );
+
   const renderItem = ({ item }) => {
     const priceUnit = "ngày";
     return (
@@ -432,23 +659,32 @@ export default function SearchPostScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Search box */}
-      <View style={{
-        margin: 12,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-        backgroundColor: '#f5f5f5',
-        height: 44,
-        flexDirection: 'row',
-        alignItems: 'center',
-      }}>
+      <View
+        onLayout={(event) => {
+          const { y, height } = event.nativeEvent.layout;
+          setSearchBoxBottom(y + height);
+        }}
+        style={{
+          margin: 12,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+          backgroundColor: '#f5f5f5',
+          height: 44,
+          flexDirection: 'row',
+          alignItems: 'center',
+        }}
+      >
         <TextInput
           placeholder="Nhập tiêu đề tin đăng"
           placeholderTextColor={TEXT_MUTED}
           style={{ flex: 1, marginRight: 12 }}
+          ref={searchInputRef}
           value={searchKeyword}
           onChangeText={setSearchKeyword}
           returnKeyType="search"
           onSubmitEditing={handleSearchSubmit}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
         />
         <Pressable
           onPress={handleSearchSubmit}
@@ -466,7 +702,12 @@ export default function SearchPostScreen() {
       </View>
 
       {/* Search history */}
-      <View style={{ paddingHorizontal: 12, marginBottom: 8 }}>
+      <View
+        onLayout={(event) => {
+          setHistoryTop(event.nativeEvent.layout.y);
+        }}
+        style={{ paddingHorizontal: 12, marginBottom: 8 }}
+      >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ fontWeight: '700', fontSize: 16 }}>Lịch sử tìm kiếm</Text>
           {historyItems.length > 0 && (
@@ -644,6 +885,63 @@ export default function SearchPostScreen() {
         <Text style={{ color: ORANGE, fontWeight: '700' }}>Bản đồ</Text>
       </TouchableOpacity>
 
+      {showSuggestionsOverlay && (
+        <View
+          style={{
+            position: 'absolute',
+            top: historyTop ?? searchBoxBottom ?? 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#fff',
+            zIndex: 50,
+            paddingTop: 12,
+          }}
+        >
+          {suggestionsLoading ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={ORANGE} />
+            </View>
+          ) : suggestionsError ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: 24,
+              }}
+            >
+              <Text style={{ color: TEXT_MUTED, textAlign: 'center' }}>
+                {suggestionsError}
+              </Text>
+            </View>
+          ) : suggestionKeywords.length === 0 ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: 24,
+              }}
+            >
+              <Text style={{ color: TEXT_MUTED, textAlign: 'center' }}>
+                Không có gợi ý phù hợp
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={suggestionKeywords}
+              renderItem={renderSuggestionItem}
+              keyExtractor={(item, index) =>
+                item.normalizedKeyword || `${item.keyword}-${index}`
+              }
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 40 }}
+            />
+          )}
+        </View>
+      )}
+      
       {/* Modals */}
       <SortModal
         visible={sortModalVisible}
