@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Dimensions,
   FlatList,
+  ActivityIndicator,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import TypingText from "../hooks/TypingText";
@@ -35,6 +36,7 @@ import {
   removeFavorite,
   fetchFavorites,
 } from "../features/favorites/favoritesThunks";
+import { fetchRecentlyViewed } from "../features/events/eventsThunks";
 
 const DEFAULT_MAP_REGION = {
   latitude: 21.027763,
@@ -42,6 +44,8 @@ const DEFAULT_MAP_REGION = {
   latitudeDelta: 0.5,
   longitudeDelta: 0.5,
 };
+
+const RECENTLY_VIEWED_PAGE_SIZE = 7;
 
 const parseCoordinate = (value) => {
   if (value === null || value === undefined) {
@@ -79,6 +83,17 @@ export default function HomeScreen() {
   const [locating, setLocating] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [favoriteActionLoading, setFavoriteActionLoading] = useState(false);
+  const recentlyViewedState =
+    useSelector((state) => state.events?.recentlyViewed) || {};
+  const {
+    items: recentlyViewed = [],
+    loading: recentLoading = false,
+    hasMore: recentHasMore = true,
+    page: recentNextPage = 0,
+    initialLoaded: recentInitialLoaded = false,
+    error: recentError = null,
+    lastRequestedPage: recentLastRequestedPage = 0,
+  } = recentlyViewedState;
 
   const selectedCityName = useMemo(() => {
     if (isAllAdministrativeValue(selectedCity)) {
@@ -421,6 +436,36 @@ export default function HomeScreen() {
     }
   }, [dispatch, role, selectedProperty, selectedPropertyFavorite]);
   
+  const requestRecentlyViewed = useCallback(
+    (page = 0) => {
+      dispatch(
+        fetchRecentlyViewed({
+          page,
+          limit: RECENTLY_VIEWED_PAGE_SIZE,
+        })
+      );
+    },
+    [dispatch]
+  );
+
+  useEffect(() => {
+    if (!recentInitialLoaded && !recentLoading) {
+      requestRecentlyViewed(0);
+    }
+  }, [recentInitialLoaded, recentLoading, requestRecentlyViewed]);
+
+  useEffect(() => {
+    if (recentError && recentLastRequestedPage === 0) {
+      showToast("error", "top", "Thông báo", recentError);
+    }
+  }, [recentError, recentLastRequestedPage]);
+
+  const handleLoadMoreRecentlyViewed = useCallback(() => {
+    if (!recentLoading && recentHasMore) {
+      requestRecentlyViewed(recentNextPage);
+    }
+  }, [recentLoading, recentHasMore, requestRecentlyViewed, recentNextPage]);
+
   if (loading) return <Text>Đang tải dữ liệu...</Text>;
 
   return (
@@ -493,6 +538,130 @@ export default function HomeScreen() {
           disableDistrictSelect={isAllAdministrativeValue(selectedCity)}
         />
       </View>
+
+      {/* Recently viewed properties */}
+      {(recentLoading || recentlyViewed.length > 0) && (
+        <View style={{ marginTop: 8 }}>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "bold",
+              marginLeft: 20,
+              marginBottom: 8,
+            }}
+          >
+            Nơi bạn đã xem gần đây
+          </Text>
+          {recentlyViewed.length === 0 ? (
+            <View
+              style={{
+                paddingVertical: 20,
+                alignItems: "center",
+              }}
+            >
+              <ActivityIndicator size="small" color="#f36031" />
+            </View>
+          ) : (
+            <FlatList
+              data={recentlyViewed}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => String(item.propertyId)}
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingBottom: 8,
+              }}
+              onEndReachedThreshold={0.4}
+              onEndReached={handleLoadMoreRecentlyViewed}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  style={{
+                    width: 220,
+                    marginRight:
+                      index === recentlyViewed.length - 1 && !recentLoading
+                        ? 0
+                        : 12,
+                    backgroundColor: "#fff",
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    borderWidth: 1,
+                    borderColor: "#eee",
+                  }}
+                  onPress={() =>
+                    navigation.navigate("PropertyDetail", {
+                      propertyId: item.propertyId,
+                    })
+                  }
+                >
+                  <S3Image
+                    src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
+                    cacheKey={item.updatedAt}
+                    style={{ width: "100%", height: 140 }}
+                    alt={item.title}
+                  />
+                  <View style={{ padding: 12, gap: 6 }}>
+                    {item.propertyName ? (
+                      <Text
+                        style={{ fontSize: 12, color: "#666" }}
+                        numberOfLines={1}
+                      >
+                        {item.propertyName}
+                      </Text>
+                    ) : null}
+                    <Text
+                      style={{ fontSize: 15, fontWeight: "600" }}
+                      numberOfLines={2}
+                    >
+                      {item.title || item.name}
+                    </Text>
+                    {item.address?.addressFull ? (
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color="#555"
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          style={{ fontSize: 12, color: "#555" }}
+                          numberOfLines={2}
+                        >
+                          {formatAddress(item.address.addressFull)}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: "#f36031",
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.price
+                        ? `Từ ${formatPrice(item.price)}đ/ngày`
+                        : "Giá liên hệ"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListFooterComponent={
+                recentLoading ? (
+                  <View
+                    style={{
+                      justifyContent: "center",
+                      alignItems: "center",
+                      paddingHorizontal: 8,
+                    }}
+                  >
+                    <ActivityIndicator size="small" color="#f36031" />
+                  </View>
+                ) : null
+              }
+            />
+          )}
+        </View>
+      )}
 
       {/* Bản đồ hiển thị căn hộ */}
         <Text
@@ -801,17 +970,17 @@ export default function HomeScreen() {
               />
               <View style={{ flex: 1, justifyContent: "space-between" }}>
                 <View style={{ gap: 4 }}>
-                  {selectedProperty?.propertyName ? (
+                  {selectedProperty?.buildingName ? (
                     <Text
-                      style={{ fontSize: 13, color: "#333" }}
+                      style={{ fontSize: 13, fontWeight: "600" }}
                       numberOfLines={1}
                     >
-                      {selectedProperty.propertyName}
+                      {selectedProperty.buildingName}
                     </Text>
                   ) : null}
                   {selectedProperty?.title ? (
                     <Text
-                      style={{ fontSize: 15, fontWeight: "600" }}
+                      style={{ fontSize: 15, color: "#333" }}
                       numberOfLines={2}
                     >
                       {selectedProperty.title}

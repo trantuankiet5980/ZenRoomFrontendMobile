@@ -18,6 +18,7 @@ import contractReducer from "../features/contracts/contractSlice";
 import reviewsReducer from '../features/reviews/reviewsSlice';
 import invoicesReducer from '../features/invoices/invoiceSlice';
 import searchHistoryReducer from "../features/searchHistory/searchHistorySlice";
+import eventsReducer from "../features/events/eventsSlice";
 
 export const store = configureStore({
   reducer: {
@@ -40,6 +41,7 @@ export const store = configureStore({
     reviews: reviewsReducer,
     invoices: invoicesReducer,
     searchHistory: searchHistoryReducer,
+    events: eventsReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
