@@ -8,7 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  Alert,ScrollView
+  Alert,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -34,7 +35,7 @@ const { width, height } = Dimensions.get("window");
 
 const BOOKING_STATUS_LABELS = {
   PENDING_PAYMENT: "Chờ thanh toán",
-  AWAITING_LANDLORD_APPROVAL: "Chờ duyệt (đã thanh toán)",
+  AWAITING_LANDLORD_APPROVAL: "Đã duyệt",
   APPROVED: "Đã duyệt",
   CHECKED_IN: "Đang lưu trú",
   COMPLETED: "Đã trả phòng",
@@ -150,15 +151,12 @@ export default function TenantsManagerScreen() {
   const { landlordPending = [], landlordBookings = [], loading } = useSelector(
     (state) => state.bookings
   );
-  const userId = useSelector((state) => state.auth.userId); // Giả định userId của landlord từ Redux
+  const userId = useSelector((state) => state.auth.userId);
 
   // Làm mới dữ liệu khi tab thay đổi
   useEffect(() => {
-    if (tab === "pending") {
-      dispatch(fetchLandlordPendingBookings());
-    } else {
-      dispatch(fetchLandlordBookings());
-    }
+    dispatch(fetchLandlordPendingBookings());
+    dispatch(fetchLandlordBookings());
   }, [dispatch, tab]);
 
   // Chuẩn hóa dữ liệu từ cả landlordPending và landlordBookings
@@ -176,11 +174,7 @@ export default function TenantsManagerScreen() {
     switch (tab) {
       case "pending":
         return allBookings
-          .filter(
-            (b) =>
-              b.bookingStatus === "PENDING_PAYMENT" ||
-              b.bookingStatus === "AWAITING_LANDLORD_APPROVAL"
-          )
+          .filter((b) => b.bookingStatus === "PENDING_PAYMENT")
           .map((b) => ({
             id: b.bookingId,
             status: b.bookingStatus,
@@ -192,7 +186,7 @@ export default function TenantsManagerScreen() {
           }));
       case "approved":
         return allBookings
-          .filter((b) => b.bookingStatus === "APPROVED")
+          .filter((b) => b.bookingStatus === "AWAITING_LANDLORD_APPROVAL")
           .map((b) => ({
             id: b.bookingId,
             status: b.bookingStatus,
@@ -203,6 +197,18 @@ export default function TenantsManagerScreen() {
             note: b.note,
           }));
       case "renting":
+        return allBookings
+          .filter((b) => b.bookingStatus === "APPROVED")
+          .map((b) => ({
+            id: b.bookingId,
+            status: b.bookingStatus,
+            name: b.tenant?.fullName || "Chưa có thông tin",
+            phone: b.tenant?.phoneNumber || "N/A",
+            room: b.property?.title || "Phòng không xác định",
+            when: b.startDate,
+            note: b.note,
+          }));
+      case "staying":
         return allBookings
           .filter((b) => b.bookingStatus === "CHECKED_IN")
           .map((b) => ({
@@ -231,7 +237,6 @@ export default function TenantsManagerScreen() {
     }
   }, [tab, allBookings]);
 
-
   // Lọc theo từ khóa tìm kiếm
   const filtered = useMemo(() => {
     if (!q.trim()) return tenants;
@@ -244,12 +249,14 @@ export default function TenantsManagerScreen() {
     );
   }, [tenants, q]);
 
+  // Đếm số lượng bookings cho từng tab
   const counts = useMemo(() => {
     const counter = {};
     const tabs = [
-      { key: "pending", statuses: ["PENDING_PAYMENT", "AWAITING_LANDLORD_APPROVAL"] },
-      { key: "approved", statuses: ["APPROVED"] },
-      { key: "renting", statuses: ["CHECKED_IN"] },
+      { key: "pending", statuses: ["PENDING_PAYMENT"] },
+      { key: "approved", statuses: ["AWAITING_LANDLORD_APPROVAL"] },
+      { key: "renting", statuses: ["APPROVED"] },
+      { key: "staying", statuses: ["CHECKED_IN"] },
       { key: "completed", statuses: ["COMPLETED"] },
     ];
     tabs.forEach((tab) => {
@@ -281,7 +288,7 @@ export default function TenantsManagerScreen() {
             const state = navigation.getState?.();
             const routes = state?.routes || [];
             const previousRoute = routes[routes.length - 2];
-              navigation.goBack();
+            navigation.goBack();
           }
         }}
       />
@@ -326,9 +333,14 @@ export default function TenantsManagerScreen() {
             onPress={() => setTab("approved")}
           />
           <TabButton
-            label={`Đang thuê${counts.renting ? ` (${counts.renting})` : ""}`}
+            label={`Đang cho thuê${counts.renting ? ` (${counts.renting})` : ""}`}
             active={tab === "renting"}
             onPress={() => setTab("renting")}
+          />
+          <TabButton
+            label={`Đang lưu trú${counts.staying ? ` (${counts.staying})` : ""}`}
+            active={tab === "staying"}
+            onPress={() => setTab("staying")}
           />
           <TabButton
             label={`Đã trả phòng${counts.completed ? ` (${counts.completed})` : ""}`}
@@ -502,15 +514,13 @@ function TenantCard({ item, tab, dispatch, navigation, userId }) {
     navigation.navigate("BookingDetail", { id: item.id });
   }, [navigation, item.id]);
 
-  // Hiển thị nút "Duyệt" cho cả PENDING_PAYMENT và AWAITING_LANDLORD_APPROVAL trong tab "pending"
-  const showApproveButton =
-    tab === "pending" &&
-    (item.status === "PENDING_PAYMENT" || item.status === "AWAITING_LANDLORD_APPROVAL");
+  // Điều chỉnh hiển thị nút hành động
+  const showApproveButton = tab === "pending" && item.status === "PENDING_PAYMENT";
   const showCancelButton =
-    tab === "pending" &&
-    (item.status === "PENDING_PAYMENT" || item.status === "AWAITING_LANDLORD_APPROVAL");
-  const showCheckInButton = tab === "approved" && item.status === "APPROVED";
-  const showCheckOutButton = tab === "renting" && item.status === "CHECKED_IN";
+    (tab === "pending" && item.status === "PENDING_PAYMENT") ||
+    (tab === "approved" && item.status === "AWAITING_LANDLORD_APPROVAL");
+  const showCheckInButton = tab === "renting" && item.status === "APPROVED";
+  const showCheckOutButton = tab === "staying" && item.status === "CHECKED_IN";
 
   return (
     <View
