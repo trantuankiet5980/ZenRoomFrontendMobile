@@ -58,20 +58,20 @@ export default function LandlordPanel({
       iconLib: "mc",
       onPress: () => navigation.navigate("TenantsManager"),
     },
-    {
-      key: "manage-contracts",
-      label: "Quản lý hợp đồng",
-      icon: "file-document-outline",
-      iconLib: "mc",
-      onPress: () => navigation.navigate("ContractsManager"),
-    },
-    {
-      key: "create-contract",
-      label: "Tạo hợp đồng",
-      icon: "profile",
-      iconLib: "ant",
-      onPress: () => navigation.navigate("CreateContract"),
-    },
+    // {
+    //   key: "manage-contracts",
+    //   label: "Quản lý hợp đồng",
+    //   icon: "file-document-outline",
+    //   iconLib: "mc",
+    //   onPress: () => navigation.navigate("ContractsManager"),
+    // },
+    // {
+    //   key: "create-contract",
+    //   label: "Tạo hợp đồng",
+    //   icon: "profile",
+    //   iconLib: "ant",
+    //   onPress: () => navigation.navigate("CreateContract"),
+    // },
   ];
 
   return (
