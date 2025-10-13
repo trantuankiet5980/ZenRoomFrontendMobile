@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import useHideTabBar from "../hooks/useHideTabBar";
@@ -8,6 +8,7 @@ import { fetchMessages, sendMessage, markReadAll } from "../features/chat/chatTh
 import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import S3Image from "../components/S3Image"; 
+import { recordUserEvent } from "../features/events/eventsThunks";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 
@@ -58,28 +59,57 @@ export default function ChatDetailScreen() {
     return Array.from(map.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   }, [rawBucket.items]);
 
-  // Header mini (property) – ưu tiên của route; nếu không có thì lấy từ tin nhắn mới nhất có "property"
-  const [headerMini, setHeaderMini] = useState(propMiniFromRoute || null);
-  useEffect(() => {
-    if (propMiniFromRoute) setHeaderMini(propMiniFromRoute);
-  }, [propMiniFromRoute]);
+  const normalizePropertyMini = useCallback((raw) => {
+    if (!raw) return null;
+    const addressObj = raw.address || {};
+    const address =
+      typeof raw.address === "string"
+        ? raw.address
+        : addressObj.addressFull || raw.addressFull || raw.address || "";
 
-useEffect(() => {
-  if (headerMini) return;
-  const found = [...bucketItems].reverse().find(m => m?.property?.propertyId);
-  if (found?.property) {
-    const p = found.property;
-    setHeaderMini({
-      propertyId: p.propertyId,
-      title: p.title,
-      address: p.address?.addressFull || p.address, // ưu tiên addressFull
-      price: p.price,
-      propertyType: p.propertyType,                 // thêm loại
-      thumbnailUrl: p.thumbnailUrl || p.media?.[0]?.url || null, // fallback media
+    const thumbnail =
+      raw.thumbnailUrl ||
+      raw.thumbnail ||
+      (Array.isArray(raw.media) && raw.media.length > 0 ? raw.media[0]?.url : null) ||
+      raw.imageUrl ||
+      null;
+
+    return {
+      propertyId: raw.propertyId,
+      title: raw.title || raw.propertyName || "Phòng",
+      address,
+      price: raw.price,
+      propertyType: raw.propertyType,
+      thumbnailUrl: thumbnail,
+      updatedAt: raw.updatedAt,
+    };
+  }, []);
+
+  const propertyHeaderItems = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    const pushMini = (mini) => {
+      if (!mini?.propertyId || seen.has(mini.propertyId)) return;
+      seen.add(mini.propertyId);
+      list.push(mini);
+    };
+
+    bucketItems.forEach((msg) => {
+      const mini = normalizePropertyMini(msg?.property);
+      if (mini) pushMini(mini);
     });
-  }
-}, [bucketItems, headerMini]);
 
+  const initMini = normalizePropertyMini(initialMessage?.property || initialMessage?.conversation?.property);
+    if (initMini) pushMini(initMini);
+
+    if (!list.length) {
+      const fallbackMini = normalizePropertyMini(propMiniFromRoute);
+      if (fallbackMini) pushMini(fallbackMini);
+    }
+
+    return list;
+  }, [bucketItems, normalizePropertyMini, propMiniFromRoute, initialMessage]);
 
   // Mỗi lần đổi conversationId → luôn fetch + mark read (bỏ điều kiện initialMessage && empty)
   useEffect(() => {
@@ -150,6 +180,31 @@ useEffect(() => {
 
   const [text, setText] = useState("");
 
+  const handlePressProperty = useCallback(
+    (pm) => {
+      if (!pm?.propertyId) return;
+
+      const metadata = {
+        source: "chat_detail",
+        ...buildPropertyMetadata(pm),
+      };
+
+      dispatch(
+        recordUserEvent({
+          eventType: "VIEW",
+          roomId: pm.propertyId,
+          metadata,
+        })
+      );
+
+      navigation.navigate("PropertyDetail", {
+        propertyId: pm.propertyId,
+        loggedViewEvent: true,
+      });
+    },
+    [dispatch, navigation]
+  );
+
   const renderItem = ({ item }) => {
     const mine = item.sender?.userId === me.userId;
     const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
@@ -166,58 +221,71 @@ useEffect(() => {
     );
   };
 
-// ChatDetailScreen.js (chỉ trích đoạn HeaderPropertyCard đã chỉnh)
-
-const formatPrice = (p) => {
-  const n = Number(p);
-  return Number.isFinite(n) ? n.toLocaleString("vi-VN") : p;
-};
-
 const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
 
-const HeaderPropertyCard = () => {
-  const pm = headerMini;
-  if (!pm) return null;
+const formatPriceWithUnit = (pm) => {
+  if (!pm?.price) return "Giá liên hệ";
+  const formatted = Number(pm.price).toLocaleString("vi-VN");
+  const type = pm.propertyType || "ROOM";
+  return type === "ROOM" ? `${formatted} đ/tháng` : `${formatted} đ/ngày`;
+};
 
-  const formatPriceWithUnit = (pm) => {
-        if (!pm?.price) return "Giá liên hệ";
-        const formatted = Number(pm.price).toLocaleString("vi-VN");
-        return pm.propertyType === "ROOM"
-            ? `${formatted} đ/tháng`
-            : `${formatted} đ/ngày`;
-    };
+const buildPropertyMetadata = (pm = {}) => {
+  const metadata = {};
+  if (pm.propertyId) metadata.propertyId = pm.propertyId;
+  if (pm.title) metadata.title = pm.title;
+  if (pm.price) metadata.price = pm.price;
+  if (pm.propertyType) metadata.propertyType = pm.propertyType;
+  return metadata;
+};
 
-  // fallback: ưu tiên thumbnail → S3 media[0].url → placeholder
-  const imageUrl =
-    pm.thumbnailUrl ||
-    (pm.media?.length > 0 ? pm.media[0].url : null) ||
-    "https://picsum.photos/seed/building/600/400";
+const HeaderPropertyList = ({ items, onPressProperty }) => {
+  if (!items?.length) return null;
 
   return (
-    <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
-      <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-        <S3Image
-          src={imageUrl}
-          cacheKey={pm.updatedAt}
-          style={{ width: 64, height: 64, borderRadius: 8 }}
-          alt={pm.title}
-        />
-        <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ fontWeight: "700" }}>
-            {pm.title || "Phòng"}
-          </Text>
-          {!!pm.address && (
-            <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>
-              {formatAddress(pm.address)}
-            </Text>
-          )}
-          {!!pm.price && (
-            <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
-              {formatPriceWithUnit(pm)}
-            </Text>
-          )}
-        </View>
-      </View>
+    <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 12 }}>
+      {items.map((pm) => {
+        const imageUrl = pm.thumbnailUrl || "https://picsum.photos/seed/building/600/400";
+
+        return (
+          <TouchableOpacity
+            key={pm.propertyId}
+            onPress={() => onPressProperty?.(pm)}
+            style={{
+              borderWidth: 1,
+              borderColor: "#F2F2F2",
+              borderRadius: 12,
+              padding: 12,
+              backgroundColor: "#fff",
+              flexDirection: "row",
+              gap: 12,
+              alignItems: "center",
+            }}
+          >
+            <S3Image
+              src={imageUrl}
+              cacheKey={pm.updatedAt}
+              style={{ width: 64, height: 64, borderRadius: 8 }}
+              alt={pm.title}
+            />
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={{ fontWeight: "700" }}>
+                {pm.title || "Phòng"}
+              </Text>
+              {!!pm.address && (
+                <Text numberOfLines={1} style={{ color: MUTED, marginTop: 2 }}>
+                  {formatAddress(pm.address)}
+                </Text>
+              )}
+              {!!pm.price && (
+                <Text style={{ marginTop: 4, color: ORANGE, fontWeight: "700" }}>
+                  {formatPriceWithUnit(pm)}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
@@ -237,7 +305,9 @@ const HeaderPropertyCard = () => {
       <FlatList
         ref={listRef}
         data={bucketItems}
-        ListHeaderComponent={<HeaderPropertyCard />}
+        ListHeaderComponent={
+          <HeaderPropertyList items={propertyHeaderItems} onPressProperty={handlePressProperty} />
+        }
         keyExtractor={(it, idx) => `${it.messageId || it.tempId || "k"}-${it.createdAt || idx}`}
         renderItem={renderItem}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
