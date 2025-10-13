@@ -82,6 +82,17 @@ export default function SearchPostScreen() {
     loading: afterSearchLoading = false,
     error: afterSearchError = null,
   } = afterSearchState;
+  const shouldShowAfterSearchFooter = useMemo(
+    () =>
+      Boolean(afterSearchError) ||
+      afterSearchLoading ||
+      (Array.isArray(afterSearchRecommendations) && afterSearchRecommendations.length > 0),
+    [afterSearchError, afterSearchLoading, afterSearchRecommendations]
+  );
+  const afterSearchFooterStyle = useMemo(
+    () => (shouldShowAfterSearchFooter ? { marginTop: 24 } : null),
+    [shouldShowAfterSearchFooter]
+  );
   const searchHistoryState = useSelector((s) => s.searchHistory);
   const historyItems = searchHistoryState.items || [];
   const searchSuggestionsState = useSelector((s) => s.searchSuggestions);
@@ -687,7 +698,7 @@ export default function SearchPostScreen() {
     );
   };
 
-  const renderAfterSearchSection = () => {
+  const renderAfterSearchSection = useCallback(() => {
     if (afterSearchError) {
       return (
         <View style={{ paddingHorizontal: 12, paddingVertical: 16 }}>
@@ -711,7 +722,7 @@ export default function SearchPostScreen() {
     }
 
     return (
-      <View style={{ marginTop: 24, paddingHorizontal: 6, paddingBottom: 60 }}>
+      <View style={{ paddingHorizontal: 6, paddingBottom: 40 }}>
         <Text
           style={{
             fontSize: 18,
@@ -726,15 +737,17 @@ export default function SearchPostScreen() {
           style={{
             flexDirection: 'row',
             flexWrap: 'wrap',
-            justifyContent: 'space-between',
+            marginHorizontal: -6,
           }}
         >
           {afterSearchRecommendations.map((item, index) => (
             <TouchableOpacity
               key={String(item.propertyId ?? index)}
               style={{
-                width: '48%',
-                margin: 6,
+                flexBasis: '46%',
+                maxWidth: '46%',
+                marginHorizontal: 6,
+                marginBottom: 12,
                 borderWidth: 1,
                 borderColor: GRAY,
                 borderRadius: 12,
@@ -787,7 +800,14 @@ export default function SearchPostScreen() {
         ) : null}
       </View>
     );
-  };
+  }, [
+    afterSearchError,
+    afterSearchLoading,
+    afterSearchRecommendations,
+    formatAddress,
+    formatPrice,
+    openPropertyDetail,
+  ]);
 
   // handler áp dụng filter nâng cao
   const handleApplyFilters = (filters) => {
@@ -1008,25 +1028,24 @@ export default function SearchPostScreen() {
       {loading ? (
         <Text style={{ textAlign: "center", marginTop: 20 }}>Đang tải...</Text>
       ) : (
-        <>
-          <FlatList
-            data={searchResults?.content || []}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.propertyId}
-            numColumns={2}
-            contentContainerStyle={{
-              paddingHorizontal: 6,
-              paddingBottom: 20,
-              flexGrow: 1,
-            }}
-            ListEmptyComponent={
-              <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
-                Không tìm thấy kết quả phù hợp
-              </Text>
-            }
-          />
-          {renderAfterSearchSection()}
-        </>
+        <FlatList
+          data={searchResults?.content || []}
+          renderItem={renderItem}
+          keyExtractor={(item) => String(item.propertyId)}
+          numColumns={2}
+          contentContainerStyle={{
+            paddingHorizontal: 6,
+            paddingBottom: 20,
+            flexGrow: 1,
+          }}
+          ListEmptyComponent={
+            <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
+              Không tìm thấy kết quả phù hợp
+            </Text>
+          }
+          ListFooterComponent={renderAfterSearchSection}
+          ListFooterComponentStyle={afterSearchFooterStyle}
+        />
       )}
 
       {showSuggestionsOverlay && (
