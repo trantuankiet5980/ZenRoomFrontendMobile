@@ -58,7 +58,10 @@ export const sendMessage = createAsyncThunk(
   "chat/sendMessage",
   async (payload, { rejectWithValue }) => {
     try {
-      const { data } = await axiosInstance.post(`/chat/send`, payload);
+      const { clientRequestId, ...rest } = payload || {};
+      const body = { ...rest };
+      if (clientRequestId) body.clientRequestId = clientRequestId;
+      const { data } = await axiosInstance.post(`/chat/send`, body);
       const cid = data?.conversation?.conversationId;
       return { conversationId: cid, serverMessage: data };
     } catch (e) {
@@ -72,13 +75,14 @@ export const sendMessage = createAsyncThunk(
  */
 export const sendImages = createAsyncThunk(
   "chat/sendImages",
-  async ({ conversationId, propertyId, peerId, content, images }, { rejectWithValue }) => {
+  async ({ conversationId, propertyId, peerId, content, images, clientRequestId }, { rejectWithValue }) => {
     try {
       const form = new FormData();
       if (conversationId) form.append("conversationId", conversationId);
       if (propertyId) form.append("propertyId", propertyId);
       if (peerId) form.append("peerId", peerId);
       if (content) form.append("content", content);
+      if (clientRequestId) form.append("clientRequestId", clientRequestId);
 
       (images || []).forEach((img, idx) => {
         if (!img?.uri) return;

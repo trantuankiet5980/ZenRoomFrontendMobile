@@ -27,6 +27,7 @@ import S3Image from "../components/S3Image";
 import { recordUserEvent } from "../features/events/eventsThunks";
 import * as ImagePicker from "expo-image-picker";
 import { showToast } from "../utils/AppUtils";
+import { formatRelativeTime } from "../utils/time";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -305,6 +306,7 @@ export default function ChatDetailScreen() {
 
   const listRef = useRef();
   const me = useSelector((s) => s.auth.user);
+  const myId = me?.userId || null;
   const [text, setText] = useState("");
   const [pendingImages, setPendingImages] = useState([]);
   const [sending, setSending] = useState(false);
@@ -327,13 +329,17 @@ export default function ChatDetailScreen() {
     const arr = rawBucket.items || [];
     const map = new Map();
     for (const m of arr) {
-      const key = m.messageId || m.tempId || `${m.content}-${m.createdAt}`;
-      // nếu đã có temp và giờ có serverMessage (có messageId) → thay bằng m hiện tại
+      const key =
+        m.messageId ||
+        m.clientRequestId ||
+        m.tempId ||
+        `${m.sender?.userId || ""}-${m.createdAt}-${m.content || ""}`;
       const existed = map.get(key);
-      if (!existed) map.set(key, m);
-      else {
-        // ưu tiên bản có messageId (server)
-        if (!existed.messageId && m.messageId) map.set(key, m);
+      if (!existed) {
+        map.set(key, m);
+      } else {
+        const preferCurrent = (!!m.messageId && !existed.messageId) || (!!m.attachments?.length && !existed.attachments?.length);
+        if (preferCurrent) map.set(key, m);
       }
     }
     // sort theo createdAt tăng dần
@@ -411,11 +417,10 @@ export default function ChatDetailScreen() {
       const sub = client.subscribe(`/topic/chat.${conversationId}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
-          // nếu tin của đối phương → mark read
-          if (dto?.sender?.userId && dto.sender.userId !== me.userId) {
+          if (dto?.sender?.userId && myId && dto.sender.userId !== myId) {
             dispatch(markReadAll(conversationId));
           }
-          dispatch(pushServerMessage(dto));
+          dispatch(pushServerMessage({ ...dto, __currentUserId: myId }));
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 16);
         } catch {}
       });
@@ -427,7 +432,7 @@ export default function ChatDetailScreen() {
     else ensureConnected(() => { cleanup = doSubscribe(); }, conversationId);
 
     return () => { cleanup && cleanup(); };
-  }, [conversationId, me?.userId, dispatch]);
+  }, [conversationId, myId, dispatch]);
 
   const handlePickImages = useCallback(async () => {
     try {
@@ -496,17 +501,20 @@ export default function ChatDetailScreen() {
     if (!content && !hasImages) return;
 
     const imagesToSend = pendingImages;
+    const tempId = "tmp-" + Date.now();
 
     if (conversationId) {
-      const tempId = "tmp-" + Date.now();
-      dispatch(pushLocalMessage({
-        conversationId,
-        content,
-        fullname: me.fullName || me.name,
-        me,
-        tempId,
-        localImages: imagesToSend.map((img) => img.uri),
-      }));
+      dispatch(
+        pushLocalMessage({
+          conversationId,
+          content,
+          fullname: me.fullName || me.name,
+          me,
+          tempId,
+          clientRequestId: tempId,
+          localImages: imagesToSend.map((img) => img.uri),
+        })
+      );
     }
 
     setText("");
@@ -522,6 +530,7 @@ export default function ChatDetailScreen() {
           propertyId,
           content: content || undefined,
           images: hasImages ? imagesToSend : undefined,
+          clientRequestId: tempId,
         })
       ).unwrap();
 
@@ -570,7 +579,7 @@ export default function ChatDetailScreen() {
   );
 
   const renderItem = ({ item }) => {
-    const mine = item.sender?.userId === me.userId;
+    const mine = !!myId && item.sender?.userId === myId;
     const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
     const attachments = Array.isArray(item.attachments) ? item.attachments.filter((att) => att && att.url) : [];
     const localImages = Array.isArray(item.localImages) ? item.localImages.filter(Boolean) : [];
@@ -590,6 +599,18 @@ export default function ChatDetailScreen() {
       borderRadius: 12,
       backgroundColor: "#fff",
     };
+    const timeLabel = formatRelativeTime(item.createdAt);
+    const statusText = mine
+      ? item.status === "sending" || (!item.messageId && item.status !== "sent" && item.status !== "seen")
+        ? "Đang gửi"
+        : item.status === "seen" || item.readAt || item.read
+          ? "Đã xem"
+          : "Đã gửi"
+      : "";
+    const metaParts = [];
+    if (timeLabel) metaParts.push(timeLabel);
+    if (statusText) metaParts.push(statusText);
+    const metaLabel = metaParts.join(" · ");
 
     return (
       <View style={{ paddingHorizontal: 16, marginTop: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
@@ -628,9 +649,11 @@ export default function ChatDetailScreen() {
 
           {hasContent && <Text style={{ color: textColor }}>{item.content}</Text>}
         </View>
-        <Text style={{ color: MUTED, fontSize: 11, marginTop: 4, textAlign: mine ? "right" : "left" }}>
-          {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </Text>
+        {!!metaLabel && (
+          <Text style={{ color: MUTED, fontSize: 11, marginTop: 4, textAlign: mine ? "right" : "left" }}>
+            {metaLabel}
+          </Text>
+        )}
       </View>
     );
   };

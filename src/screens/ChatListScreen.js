@@ -6,6 +6,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchConversations, fetchUnreadCount } from "../features/chat/chatThunks";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import { pushServerMessage } from "../features/chat/chatSlice";
+import { formatRelativeTime } from "../utils/time";
 
 const ORANGE = "#f36031", MUTED = "#9CA3AF", BORDER = "#E5E7EB", GREEN = "#CBE7A7";
 
@@ -53,7 +54,7 @@ export default function ChatListScreen() {
       const sub = client.subscribe(`/topic/chat.${cid}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
-          dispatch(pushServerMessage(dto));
+          dispatch(pushServerMessage({ ...dto, __currentUserId: me?.userId }));
         } catch {}
       });
       subsRef.current[cid] = sub;
@@ -78,22 +79,35 @@ export default function ChatListScreen() {
     const base = Array.isArray(conversations) ? conversations : [];
     const filtered = tab === "tenant" ? base.filter(c => Boolean(c?.tenant)) : base;
 
-    const mapped = filtered.map(c => {
-  const other = getOtherParty(c, me?.userId, me?.role);
-  return {
-    id: c.conversationId,
-    name: other?.fullName || (other?.role === "TENANT" ? "Khách thuê" : "Chủ trọ"),
-    avatar: other?.avatarUrl || null,
-    time: new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    unread: c.unread || 0,
-    last: c.lastMessage || "",
-    raw: c,
-  };
-});
+  const mapped = filtered.map((c) => {
+      const other = getOtherParty(c, me?.userId, me?.role);
+      const lastTimeIso =
+        c.lastMessageAt ||
+        c.updatedAt ||
+        c.lastMessage?.createdAt ||
+        c.createdAt ||
+        null;
+      return {
+        id: c.conversationId,
+        name: other?.fullName || (other?.role === "TENANT" ? "Khách thuê" : "Chủ trọ"),
+        avatar: other?.avatarUrl || null,
+        time: formatRelativeTime(lastTimeIso),
+        unread: c.unread || 0,
+        last: c.lastMessage || "",
+        raw: c,
+        lastTimeIso,
+      };
+    });
 
-    if (!q) return mapped;
+    const sorted = [...mapped].sort((a, b) => {
+      const timeA = a.lastTimeIso ? new Date(a.lastTimeIso).getTime() : 0;
+      const timeB = b.lastTimeIso ? new Date(b.lastTimeIso).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    if (!q) return sorted;
     const s = q.toLowerCase();
-    return mapped.filter(x => x.name.toLowerCase().includes(s));
+    return sorted.filter((x) => x.name.toLowerCase().includes(s));
   }, [conversations, tab, q, me?.userId, me?.role]);
 
   const renderItem = ({ item }) => (
