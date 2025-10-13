@@ -86,9 +86,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const [replyInputError, setReplyInputError] = useState("");
     const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
     const dispatch = useDispatch();
-    const { current: property, loading, error } = useSelector(
-        (state) => state.properties
-    );
+    const propertiesState = useSelector((state) => state.properties || {});
+    const { current, byId = {}, loading = false, error = null } = propertiesState;
+    const propertyFromMap = byId[propertyId];
+    const property =
+        propertyFromMap ||
+        (current?.propertyId === propertyId ? current : null);
     const { isTenant, isLandlord } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
@@ -815,7 +818,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     ? `${landlordAverageRatingValue}/5 trung bình`
                     : "Chưa có đánh giá";
 
-    if (loading) {
+    if (loading || (!property && !error)) {
         return (
             <View style={styles.center}>
                 <Text>Đang tải...</Text>
