@@ -4,6 +4,7 @@ import {
   fetchUnreadCount,
   fetchMessages,
   sendMessage,
+  sendImages,
 } from "./chatThunks";
 
 const initialState = {
@@ -25,6 +26,22 @@ function toPropertyMini(prop) {
   };
 }
 
+function getLastMessagePreview(message) {
+  if (!message) return "";
+  const content = message.content?.trim();
+  if (content) return content;
+
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  if (attachments.length > 1) return `Đã gửi ${attachments.length} hình ảnh`;
+  if (attachments.length === 1) return "Đã gửi hình ảnh";
+
+  const locals = Array.isArray(message.localImages) ? message.localImages : [];
+  if (locals.length > 1) return `Đang gửi ${locals.length} hình ảnh`;
+  if (locals.length === 1) return "Đang gửi hình ảnh";
+
+  return "";
+}
+
 const chatSlice = createSlice({
   name: "chat",
   initialState,
@@ -37,16 +54,19 @@ const chatSlice = createSlice({
     },
 
     pushLocalMessage(state, action) {
-      const { conversationId, content, me, tempId, createdAt } = action.payload;
+      const { conversationId, content, me, tempId, createdAt, attachments, localImages } = action.payload;
       if (!conversationId) return;
       const bucket = state.messagesByConv[conversationId] || { items: [] };
       bucket.items = [
         ...bucket.items,
         {
           messageId: tempId,
+          tempId,
           content,
           sender: me,
           createdAt: createdAt || new Date().toISOString(),
+          attachments: attachments || [],
+          localImages: localImages || [],
         },
       ];
       state.messagesByConv[conversationId] = bucket;
@@ -55,7 +75,11 @@ const chatSlice = createSlice({
       if (idx >= 0) {
         state.conversations[idx] = {
           ...state.conversations[idx],
-          lastMessage: content,
+          lastMessage:
+            getLastMessagePreview({ content, attachments, localImages }) ||
+            content ||
+            state.conversations[idx].lastMessage ||
+            "",
         };
       }
     },
@@ -78,7 +102,7 @@ const chatSlice = createSlice({
       // 2) upsert conversation row (để ChatList & ChatDetail dùng lại)
       const idx = state.conversations.findIndex(c => c.conversationId === convId);
       const propMini = toPropertyMini(m?.conversation?.property);
-      const last = m.content || "";
+      const last = getLastMessagePreview(m) || "";
 
       if (idx >= 0) {
         const conv = state.conversations[idx];
@@ -163,7 +187,7 @@ const chatSlice = createSlice({
         const items = (data?.content || data) ?? [];
         state.messagesByConv[conversationId] = { items };
 
-        const last = items.length ? items[items.length - 1].content : "";
+        const last = items.length ? getLastMessagePreview(items[items.length - 1]) : "";
         const idx = state.conversations.findIndex(c => c.conversationId === conversationId);
         if (idx >= 0 && last) {
           state.conversations[idx] = {
@@ -192,7 +216,7 @@ const chatSlice = createSlice({
         if (idx >= 0) {
           state.conversations[idx] = {
             ...state.conversations[idx],
-            lastMessage: sm.content || state.conversations[idx].lastMessage || "",
+            lastMessage: getLastMessagePreview(sm) || state.conversations[idx].lastMessage || "",
             propertyMini: propMini || state.conversations[idx].propertyMini || null,
           };
         } else {
@@ -201,7 +225,40 @@ const chatSlice = createSlice({
             tenant: sm?.conversation?.tenant || null,
             landlord: sm?.conversation?.landlord || null,
             createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
-            lastMessage: sm.content || "",
+            lastMessage: getLastMessagePreview(sm) || "",
+            propertyMini: propMini || null,
+            unread: 0,
+          });
+        }
+      })
+      .addCase(sendImages.fulfilled, (state, action) => {
+        const sm = action.payload?.serverMessage;
+        if (!sm) return;
+        const convId = sm?.conversation?.conversationId || sm?.conversationId;
+        if (!convId) return;
+
+        const bucket = state.messagesByConv[convId] || { items: [] };
+        const exists = bucket.items.some(x => x.messageId === sm.messageId);
+        if (!exists) {
+          bucket.items = [...bucket.items, sm];
+          state.messagesByConv[convId] = bucket;
+        }
+
+        const idx = state.conversations.findIndex(c => c.conversationId === convId);
+        const propMini = toPropertyMini(sm?.conversation?.property);
+        if (idx >= 0) {
+          state.conversations[idx] = {
+            ...state.conversations[idx],
+            lastMessage: getLastMessagePreview(sm) || state.conversations[idx].lastMessage || "",
+            propertyMini: propMini || state.conversations[idx].propertyMini || null,
+          };
+        } else {
+          state.conversations.unshift({
+            conversationId: convId,
+            tenant: sm?.conversation?.tenant || null,
+            landlord: sm?.conversation?.landlord || null,
+            createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
+            lastMessage: getLastMessagePreview(sm) || "",
             propertyMini: propMini || null,
             unread: 0,
           });
