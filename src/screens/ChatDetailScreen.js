@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchMessages, sendMessage, markReadAll } from "../features/chat/chatThunks";
+import { fetchMessages, sendMessage, sendImages, markReadAll } from "../features/chat/chatThunks";
 import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
-import S3Image from "../components/S3Image"; 
+import S3Image from "../components/S3Image";
 import { recordUserEvent } from "../features/events/eventsThunks";
+import * as ImagePicker from "expo-image-picker";
+import { showToast } from "../utils/AppUtils";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 
@@ -29,6 +31,10 @@ export default function ChatDetailScreen() {
 
   const listRef = useRef();
   const me = useSelector((s) => s.auth.user);
+  const [text, setText] = useState("");
+  const [pendingImages, setPendingImages] = useState([]);
+  const [sending, setSending] = useState(false);
+  const maxImagesPerMessage = 10;
 
   // giữ conversationId đồng bộ theo route param (không dùng "|| conversationId" gây lặp).
   const [conversationId, setConversationId] = useState(chatIdParam || null);
@@ -148,9 +154,60 @@ export default function ChatDetailScreen() {
     return () => { cleanup && cleanup(); };
   }, [conversationId, me?.userId, dispatch]);
 
+  const handlePickImages = useCallback(async () => {
+    try {
+      const remaining = maxImagesPerMessage - pendingImages.length;
+      if (remaining <= 0) {
+        showToast("info", "top", "Thông báo", "Bạn chỉ có thể gửi tối đa 10 hình ảnh mỗi lần.");
+        return;
+      }
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showToast("error", "top", "Thiếu quyền", "Vui lòng cấp quyền truy cập thư viện ảnh.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+      const assets = Array.isArray(result.assets) ? result.assets : [];
+      const normalized = assets
+        .filter((asset) => asset?.uri)
+        .slice(0, remaining)
+        .map((asset, idx) => ({
+          uri: asset.uri,
+          name: asset.fileName || asset.filename || `image-${Date.now()}-${idx}.jpg`,
+          type: asset.mimeType || asset.type || "image/jpeg",
+        }));
+
+      if (!normalized.length) return;
+      setPendingImages((prev) => {
+        const merged = [...prev, ...normalized];
+        return merged.slice(0, maxImagesPerMessage);
+      });
+    } catch (err) {
+      console.warn("pickImages error", err);
+      showToast("error", "top", "Lỗi", "Không thể truy cập thư viện ảnh");
+    }
+  }, [pendingImages.length, maxImagesPerMessage]);
+
+  const handleRemovePendingImage = useCallback((index) => {
+    setPendingImages((prev) => prev.filter((_, idx) => idx !== index));
+  }, []);
+
   const doSend = async () => {
+    if (sending) return;
     const content = text.trim();
-    if (!content) return;
+    const hasImages = pendingImages.length > 0;
+    if (!content && !hasImages) return;
+
+    const imagesToSend = pendingImages;
 
     if (conversationId) {
       const tempId = "tmp-" + Date.now();
@@ -160,25 +217,44 @@ export default function ChatDetailScreen() {
         fullname: me.fullName || me.name,
         me,
         tempId,
+        localImages: imagesToSend.map((img) => img.uri),
       }));
     }
+
     setText("");
+    setPendingImages([]);
+    setSending(true);
 
     try {
-      const res = await dispatch(sendMessage({
-        conversationId,
-        peerId,
-        propertyId,
-        content
-      })).unwrap();
+      const thunk = hasImages ? sendImages : sendMessage;
+      const res = await dispatch(
+        thunk({
+          conversationId,
+          peerId,
+          propertyId,
+          content: content || undefined,
+          images: hasImages ? imagesToSend : undefined,
+        })
+      ).unwrap();
 
       const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
       if (!conversationId && newCid) setConversationId(newCid);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    } catch (e) {}
+    } catch (e) {
+      console.error("send chat error", e);
+      const errorMessage =
+        e?.message ||
+        e?.error ||
+        e?.detail ||
+        e?.data?.message ||
+        e?.response?.data?.message ||
+        "Gửi tin nhắn thất bại";
+      showToast("error", "top", "Lỗi", errorMessage);
+      setPendingImages(imagesToSend);
+    } finally {
+      setSending(false);
+    }
   };
-
-  const [text, setText] = useState("");
 
   const handlePressProperty = useCallback(
     (pm) => {
@@ -208,11 +284,56 @@ export default function ChatDetailScreen() {
   const renderItem = ({ item }) => {
     const mine = item.sender?.userId === me.userId;
     const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
+    const attachments = Array.isArray(item.attachments) ? item.attachments.filter((att) => att && att.url) : [];
+    const localImages = Array.isArray(item.localImages) ? item.localImages.filter(Boolean) : [];
+    const hasImages = attachments.length > 0 || localImages.length > 0;
+    const hasContent = !!item.content?.trim();
+    const totalImages = attachments.length + localImages.length;
+    const bubbleColor = mine ? (hasImages ? "#FCE8DE" : ORANGE) : hasImages ? "#F8FAFC" : "#F2F4F5";
+    const textColor = mine && !hasImages ? "#fff" : "#111";
+    const imageSize = totalImages > 1 ? 120 : 200;
+    const imageStyle = {
+      width: imageSize,
+      height: imageSize,
+      borderRadius: 12,
+      backgroundColor: "#fff",
+    };
+
     return (
       <View style={{ paddingHorizontal: 16, marginTop: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
         {!mine && <Text style={{ fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 2, marginLeft: 4 }}>{senderName}</Text>}
-        <View style={{ maxWidth: "80%", padding: 10, borderRadius: 14, backgroundColor: mine ? ORANGE : "#F2F4F5" }}>
-          <Text style={{ color: mine ? "#fff" : "#111" }}>{item.content}</Text>
+        <View
+          style={{
+            maxWidth: "80%",
+            padding: hasContent ? 10 : hasImages ? 8 : 10,
+            borderRadius: 14,
+            backgroundColor: bubbleColor,
+            gap: hasImages && hasContent ? 8 : 0,
+          }}
+        >
+          {hasImages && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {localImages.map((uri, idx) => (
+                <Image
+                  key={`local-${idx}`}
+                  source={{ uri }}
+                  style={[imageStyle, { opacity: 0.7 }]}
+                  resizeMode="cover"
+                />
+              ))}
+              {attachments.map((att, idx) => (
+                <S3Image
+                  key={att.attachmentId || att.url || `att-${idx}`}
+                  src={att.url}
+                  cacheKey={att.updatedAt || att.createdAt}
+                  style={imageStyle}
+                  alt={`attachment-${idx + 1}`}
+                />
+              ))}
+            </View>
+          )}
+
+          {hasContent && <Text style={{ color: textColor }}>{item.content}</Text>}
         </View>
         <Text style={{ color: MUTED, fontSize: 11, marginTop: 4, textAlign: mine ? "right" : "left" }}>
           {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -313,16 +434,73 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
       />
 
+      {pendingImages.length > 0 && (
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingBottom: 10,
+            paddingTop: 10,
+            borderTopWidth: 1,
+            borderColor: BORDER,
+            backgroundColor: "#fff",
+          }}
+        >
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {pendingImages.map((img, idx) => (
+              <View key={`${img.uri}-${idx}`} style={{ position: "relative" }}>
+                <Image source={{ uri: img.uri }} style={{ width: 84, height: 84, borderRadius: 12 }} />
+                <TouchableOpacity
+                  onPress={() => handleRemovePendingImage(idx)}
+                  style={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    backgroundColor: "#fff",
+                    borderRadius: 12,
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#f87171" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+          <Text style={{ fontSize: 12, color: MUTED, marginTop: 6 }}>
+            {pendingImages.length}/{maxImagesPerMessage} hình ảnh đã chọn
+          </Text>
+        </View>
+      )}
+
       {/* Composer */}
       <View style={{ flexDirection: "row", alignItems: "center", padding: 10, borderTopWidth: 1, borderColor: BORDER, marginBottom: 20 }}>
+        <TouchableOpacity
+          onPress={handlePickImages}
+          disabled={pendingImages.length >= maxImagesPerMessage}
+          style={{ paddingHorizontal: 4, paddingVertical: 4 }}
+        >
+          <Ionicons
+            name="image"
+            size={24}
+            color={pendingImages.length >= maxImagesPerMessage ? MUTED : ORANGE}
+          />
+        </TouchableOpacity>
         <TextInput
           value={text}
           onChangeText={setText}
           placeholder="Nhập tin nhắn..."
-          style={{ flex: 1, backgroundColor: "#F7F7F7", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, marginHorizontal: 8 }}
+          placeholderTextColor={MUTED}
+          multiline
+          style={{
+            flex: 1,
+            backgroundColor: "#F7F7F7",
+            borderRadius: 20,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            marginHorizontal: 8,
+            maxHeight: 120,
+          }}
         />
-        <TouchableOpacity onPress={doSend} style={{ paddingHorizontal: 6 }}>
-          <Ionicons name="send" size={22} color={ORANGE} />
+        <TouchableOpacity onPress={doSend} disabled={sending} style={{ paddingHorizontal: 6 }}>
+          <Ionicons name="send" size={22} color={sending ? MUTED : ORANGE} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

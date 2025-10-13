@@ -67,6 +67,41 @@ export const sendMessage = createAsyncThunk(
   }
 )
 
+/**
+ * 4b) Gửi tin nhắn kèm hình ảnh (multipart/form-data)
+ */
+export const sendImages = createAsyncThunk(
+  "chat/sendImages",
+  async ({ conversationId, propertyId, peerId, content, images }, { rejectWithValue }) => {
+    try {
+      const form = new FormData();
+      if (conversationId) form.append("conversationId", conversationId);
+      if (propertyId) form.append("propertyId", propertyId);
+      if (peerId) form.append("peerId", peerId);
+      if (content) form.append("content", content);
+
+      (images || []).forEach((img, idx) => {
+        if (!img?.uri) return;
+        const name = img.name || img.fileName || img.filename || `image-${idx}.jpg`;
+        const type = img.type || img.mimeType || "image/jpeg";
+        form.append("images", {
+          uri: img.uri,
+          name,
+          type,
+        });
+      });
+
+      const { data } = await axiosInstance.post(`/chat/send/images`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const cid = data?.conversation?.conversationId;
+      return { conversationId: cid, serverMessage: data };
+    } catch (e) {
+      return rejectWithValue(e?.response?.data || { message: "Send images failed" });
+    }
+  }
+);
+
 // 5) Đánh dấu đã đọc hết
 export const markReadAll = createAsyncThunk(
   "chat/markReadAll",
