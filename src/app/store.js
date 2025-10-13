@@ -20,6 +20,7 @@ import invoicesReducer from '../features/invoices/invoiceSlice';
 import searchHistoryReducer from "../features/searchHistory/searchHistorySlice";
 import eventsReducer from "../features/events/eventsSlice";
 import searchSuggestionsReducer from "../features/searchSuggestions/searchSuggestionsSlice";
+import recommendationsReducer from "../features/recommendations/recommendationsSlice";
 
 export const store = configureStore({
   reducer: {
@@ -44,6 +45,7 @@ export const store = configureStore({
     searchHistory: searchHistoryReducer,
     events: eventsReducer,
     searchSuggestions: searchSuggestionsReducer,
+    recommendations: recommendationsReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });

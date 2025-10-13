@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useDispatch } from "react-redux";
 import { fetchFavorites } from "../features/favorites/favoritesThunks";
+import { recordUserEvent } from "../features/events/eventsThunks";
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from "@expo/vector-icons";
 import S3Image from "../components/S3Image";
@@ -57,9 +58,22 @@ const FavoritesScreen = ({ navigation }) => {
           return (
             <TouchableOpacity
               style={styles.card}
-              onPress={() =>
-                navigation.navigate("PropertyDetail", { propertyId: property.propertyId })
-              }
+              onPress={() => {
+                if (property?.propertyId) {
+                  dispatch(
+                    recordUserEvent({
+                      eventType: "VIEW",
+                      roomId: property.propertyId,
+                      metadata: { source: "favorites" },
+                    })
+                  );
+                }
+
+                navigation.navigate("PropertyDetail", {
+                  propertyId: property.propertyId,
+                  loggedViewEvent: true,
+                });
+              }}
             >
               <S3Image
                 src={property.media?.[0]?.url || "https://picsum.photos/200/120"}

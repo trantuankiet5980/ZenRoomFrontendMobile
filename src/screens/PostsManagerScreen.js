@@ -9,6 +9,7 @@ import useHideTabBar from '../hooks/useHideTabBar';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchPropertiesByLandlord } from "../features/properties/propertiesThunks";
 import S3Image from '../components/S3Image';
+import { recordUserEvent } from "../features/events/eventsThunks";
 
 const ORANGE = '#f36031';
 const MUTED = '#9CA3AF';
@@ -198,6 +199,7 @@ function Tab({ label, active, onPress }) {
 
 function PostCard({ item }) {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   return (
     <View style={{
       borderWidth: 1, borderColor: BORDER, borderRadius: 12, overflow: 'hidden', marginBottom: 12
@@ -232,7 +234,22 @@ function PostCard({ item }) {
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.id })}
+            onPress={() => {
+              if (item?.id) {
+                dispatch(
+                  recordUserEvent({
+                    eventType: "VIEW",
+                    roomId: item.id,
+                    metadata: { source: "posts_manager" },
+                  })
+                );
+              }
+
+              navigation.navigate('PropertyDetail', {
+                propertyId: item.id,
+                loggedViewEvent: true,
+              });
+            }}
             style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: BORDER }}
           >
             <Text>Xem</Text>

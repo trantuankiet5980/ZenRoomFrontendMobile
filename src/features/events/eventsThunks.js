@@ -108,8 +108,39 @@ export const fetchRecentlyViewed = createAsyncThunk(
   }
 );
 
+export const recordUserEvent = createAsyncThunk(
+  "events/recordUserEvent",
+  async (
+    { eventType, roomId, query, metadata } = {},
+    { rejectWithValue }
+  ) => {
+    try {
+      if (!eventType) {
+        return rejectWithValue("eventType is required");
+      }
+
+      const payload = {
+        eventType,
+        roomId: roomId || undefined,
+        query: query || undefined,
+        metadata: metadata || undefined,
+      };
+
+      await axiosInstance.post("/events", payload);
+      return { success: true };
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể ghi nhận sự kiện.";
+      return rejectWithValue(message);
+    }
+  }
+);
+
 export const eventsThunks = {
   fetchRecentlyViewed,
+  recordUserEvent,
 };
 
 export default eventsThunks;
