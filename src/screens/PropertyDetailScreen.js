@@ -13,6 +13,7 @@ import {
     Alert,
     TouchableWithoutFeedback,
     TextInput,
+    ActivityIndicator,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import MapView, { Marker } from "react-native-maps";
@@ -29,6 +30,9 @@ import { resolveAssetUrl } from "../utils/cdn";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
+import { fetchSimilarRecommendations } from "../features/recommendations/recommendationsThunks";
+import { clearSimilarRecommendations } from "../features/recommendations/recommendationsSlice";
+import { recordUserEvent } from "../features/events/eventsThunks";
 import {
     fetchPropertyReviewsSummary,
     updateReviewThunk,
@@ -60,6 +64,7 @@ const parseCoordinate = (value) => {
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
     const { propertyId } = route.params;
+    const loggedViewEvent = Boolean(route?.params?.loggedViewEvent);
     const highlightReviewIdParam = route?.params?.highlightReviewId;
     const scrollToReviewsParam = route?.params?.scrollToReviews;
     const [liked, setLiked] = useState(false);
@@ -86,6 +91,13 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const { isTenant, isLandlord } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
+    const similarState =
+        useSelector((state) => state.recommendations?.similar) || {};
+    const {
+        items: similarRecommendations = [],
+        loading: similarLoading = false,
+        error: similarError = null,
+    } = similarState;
     const reviewsSummary = useSelector(
         (state) => state.reviews.summaries[propertyId] || { average: 0, total: 0 }
     );
@@ -588,6 +600,33 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         [dispatch, propertyId]
     );
 
+    const handleOpenSimilarProperty = useCallback(
+        (targetPropertyId, position) => {
+            if (!targetPropertyId) {
+                return;
+            }
+
+            const metadata = { source: "similar_properties" };
+            if (typeof position === "number") {
+                metadata.position = position;
+            }
+
+            dispatch(
+                recordUserEvent({
+                    eventType: "VIEW",
+                    roomId: targetPropertyId,
+                    metadata,
+                })
+            );
+
+            navigation.push("PropertyDetail", {
+                propertyId: targetPropertyId,
+                loggedViewEvent: true,
+            });
+        },
+        [dispatch, navigation]
+    );
+
     useEffect(() => {
         setExpandedReviews({});
         setVisibleReviewCount(3);
@@ -670,6 +709,32 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             dispatch(resetProperty());
         };
     }, [dispatch, propertyId]);
+
+    useEffect(() => {
+        if (!propertyId) {
+            return;
+        }
+
+        dispatch(fetchSimilarRecommendations({ roomId: propertyId }));
+
+        return () => {
+            dispatch(clearSimilarRecommendations());
+        };
+    }, [dispatch, propertyId]);
+
+    useEffect(() => {
+        if (!property?.propertyId || loggedViewEvent) {
+            return;
+        }
+
+        dispatch(
+            recordUserEvent({
+                eventType: "VIEW",
+                roomId: property.propertyId,
+                metadata: { screen: "property_detail" },
+            })
+        );
+    }, [dispatch, loggedViewEvent, property?.propertyId]);
 
     useEffect(() => {
         if (property?.media) {
@@ -1849,6 +1914,93 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         • Trước khi rời đi: Tắt hết các thiết bị - Khóa cửa
                     </Text>
                 </View>
+
+                <View style={styles.sectionDivider} />
+
+                <View style={styles.similarSection}>
+                    <Text style={styles.sectionTitle}>Có lẽ bạn sẽ thích</Text>
+                    {similarError ? (
+                        <Text style={styles.similarErrorText}>{similarError}</Text>
+                    ) : similarLoading && similarRecommendations.length === 0 ? (
+                        <View style={styles.similarLoadingWrapper}>
+                            <ActivityIndicator size="small" color="#f97316" />
+                        </View>
+                    ) : similarRecommendations.length === 0 ? (
+                        <Text style={styles.similarEmptyText}>
+                            Không có gợi ý tương tự.
+                        </Text>
+                    ) : (
+                        <View style={styles.similarGrid}>
+                            {similarRecommendations.map((item, index) => (
+                                <TouchableOpacity
+                                    key={`${item.propertyId || index}`}
+                                    style={styles.similarCard}
+                                    onPress={() =>
+                                        handleOpenSimilarProperty(
+                                            item.propertyId,
+                                            index
+                                        )
+                                    }
+                                >
+                                    <S3Image
+                                        src={
+                                            item.media?.[0]?.url ||
+                                            "https://picsum.photos/600/400"
+                                        }
+                                        cacheKey={item.updatedAt}
+                                        style={styles.similarCardImage}
+                                        alt={item.title}
+                                    />
+                                    <View style={styles.similarCardBody}>
+                                        {item.propertyName ? (
+                                            <Text
+                                                style={styles.similarCardSubtitle}
+                                                numberOfLines={1}
+                                            >
+                                                {item.propertyName}
+                                            </Text>
+                                        ) : null}
+                                        <Text
+                                            style={styles.similarCardTitle}
+                                            numberOfLines={2}
+                                        >
+                                            {item.title || item.name}
+                                        </Text>
+                                        {item.address?.addressFull ? (
+                                            <View style={styles.similarAddressRow}>
+                                                <Ionicons
+                                                    name="location-outline"
+                                                    size={14}
+                                                    color="#f97316"
+                                                />
+                                                <Text
+                                                    style={styles.similarCardAddress}
+                                                    numberOfLines={1}
+                                                >
+                                                    {item.address.addressFull.replace(
+                                                        /_/g,
+                                                        " "
+                                                    )}
+                                                </Text>
+                                            </View>
+                                        ) : null}
+                                        <Text
+                                            style={styles.similarCardPrice}
+                                            numberOfLines={1}
+                                        >
+                                            {formatPriceWithUnit(item)}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                    {similarLoading && similarRecommendations.length > 0 ? (
+                        <View style={styles.similarLoadingWrapper}>
+                            <ActivityIndicator size="small" color="#f97316" />
+                        </View>
+                    ) : null}
+                </View>
             </ScrollView>
 
             <ReviewModal
@@ -2632,6 +2784,71 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#6b7280",
         lineHeight: 18,
+    },
+    similarSection: {
+        marginTop: 16,
+    },
+    similarGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        marginTop: 12,
+        marginHorizontal: 12,
+    },
+    similarCard: {
+        width: "48%",
+        borderRadius: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
+        backgroundColor: "#fff",
+        marginBottom: 12,
+        overflow: "hidden",
+    },
+    similarCardImage: {
+        width: "100%",
+        height: 120,
+    },
+    similarCardBody: {
+        padding: 10,
+        gap: 6,
+    },
+    similarCardSubtitle: {
+        fontSize: 12,
+        color: "#6b7280",
+    },
+    similarCardTitle: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111827",
+    },
+    similarAddressRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    similarCardAddress: {
+        fontSize: 11,
+        color: "#4b5563",
+        flex: 1,
+    },
+    similarCardPrice: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#f97316",
+    },
+    similarEmptyText: {
+        textAlign: "center",
+        color: "#6b7280",
+        marginTop: 8,
+    },
+    similarErrorText: {
+        textAlign: "center",
+        color: "#dc2626",
+        marginTop: 8,
+    },
+    similarLoadingWrapper: {
+        paddingVertical: 12,
+        alignItems: "center",
     },
     bottomBar: {
         position: "absolute",

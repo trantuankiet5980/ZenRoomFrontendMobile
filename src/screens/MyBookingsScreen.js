@@ -18,6 +18,7 @@ import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/nativ
 import QRCode from "react-native-qrcode-svg";
 import S3Image from "../components/S3Image";
 import { resolveAssetUrl } from "../utils/cdn";
+import { recordUserEvent } from "../features/events/eventsThunks";
 
 import {
   fetchMyBookings,
@@ -722,7 +723,16 @@ export default function MyBookingsScreen() {
         propertyId,
         scrollToReviews: true,
         highlightReviewId: review?.reviewId || null,
+        loggedViewEvent: true,
       };
+
+      dispatch(
+        recordUserEvent({
+          eventType: "VIEW",
+          roomId: propertyId,
+          metadata: { source: "my_bookings", context: "view_review" },
+        })
+      );
 
       const parentNavigation = navigation.getParent?.();
       if (parentNavigation?.navigate) {
@@ -735,7 +745,7 @@ export default function MyBookingsScreen() {
 
       navigation.navigate("PropertyDetail", params);
     },
-    [navigation, reviewsByBooking]
+    [dispatch, navigation, reviewsByBooking]
   );
 
   const handleSubmitReview = useCallback(async () => {

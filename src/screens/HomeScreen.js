@@ -36,7 +36,11 @@ import {
   removeFavorite,
   fetchFavorites,
 } from "../features/favorites/favoritesThunks";
-import { fetchRecentlyViewed } from "../features/events/eventsThunks";
+import {
+  fetchRecentlyViewed,
+  recordUserEvent,
+} from "../features/events/eventsThunks";
+import { fetchPersonalRecommendations } from "../features/recommendations/recommendationsThunks";
 
 const DEFAULT_MAP_REGION = {
   latitude: 21.027763,
@@ -85,6 +89,8 @@ export default function HomeScreen() {
   const [favoriteActionLoading, setFavoriteActionLoading] = useState(false);
   const recentlyViewedState =
     useSelector((state) => state.events?.recentlyViewed) || {};
+  const personalRecommendationsState =
+    useSelector((state) => state.recommendations?.personal) || {};
   const {
     items: recentlyViewed = [],
     loading: recentLoading = false,
@@ -94,6 +100,12 @@ export default function HomeScreen() {
     error: recentError = null,
     lastRequestedPage: recentLastRequestedPage = 0,
   } = recentlyViewedState;
+  const {
+    items: personalRecommendations = [],
+    loading: personalLoading = false,
+    error: personalError = null,
+    loaded: personalLoaded = false,
+  } = personalRecommendationsState;
 
   const selectedCityName = useMemo(() => {
     if (isAllAdministrativeValue(selectedCity)) {
@@ -117,6 +129,12 @@ export default function HomeScreen() {
       }
     }, [dispatch, role])
   );
+
+  useEffect(() => {
+    if (role === "tenant" && !personalLoaded && !personalLoading) {
+      dispatch(fetchPersonalRecommendations());
+    }
+  }, [dispatch, personalLoaded, personalLoading, role]);
 
   // Khi chọn tỉnh -> load huyện
   const handleSelectCity = useCallback(
@@ -143,6 +161,31 @@ export default function HomeScreen() {
     }
     setSelectedDistrict(districtCode);
   }, []);
+
+  const handleOpenProperty = useCallback(
+    (propertyId, metadata = {}) => {
+      if (!propertyId) {
+        return;
+      }
+
+      const normalizedMetadata =
+        metadata && Object.keys(metadata).length > 0 ? metadata : undefined;
+
+      dispatch(
+        recordUserEvent({
+          eventType: "VIEW",
+          roomId: propertyId,
+          metadata: normalizedMetadata,
+        })
+      );
+
+      navigation.navigate("PropertyDetail", {
+        propertyId,
+        loggedViewEvent: true,
+      });
+    },
+    [dispatch, navigation]
+  );
 
   const normalizeText = useCallback((text) => {
     if (!text) return "";
@@ -460,6 +503,12 @@ export default function HomeScreen() {
     }
   }, [recentError, recentLastRequestedPage]);
 
+  useEffect(() => {
+    if (personalError && personalLoaded) {
+      showToast("error", "top", "Thông báo", personalError);
+    }
+  }, [personalError, personalLoaded]);
+
   const handleLoadMoreRecentlyViewed = useCallback(() => {
     if (!recentLoading && recentHasMore) {
       requestRecentlyViewed(recentNextPage);
@@ -588,8 +637,9 @@ export default function HomeScreen() {
                     borderColor: "#eee",
                   }}
                   onPress={() =>
-                    navigation.navigate("PropertyDetail", {
-                      propertyId: item.propertyId,
+                    handleOpenProperty(item.propertyId, {
+                      source: "recently_viewed",
+                      position: index,
                     })
                   }
                 >
@@ -663,8 +713,144 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* Personal recommendations */}
+      {role === "tenant" &&
+        (personalLoading ||
+          personalRecommendations.length > 0 ||
+          personalLoaded ||
+          personalError) && (
+          <View style={{ marginTop: 4 }}>
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "bold",
+                marginLeft: 20,
+                marginBottom: 8,
+              }}
+            >
+              Gợi ý dành riêng cho bạn
+            </Text>
+            {personalError ? (
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "#dc2626",
+                  paddingHorizontal: 20,
+                }}
+              >
+                {personalError}
+              </Text>
+            ) : personalLoading && personalRecommendations.length === 0 ? (
+              <View
+                style={{
+                  paddingVertical: 20,
+                  alignItems: "center",
+                }}
+              >
+                <ActivityIndicator size="small" color="#f36031" />
+              </View>
+            ) : personalRecommendations.length === 0 ? (
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "#6b7280",
+                  paddingHorizontal: 20,
+                }}
+              >
+                Hiện chưa có gợi ý phù hợp.
+              </Text>
+            ) : (
+              <FlatList
+                data={personalRecommendations}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => String(item.propertyId)}
+                contentContainerStyle={{
+                  paddingHorizontal: 20,
+                  paddingBottom: 8,
+                }}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={{
+                      width: 220,
+                      marginRight:
+                        index === personalRecommendations.length - 1
+                          ? 0
+                          : 12,
+                      backgroundColor: "#fff",
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      borderWidth: 1,
+                      borderColor: "#eee",
+                    }}
+                    onPress={() =>
+                      handleOpenProperty(item.propertyId, {
+                        source: "personal_recommendation",
+                        position: index,
+                      })
+                    }
+                  >
+                    <S3Image
+                      src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
+                      cacheKey={item.updatedAt}
+                      style={{ width: "100%", height: 140 }}
+                      alt={item.title}
+                    />
+                    <View style={{ padding: 12, gap: 6 }}>
+                      {item.propertyName ? (
+                        <Text
+                          style={{ fontSize: 12, color: "#666" }}
+                          numberOfLines={1}
+                        >
+                          {item.propertyName}
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={{ fontSize: 15, fontWeight: "600" }}
+                        numberOfLines={2}
+                      >
+                        {item.title || item.name}
+                      </Text>
+                      {item.address?.addressFull ? (
+                        <View
+                          style={{ flexDirection: "row", alignItems: "center" }}
+                        >
+                          <Ionicons
+                            name="location-outline"
+                            size={14}
+                            color="#555"
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text
+                            style={{ fontSize: 12, color: "#555" }}
+                            numberOfLines={2}
+                          >
+                            {formatAddress(item.address.addressFull)}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "700",
+                          color: "#f36031",
+                        }}
+                        numberOfLines={1}
+                      >
+                        {item.price
+                          ? `Từ ${formatPrice(item.price)}đ/ngày`
+                          : "Giá liên hệ"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        )}
+
       {/* Bản đồ hiển thị căn hộ */}
-        <Text
+        {/* <Text
           style={{
             fontSize: 20,
             fontWeight: "bold",
@@ -732,7 +918,7 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-      </View>
+      </View> */}
 
       {/* Căn hộ */}
       <View
@@ -785,7 +971,7 @@ export default function HomeScreen() {
           paddingHorizontal: 20,
           marginBottom: 12,
         }}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <TouchableOpacity
             style={{
               backgroundColor: "#fff",
@@ -795,8 +981,9 @@ export default function HomeScreen() {
               marginBottom: 12,
             }}
             onPress={() =>
-              navigation.navigate("PropertyDetail", {
-                propertyId: item.propertyId,
+              handleOpenProperty(item.propertyId, {
+                source: "home_featured",
+                position: index,
               })
             }
           >
@@ -955,7 +1142,9 @@ export default function HomeScreen() {
                 if (selectedProperty?.propertyId) {
                   const propertyId = selectedProperty.propertyId;
                   setSelectedProperty(null);
-                  navigation.navigate("PropertyDetail", { propertyId });
+                  handleOpenProperty(propertyId, {
+                    source: "map_preview",
+                  });
                 }
               }}
             >

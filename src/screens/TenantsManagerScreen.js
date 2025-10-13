@@ -34,9 +34,9 @@ const CANCEL_RED = "#ef4444";
 const { width, height } = Dimensions.get("window");
 
 const BOOKING_STATUS_LABELS = {
-  PENDING_PAYMENT: "Chờ thanh toán",
-  AWAITING_LANDLORD_APPROVAL: "Đã duyệt",
-  APPROVED: "Đã duyệt",
+  PENDING_PAYMENT: "Chờ duyệt",
+  AWAITING_LANDLORD_APPROVAL: "Chờ thanh toán",
+  APPROVED: "Đã thanh toán",
   CHECKED_IN: "Đang lưu trú",
   COMPLETED: "Đã trả phòng",
   CANCELLED: "Đã hủy",
