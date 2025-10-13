@@ -31,6 +31,7 @@ import { clearDistricts } from "../features/administrative/administrativeSlice";
 import * as Location from "expo-location";
 import { showToast } from "../utils/AppUtils";
 import Modal from "react-native-modal";
+import { resolvePropertyTitle, resolvePropertyName } from "../utils/propertyDisplay";
 import {
   addFavorite,
   removeFavorite,
@@ -428,6 +429,14 @@ export default function HomeScreen() {
     );
   }, [favorites, selectedProperty]);
 
+  const selectedPropertyTitle = useMemo(() => {
+    return selectedProperty ? resolvePropertyTitle(selectedProperty) : null;
+  }, [selectedProperty]);
+
+  const selectedPropertyDisplayName = useMemo(() => {
+    return selectedProperty ? resolvePropertyName(selectedProperty) : null;
+  }, [selectedProperty]);
+
   useEffect(() => {
     if (!selectedProperty) {
       return;
@@ -622,79 +631,84 @@ export default function HomeScreen() {
               }}
               onEndReachedThreshold={0.4}
               onEndReached={handleLoadMoreRecentlyViewed}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={{
-                    width: 220,
-                    marginRight:
-                      index === recentlyViewed.length - 1 && !recentLoading
-                        ? 0
-                        : 12,
-                    backgroundColor: "#fff",
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    borderWidth: 1,
-                    borderColor: "#eee",
-                  }}
-                  onPress={() =>
-                    handleOpenProperty(item.propertyId, {
-                      source: "recently_viewed",
-                      position: index,
-                    })
-                  }
-                >
-                  <S3Image
-                    src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
-                    cacheKey={item.updatedAt}
-                    style={{ width: "100%", height: 140 }}
-                    alt={item.title}
-                  />
-                  <View style={{ padding: 12, gap: 6 }}>
-                    {item.propertyName ? (
+              renderItem={({ item, index }) => {
+                const displayTitle = resolvePropertyTitle(item);
+                const displayName = resolvePropertyName(item);
+
+                return (
+                  <TouchableOpacity
+                    style={{
+                      width: 220,
+                      marginRight:
+                        index === recentlyViewed.length - 1 && !recentLoading
+                          ? 0
+                          : 12,
+                      backgroundColor: "#fff",
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      borderWidth: 1,
+                      borderColor: "#eee",
+                    }}
+                    onPress={() =>
+                      handleOpenProperty(item.propertyId, {
+                        source: "recently_viewed",
+                        position: index,
+                      })
+                    }
+                  >
+                    <S3Image
+                      src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
+                      cacheKey={item.updatedAt}
+                      style={{ width: "100%", height: 140 }}
+                      alt={item.title}
+                    />
+                    <View style={{ padding: 12, gap: 6 }}>
                       <Text
-                        style={{ fontSize: 12, color: "#666" }}
+                        style={{ fontSize: 15, fontWeight: "600" }}
+                        numberOfLines={2}
+                      >
+                        {displayTitle}
+                      </Text>
+                   {displayName ? (
+                        <Text
+                          style={{ fontSize: 12, color: "#666" }}
+                          numberOfLines={1}
+                        >
+                          {displayName}
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "700",
+                          color: "#f36031",
+                        }}
                         numberOfLines={1}
                       >
-                        {item.propertyName}
+                        {item.price
+                          ? `Từ ${formatPrice(item.price)}đ/ngày`
+                          : "Giá liên hệ"}
                       </Text>
-                    ) : null}
-                    <Text
-                      style={{ fontSize: 15, fontWeight: "600" }}
-                      numberOfLines={2}
-                    >
-                      {item.title || item.name}
-                    </Text>
-                    {item.address?.addressFull ? (
-                      <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <Ionicons
-                          name="location-outline"
-                          size={14}
-                          color="#555"
-                          style={{ marginRight: 4 }}
-                        />
-                        <Text
-                          style={{ fontSize: 12, color: "#555" }}
-                          numberOfLines={2}
-                        >
-                          {formatAddress(item.address.addressFull)}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "700",
-                        color: "#f36031",
-                      }}
-                      numberOfLines={1}
-                    >
-                      {item.price
-                        ? `Từ ${formatPrice(item.price)}đ/ngày`
-                        : "Giá liên hệ"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+                      {item.address?.addressFull ? (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <Ionicons
+                            name="location-outline"
+                            size={14}
+                            color="#555"
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text
+                            style={{ fontSize: 12, color: "#555" }}
+                            numberOfLines={2}
+                          >
+                            {formatAddress(item.address.addressFull)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
               ListFooterComponent={
                 recentLoading ? (
                   <View
@@ -769,81 +783,86 @@ export default function HomeScreen() {
                   paddingHorizontal: 20,
                   paddingBottom: 8,
                 }}
-                renderItem={({ item, index }) => (
-                  <TouchableOpacity
-                    style={{
-                      width: 220,
-                      marginRight:
-                        index === personalRecommendations.length - 1
-                          ? 0
-                          : 12,
-                      backgroundColor: "#fff",
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      borderWidth: 1,
-                      borderColor: "#eee",
-                    }}
-                    onPress={() =>
-                      handleOpenProperty(item.propertyId, {
-                        source: "personal_recommendation",
-                        position: index,
-                      })
-                    }
-                  >
-                    <S3Image
-                      src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
-                      cacheKey={item.updatedAt}
-                      style={{ width: "100%", height: 140 }}
-                      alt={item.title}
-                    />
-                    <View style={{ padding: 12, gap: 6 }}>
-                      {item.propertyName ? (
+                renderItem={({ item, index }) => {
+                  const displayTitle = resolvePropertyTitle(item);
+                  const displayName = resolvePropertyName(item);
+
+                  return (
+                    <TouchableOpacity
+                      style={{
+                        width: 220,
+                        marginRight:
+                          index === personalRecommendations.length - 1
+                            ? 0
+                            : 12,
+                        backgroundColor: "#fff",
+                        borderRadius: 16,
+                        overflow: "hidden",
+                        borderWidth: 1,
+                        borderColor: "#eee",
+                      }}
+                      onPress={() =>
+                        handleOpenProperty(item.propertyId, {
+                          source: "personal_recommendation",
+                          position: index,
+                        })
+                      }
+                    >
+                      <S3Image
+                        src={item.media?.[0]?.url || "https://picsum.photos/800/600"}
+                        cacheKey={item.updatedAt}
+                        style={{ width: "100%", height: 140 }}
+                        alt={item.title}
+                      />
+                      <View style={{ padding: 12, gap: 6 }}>
                         <Text
-                          style={{ fontSize: 12, color: "#666" }}
+                          style={{ fontSize: 15, fontWeight: "600" }}
+                          numberOfLines={2}
+                        >
+                          {displayTitle}
+                        </Text>
+                      {displayName ? (
+                          <Text
+                            style={{ fontSize: 12, color: "#666" }}
+                            numberOfLines={1}
+                          >
+                            {displayName}
+                          </Text>
+                        ) : null}
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: "700",
+                            color: "#f36031",
+                          }}
                           numberOfLines={1}
                         >
-                          {item.propertyName}
+                          {item.price
+                            ? `Từ ${formatPrice(item.price)}đ/ngày`
+                            : "Giá liên hệ"}
                         </Text>
-                      ) : null}
-                      <Text
-                        style={{ fontSize: 15, fontWeight: "600" }}
-                        numberOfLines={2}
-                      >
-                        {item.title || item.name}
-                      </Text>
-                      {item.address?.addressFull ? (
-                        <View
-                          style={{ flexDirection: "row", alignItems: "center" }}
-                        >
-                          <Ionicons
-                            name="location-outline"
-                            size={14}
-                            color="#555"
-                            style={{ marginRight: 4 }}
-                          />
-                          <Text
-                            style={{ fontSize: 12, color: "#555" }}
-                            numberOfLines={2}
+                        {item.address?.addressFull ? (
+                          <View
+                            style={{ flexDirection: "row", alignItems: "center" }}
                           >
-                            {formatAddress(item.address.addressFull)}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "700",
-                          color: "#f36031",
-                        }}
-                        numberOfLines={1}
-                      >
-                        {item.price
-                          ? `Từ ${formatPrice(item.price)}đ/ngày`
-                          : "Giá liên hệ"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
+                            <Ionicons
+                              name="location-outline"
+                              size={14}
+                              color="#555"
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text
+                              style={{ fontSize: 12, color: "#555" }}
+                              numberOfLines={2}
+                            >
+                              {formatAddress(item.address.addressFull)}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
               />
             )}
           </View>
@@ -972,6 +991,7 @@ export default function HomeScreen() {
           marginBottom: 12,
         }}
         renderItem={({ item, index }) => (
+          
           <TouchableOpacity
             style={{
               backgroundColor: "#fff",
@@ -1000,6 +1020,14 @@ export default function HomeScreen() {
               >
                 {item.title}
               </Text>
+              {item.buildingName ? (
+                <Text
+                  style={{ fontSize: 12, color: "#666", marginVertical: 2 }}
+                  numberOfLines={1}
+                >
+                  {item.buildingName}
+                </Text>
+              ) : null}
               {item.price ? (
                 <View
                   style={{

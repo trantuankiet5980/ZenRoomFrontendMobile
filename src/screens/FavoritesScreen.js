@@ -8,6 +8,7 @@ import { recordUserEvent } from "../features/events/eventsThunks";
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from "@expo/vector-icons";
 import S3Image from "../components/S3Image";
+import { resolvePropertyTitle, resolvePropertyName } from "../utils/propertyDisplay";
 
 const FavoritesScreen = ({ navigation }) => {
   const favorites = useSelector((state) => state.favorites.items);
@@ -55,6 +56,10 @@ const FavoritesScreen = ({ navigation }) => {
         contentContainerStyle={{ padding: 12 }}
         renderItem={({ item }) => {
           const property = item.property;
+          const displayTitle = resolvePropertyTitle(property);
+          const displayName = resolvePropertyName(property);
+          const formattedAddress =
+            property.address?.addressFull?.replace(/_/g, " ") ?? "";
           return (
             <TouchableOpacity
               style={styles.card}
@@ -79,14 +84,19 @@ const FavoritesScreen = ({ navigation }) => {
                 src={property.media?.[0]?.url || "https://picsum.photos/200/120"}
                 cacheKey={property.updatedAt}
                 style={styles.image}
-                alt={property.title}
+                alt={displayTitle}
               />
 
 
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.title} numberOfLines={1}>
-                  {property.title || "Không có tiêu đề"}
+                  {displayTitle}
                 </Text>
+                {displayName ? (
+                  <Text style={styles.subText} numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                ) : null}
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Icon name="cash" size={20} color="#f36031" />
                   <Text style={styles.price}>
@@ -97,7 +107,7 @@ const FavoritesScreen = ({ navigation }) => {
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="location-outline" size={14} color="#555" style={{ marginRight: 4 }} />
                   <Text style={styles.subText}>
-                    {(property.address?.addressFull?.replace(/_/g, " ")) ?? ""}
+                    {formattedAddress}
                   </Text>
                 </View>
               </View>

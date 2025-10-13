@@ -34,6 +34,7 @@ import * as Location from "expo-location";
 import { showToast } from "../utils/AppUtils";
 import { fetchAfterSearchRecommendations } from "../features/recommendations/recommendationsThunks";
 import { recordUserEvent } from "../features/events/eventsThunks";
+import { resolvePropertyTitle, resolvePropertyName } from "../utils/propertyDisplay";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
@@ -82,6 +83,17 @@ export default function SearchPostScreen() {
     loading: afterSearchLoading = false,
     error: afterSearchError = null,
   } = afterSearchState;
+  const shouldShowAfterSearchFooter = useMemo(
+    () =>
+      Boolean(afterSearchError) ||
+      afterSearchLoading ||
+      (Array.isArray(afterSearchRecommendations) && afterSearchRecommendations.length > 0),
+    [afterSearchError, afterSearchLoading, afterSearchRecommendations]
+  );
+  const afterSearchFooterStyle = useMemo(
+    () => (shouldShowAfterSearchFooter ? { marginTop: 24 } : null),
+    [shouldShowAfterSearchFooter]
+  );
   const searchHistoryState = useSelector((s) => s.searchHistory);
   const historyItems = searchHistoryState.items || [];
   const searchSuggestionsState = useSelector((s) => s.searchSuggestions);
@@ -645,6 +657,8 @@ export default function SearchPostScreen() {
 
   const renderItem = ({ item, index }) => {
     const priceUnit = "ngày";
+    const displayTitle = resolvePropertyTitle(item);
+    const displayName = resolvePropertyName(item);
     return (
       <TouchableOpacity
        onPress={() =>
@@ -671,8 +685,13 @@ export default function SearchPostScreen() {
         />
         <View style={{ padding: 8 }}>
           <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
-            {item.title}
+            {displayTitle}
           </Text>
+          {displayName ? (
+            <Text style={{ fontSize: 12, color: TEXT_MUTED }} numberOfLines={1}>
+              {displayName}
+            </Text>
+          ) : null}
           <Text style={{ fontSize: 12, color: ORANGE }}>
             Từ {formatPrice(item.price)}đ/{priceUnit}
           </Text>
@@ -687,7 +706,7 @@ export default function SearchPostScreen() {
     );
   };
 
-  const renderAfterSearchSection = () => {
+  const renderAfterSearchSection = useCallback(() => {
     if (afterSearchError) {
       return (
         <View style={{ paddingHorizontal: 12, paddingVertical: 16 }}>
@@ -711,7 +730,7 @@ export default function SearchPostScreen() {
     }
 
     return (
-      <View style={{ marginTop: 24, paddingHorizontal: 6, paddingBottom: 60 }}>
+      <View style={{ paddingHorizontal: 6, paddingBottom: 40 }}>
         <Text
           style={{
             fontSize: 18,
@@ -726,59 +745,69 @@ export default function SearchPostScreen() {
           style={{
             flexDirection: 'row',
             flexWrap: 'wrap',
-            justifyContent: 'space-between',
+            
           }}
         >
-          {afterSearchRecommendations.map((item, index) => (
-            <TouchableOpacity
-              key={String(item.propertyId ?? index)}
-              style={{
-                width: '48%',
-                margin: 6,
-                borderWidth: 1,
-                borderColor: GRAY,
-                borderRadius: 12,
-                backgroundColor: '#fff',
-                overflow: 'hidden',
-              }}
-              onPress={() =>
-                openPropertyDetail(item.propertyId, {
-                  source: 'after_search',
-                  position: index,
-                })
-              }
-            >
-              <S3Image
-                src={item.media?.[0]?.url || "https://picsum.photos/seed/reco/600/400"}
-                cacheKey={item.updatedAt}
-                style={{ width: "100%", height: 120, borderRadius: 8 }}
-                alt={item.title}
-              />
-              <View style={{ padding: 8 }}>
-                <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
-                  {item.title || item.name}
-                </Text>
-                <Text style={{ fontSize: 12, color: ORANGE }}>
-                  {item.price
-                    ? `Từ ${formatPrice(item.price)}đ/ngày`
-                    : 'Giá liên hệ'}
-                </Text>
-                {item.address?.addressFull ? (
-                  <View
-                    style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
-                  >
-                    <Ionicons name="location" size={14} color={ORANGE} />
-                    <Text
-                      style={{ fontSize: 11, color: '#111', marginLeft: 4 }}
-                      numberOfLines={1}
-                    >
-                      {formatAddress(item.address.addressFull)}
+          {afterSearchRecommendations.map((item, index) => {
+            const displayTitle = resolvePropertyTitle(item);
+            const displayName = resolvePropertyName(item);
+
+            return (
+              <TouchableOpacity
+                key={String(item.propertyId ?? index)}
+                style={{
+                  width: '48%',
+                  margin: 6,
+                  borderWidth: 1,
+                  borderColor: GRAY,
+                  borderRadius: 12,
+                  backgroundColor: '#fff',
+                  overflow: 'hidden',
+                }}
+                onPress={() =>
+                  openPropertyDetail(item.propertyId, {
+                    source: 'after_search',
+                    position: index,
+                  })
+                }
+              >
+                <S3Image
+                  src={item.media?.[0]?.url || "https://picsum.photos/seed/reco/600/400"}
+                  cacheKey={item.updatedAt}
+                  style={{ width: "100%", height: 120, borderRadius: 8 }}
+                  alt={item.title}
+                />
+                <View style={{ padding: 8 }}>
+                  <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
+                    {displayTitle}
+                  </Text>
+                  {displayName ? (
+                    <Text style={{ fontSize: 12, color: TEXT_MUTED }} numberOfLines={1}>
+                      {displayName}
                     </Text>
-                  </View>
-                ) : null}
-              </View>
-            </TouchableOpacity>
-          ))}
+                 ) : null}
+                  <Text style={{ fontSize: 12, color: ORANGE }}>
+                    {item.price
+                      ? `Từ ${formatPrice(item.price)}đ/ngày`
+                      : 'Giá liên hệ'}
+                  </Text>
+                  {item.address?.addressFull ? (
+                    <View
+                      style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
+                    >
+                      <Ionicons name="location" size={14} color={ORANGE} />
+                      <Text
+                        style={{ fontSize: 11, color: '#111', marginLeft: 4 }}
+                        numberOfLines={1}
+                      >
+                        {formatAddress(item.address.addressFull)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
         {afterSearchLoading ? (
           <View style={{ alignItems: 'center', paddingVertical: 10 }}>
@@ -787,7 +816,14 @@ export default function SearchPostScreen() {
         ) : null}
       </View>
     );
-  };
+  }, [
+    afterSearchError,
+    afterSearchLoading,
+    afterSearchRecommendations,
+    formatAddress,
+    formatPrice,
+    openPropertyDetail,
+  ]);
 
   // handler áp dụng filter nâng cao
   const handleApplyFilters = (filters) => {
@@ -1008,25 +1044,24 @@ export default function SearchPostScreen() {
       {loading ? (
         <Text style={{ textAlign: "center", marginTop: 20 }}>Đang tải...</Text>
       ) : (
-        <>
-          <FlatList
-            data={searchResults?.content || []}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.propertyId}
-            numColumns={2}
-            contentContainerStyle={{
-              paddingHorizontal: 6,
-              paddingBottom: 20,
-              flexGrow: 1,
-            }}
-            ListEmptyComponent={
-              <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
-                Không tìm thấy kết quả phù hợp
-              </Text>
-            }
-          />
-          {renderAfterSearchSection()}
-        </>
+        <FlatList
+          data={searchResults?.content || []}
+          renderItem={renderItem}
+          keyExtractor={(item) => String(item.propertyId)}
+          numColumns={2}
+          contentContainerStyle={{
+            paddingHorizontal: 6,
+            paddingBottom: 20,
+            flexGrow: 1,
+          }}
+          ListEmptyComponent={
+            <Text style={{ textAlign: "center", marginTop: 40, color: TEXT_MUTED }}>
+              Không tìm thấy kết quả phù hợp
+            </Text>
+          }
+          ListFooterComponent={renderAfterSearchSection}
+          ListFooterComponentStyle={afterSearchFooterStyle}
+        />
       )}
 
       {showSuggestionsOverlay && (
