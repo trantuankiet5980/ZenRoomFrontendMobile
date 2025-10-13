@@ -13,6 +13,7 @@ const propertiesSlice = createSlice({
     landlordRoomsPending: [],
     landlordBuildingsPending: [],
     searchResults: { content: [], totalElements: 0, totalPages: 0 },
+    byId: {},
     current: null,
     loading: false,
     error: null,
@@ -75,6 +76,10 @@ const propertiesSlice = createSlice({
       .addCase(fetchPropertyDetail.fulfilled, (state, action) => {
         state.loading = false;
         state.current = action.payload;
+        const propertyId = action.payload?.propertyId;
+        if (propertyId !== undefined && propertyId !== null) {
+          state.byId[propertyId] = action.payload;
+        }
       })
       .addCase(fetchPropertyDetail.rejected, (state, action) => {
         state.loading = false;
@@ -126,6 +131,10 @@ const propertiesSlice = createSlice({
         // Cập nhật chi tiết nếu đang mở
         if (state.current?.propertyId === updated.propertyId) {
           state.current = updated;
+        }
+
+        if (updated?.propertyId !== undefined && updated?.propertyId !== null) {
+          state.byId[updated.propertyId] = updated;
         }
       })
       .addCase(updateProperty.rejected, (state, action) => {
