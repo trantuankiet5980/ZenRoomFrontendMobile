@@ -2072,7 +2072,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 // ĐẨY NGAY bubble chào vào Redux để ChatDetail hiện tức thì
                                 if (convId) {
                                     // cập nhật lastMessage cho list + thêm message vào bucket
-                                    dispatch(pushServerMessage(serverMessage));
+                                    dispatch(
+                                        pushServerMessage({
+                                            ...serverMessage,
+                                            __currentUserId: currentUser?.userId,
+                                        })
+                                    );
 
                                     const mini = {
                                         propertyId: property.propertyId,
