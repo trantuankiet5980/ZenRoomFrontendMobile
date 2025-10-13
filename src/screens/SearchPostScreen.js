@@ -34,6 +34,7 @@ import * as Location from "expo-location";
 import { showToast } from "../utils/AppUtils";
 import { fetchAfterSearchRecommendations } from "../features/recommendations/recommendationsThunks";
 import { recordUserEvent } from "../features/events/eventsThunks";
+import { resolvePropertyTitle, resolvePropertyName } from "../utils/propertyDisplay";
 
 const ORANGE = '#f36031';
 const GRAY = '#E5E7EB';
@@ -656,6 +657,8 @@ export default function SearchPostScreen() {
 
   const renderItem = ({ item, index }) => {
     const priceUnit = "ngày";
+    const displayTitle = resolvePropertyTitle(item);
+    const displayName = resolvePropertyName(item);
     return (
       <TouchableOpacity
        onPress={() =>
@@ -682,8 +685,13 @@ export default function SearchPostScreen() {
         />
         <View style={{ padding: 8 }}>
           <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
-            {item.title}
+            {displayTitle}
           </Text>
+          {displayName ? (
+            <Text style={{ fontSize: 12, color: TEXT_MUTED }} numberOfLines={1}>
+              {displayName}
+            </Text>
+          ) : null}
           <Text style={{ fontSize: 12, color: ORANGE }}>
             Từ {formatPrice(item.price)}đ/{priceUnit}
           </Text>
@@ -737,61 +745,69 @@ export default function SearchPostScreen() {
           style={{
             flexDirection: 'row',
             flexWrap: 'wrap',
-            marginHorizontal: -6,
+            
           }}
         >
-          {afterSearchRecommendations.map((item, index) => (
-            <TouchableOpacity
-              key={String(item.propertyId ?? index)}
-              style={{
-                flexBasis: '46%',
-                maxWidth: '46%',
-                marginHorizontal: 6,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: GRAY,
-                borderRadius: 12,
-                backgroundColor: '#fff',
-                overflow: 'hidden',
-              }}
-              onPress={() =>
-                openPropertyDetail(item.propertyId, {
-                  source: 'after_search',
-                  position: index,
-                })
-              }
-            >
-              <S3Image
-                src={item.media?.[0]?.url || "https://picsum.photos/seed/reco/600/400"}
-                cacheKey={item.updatedAt}
-                style={{ width: "100%", height: 120, borderRadius: 8 }}
-                alt={item.title}
-              />
-              <View style={{ padding: 8 }}>
-                <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
-                  {item.title || item.name}
-                </Text>
-                <Text style={{ fontSize: 12, color: ORANGE }}>
-                  {item.price
-                    ? `Từ ${formatPrice(item.price)}đ/ngày`
-                    : 'Giá liên hệ'}
-                </Text>
-                {item.address?.addressFull ? (
-                  <View
-                    style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
-                  >
-                    <Ionicons name="location" size={14} color={ORANGE} />
-                    <Text
-                      style={{ fontSize: 11, color: '#111', marginLeft: 4 }}
-                      numberOfLines={1}
-                    >
-                      {formatAddress(item.address.addressFull)}
+          {afterSearchRecommendations.map((item, index) => {
+            const displayTitle = resolvePropertyTitle(item);
+            const displayName = resolvePropertyName(item);
+
+            return (
+              <TouchableOpacity
+                key={String(item.propertyId ?? index)}
+                style={{
+                  width: '48%',
+                  margin: 6,
+                  borderWidth: 1,
+                  borderColor: GRAY,
+                  borderRadius: 12,
+                  backgroundColor: '#fff',
+                  overflow: 'hidden',
+                }}
+                onPress={() =>
+                  openPropertyDetail(item.propertyId, {
+                    source: 'after_search',
+                    position: index,
+                  })
+                }
+              >
+                <S3Image
+                  src={item.media?.[0]?.url || "https://picsum.photos/seed/reco/600/400"}
+                  cacheKey={item.updatedAt}
+                  style={{ width: "100%", height: 120, borderRadius: 8 }}
+                  alt={item.title}
+                />
+                <View style={{ padding: 8 }}>
+                  <Text numberOfLines={2} style={{ fontWeight: '700', fontSize: 13 }}>
+                    {displayTitle}
+                  </Text>
+                  {displayName ? (
+                    <Text style={{ fontSize: 12, color: TEXT_MUTED }} numberOfLines={1}>
+                      {displayName}
                     </Text>
-                  </View>
-                ) : null}
-              </View>
-            </TouchableOpacity>
-          ))}
+                 ) : null}
+                  <Text style={{ fontSize: 12, color: ORANGE }}>
+                    {item.price
+                      ? `Từ ${formatPrice(item.price)}đ/ngày`
+                      : 'Giá liên hệ'}
+                  </Text>
+                  {item.address?.addressFull ? (
+                    <View
+                      style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
+                    >
+                      <Ionicons name="location" size={14} color={ORANGE} />
+                      <Text
+                        style={{ fontSize: 11, color: '#111', marginLeft: 4 }}
+                        numberOfLines={1}
+                      >
+                        {formatAddress(item.address.addressFull)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
         {afterSearchLoading ? (
           <View style={{ alignItems: 'center', paddingVertical: 10 }}>

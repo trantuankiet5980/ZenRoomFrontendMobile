@@ -27,6 +27,7 @@ import { useRole } from "../hooks/useRole";
 import { Video } from "expo-av";
 import S3Image from "../components/S3Image";
 import { resolveAssetUrl } from "../utils/cdn";
+import { resolvePropertyTitle, resolvePropertyName } from "../utils/propertyDisplay";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
@@ -1931,68 +1932,73 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         </Text>
                     ) : (
                         <View style={styles.similarGrid}>
-                            {similarRecommendations.map((item, index) => (
-                                <TouchableOpacity
-                                    key={`${item.propertyId || index}`}
-                                    style={styles.similarCard}
-                                    onPress={() =>
-                                        handleOpenSimilarProperty(
-                                            item.propertyId,
-                                            index
-                                        )
-                                    }
-                                >
-                                    <S3Image
-                                        src={
-                                            item.media?.[0]?.url ||
-                                            "https://picsum.photos/600/400"
+                            {similarRecommendations.map((item, index) => {
+                                const displayTitle = resolvePropertyTitle(item);
+                                const displayName = resolvePropertyName(item);
+
+                                return (
+                                    <TouchableOpacity
+                                        key={`${item.propertyId || index}`}
+                                        style={styles.similarCard}
+                                        onPress={() =>
+                                            handleOpenSimilarProperty(
+                                                item.propertyId,
+                                                index
+                                            )
                                         }
-                                        cacheKey={item.updatedAt}
-                                        style={styles.similarCardImage}
-                                        alt={item.title}
-                                    />
-                                    <View style={styles.similarCardBody}>
-                                        {item.propertyName ? (
-                                            <Text
-                                                style={styles.similarCardSubtitle}
-                                                numberOfLines={1}
-                                            >
-                                                {item.propertyName}
-                                            </Text>
-                                        ) : null}
-                                        <Text
-                                            style={styles.similarCardTitle}
-                                            numberOfLines={2}
                                         >
-                                            {item.title || item.name}
-                                        </Text>
-                                        {item.address?.addressFull ? (
-                                            <View style={styles.similarAddressRow}>
-                                                <Ionicons
-                                                    name="location-outline"
-                                                    size={14}
-                                                    color="#f97316"
-                                                />
+                                        <S3Image
+                                            src={
+                                                item.media?.[0]?.url ||
+                                                "https://picsum.photos/600/400"
+                                            }
+                                            cacheKey={item.updatedAt}
+                                            style={styles.similarCardImage}
+                                            alt={displayTitle}
+                                        />
+                                        <View style={styles.similarCardBody}>
+                                            <Text
+                                                style={styles.similarCardTitle}
+                                                numberOfLines={2}
+                                            >
+                                                {displayTitle}
+                                            </Text>
+                                        {displayName ? (
                                                 <Text
-                                                    style={styles.similarCardAddress}
+                                                    style={styles.similarCardSubtitle}
                                                     numberOfLines={1}
                                                 >
-                                                    {item.address.addressFull.replace(
-                                                        /_/g,
-                                                        " "
-                                                    )}
+                                                    {displayName}
                                                 </Text>
-                                            </View>
-                                        ) : null}
-                                        <Text
-                                            style={styles.similarCardPrice}
-                                            numberOfLines={1}
-                                        >
-                                            {formatPriceWithUnit(item)}
-                                        </Text>
-                                    </View>
-                                </TouchableOpacity>
-                            ))}
+                                            ) : null}
+                                            <Text
+                                                style={styles.similarCardPrice}
+                                                numberOfLines={1}
+                                            >
+                                                {formatPriceWithUnit(item)}
+                                            </Text>
+                                            {item.address?.addressFull ? (
+                                                <View style={styles.similarAddressRow}>
+                                                    <Ionicons
+                                                        name="location-outline"
+                                                        size={14}
+                                                        color="#f97316"
+                                                    />
+                                                    <Text
+                                                        style={styles.similarCardAddress}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {item.address.addressFull.replace(
+                                                            /_/g,
+                                                            " "
+                                                        )}
+                                                    </Text>
+                                                </View>
+                                            ) : null}
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
                     )}
                     {similarLoading && similarRecommendations.length > 0 ? (
