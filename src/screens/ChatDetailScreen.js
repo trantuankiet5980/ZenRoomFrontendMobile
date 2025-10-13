@@ -1,5 +1,21 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Image } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  Modal,
+  Dimensions,
+  Animated,
+  PanResponder,
+  StatusBar,
+  Pressable,
+  StyleSheet,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import useHideTabBar from "../hooks/useHideTabBar";
@@ -13,6 +29,264 @@ import * as ImagePicker from "expo-image-picker";
 import { showToast } from "../utils/AppUtils";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const AnimatedImage = Animated.createAnimatedComponent(Image);
+
+const clampIndex = (index, length) => {
+  if (!length) return 0;
+  if (index < 0) return 0;
+  if (index >= length) return length - 1;
+  return index;
+};
+
+const viewerStyles = StyleSheet.create({
+  modal: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  listContainer: {
+    flexGrow: 1,
+  },
+  imageSlide: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pressable: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  animatedWrapper: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  animatedImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 42,
+    right: 20,
+    padding: 8,
+    zIndex: 2,
+  },
+  counter: {
+    position: "absolute",
+    bottom: 44,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  counterText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+});
+
+function AttachmentViewer({ visible, images = [], index = 0, onClose, onIndexChange }) {
+  const flatListRef = useRef(null);
+  const sanitizedImages = useMemo(
+    () => (Array.isArray(images) ? images.filter((img) => !!img?.uri) : []),
+    [images]
+  );
+  const [currentIndex, setCurrentIndex] = useState(() => clampIndex(index, sanitizedImages.length));
+  const onIndexChangeRef = useRef(onIndexChange);
+  const lastReportedIndex = useRef(-1);
+
+  useEffect(() => {
+    onIndexChangeRef.current = onIndexChange;
+  }, [onIndexChange]);
+
+  useEffect(() => {
+    const safeIndex = clampIndex(index, sanitizedImages.length);
+    setCurrentIndex((prev) => (prev === safeIndex ? prev : safeIndex));
+
+    if (visible && sanitizedImages.length) {
+      requestAnimationFrame(() => {
+        try {
+          flatListRef.current?.scrollToIndex({ index: safeIndex, animated: false });
+        } catch {}
+      });
+    }
+  }, [index, visible, sanitizedImages.length]);
+
+  useEffect(() => {
+    if (lastReportedIndex.current === currentIndex) return;
+    lastReportedIndex.current = currentIndex;
+    if (typeof onIndexChangeRef.current === "function") {
+      onIndexChangeRef.current(currentIndex);
+    }
+  }, [currentIndex]);
+
+  if (!visible || !sanitizedImages.length) {
+    return null;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="fullScreen"
+    >
+      <View style={viewerStyles.modal}>
+        <StatusBar hidden barStyle="light-content" />
+        <FlatList
+          ref={flatListRef}
+          data={sanitizedImages}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item, idx) => `${item.uri || "image"}-${idx}`}
+          renderItem={({ item, index: itemIndex }) => (
+            <View style={viewerStyles.imageSlide}>
+              <ZoomableImage uri={item.uri} active={itemIndex === currentIndex} />
+            </View>
+          )}
+          initialScrollIndex={clampIndex(index, sanitizedImages.length)}
+          getItemLayout={(_, idx) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * idx, index: idx })}
+          onMomentumScrollEnd={(event) => {
+            const offset = event?.nativeEvent?.contentOffset?.x || 0;
+            const nextIndex = clampIndex(Math.round(offset / SCREEN_WIDTH), sanitizedImages.length);
+            if (nextIndex !== currentIndex) setCurrentIndex(nextIndex);
+          }}
+          onScrollToIndexFailed={({ index: failedIndex }) => {
+            const safeIdx = clampIndex(failedIndex, sanitizedImages.length);
+            setTimeout(() => flatListRef.current?.scrollToIndex({ index: safeIdx, animated: false }), 100);
+          }}
+          contentContainerStyle={viewerStyles.listContainer}
+        />
+        <TouchableOpacity onPress={onClose} style={viewerStyles.closeButton} activeOpacity={0.8}>
+          <Ionicons name="close" size={28} color="#fff" />
+        </TouchableOpacity>
+        <View style={viewerStyles.counter}>
+          <Text style={viewerStyles.counterText}>{`${currentIndex + 1}/${sanitizedImages.length}`}</Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ZoomableImage({ uri, active }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastScale = useRef(1);
+  const lastTranslate = useRef({ x: 0, y: 0 });
+  const lastTap = useRef(0);
+
+  const clampTranslate = useCallback(() => {
+    const currentScale = lastScale.current;
+    const maxX = Math.max(0, ((SCREEN_WIDTH * currentScale) - SCREEN_WIDTH) / 2);
+    const maxY = Math.max(0, ((SCREEN_HEIGHT * currentScale) - SCREEN_HEIGHT) / 2);
+    let nextX = lastTranslate.current.x;
+    let nextY = lastTranslate.current.y;
+    if (nextX > maxX) nextX = maxX;
+    if (nextX < -maxX) nextX = -maxX;
+    if (nextY > maxY) nextY = maxY;
+    if (nextY < -maxY) nextY = -maxY;
+    lastTranslate.current = { x: nextX, y: nextY };
+    translateX.setValue(nextX);
+    translateY.setValue(nextY);
+  }, [translateX, translateY]);
+
+  const resetTransform = useCallback(() => {
+    lastScale.current = 1;
+    lastTranslate.current = { x: 0, y: 0 };
+    scale.setValue(1);
+    translateX.setValue(0);
+    translateY.setValue(0);
+  }, [scale, translateX, translateY]);
+
+  useEffect(() => {
+    resetTransform();
+    lastTap.current = 0;
+  }, [uri, active, resetTransform]);
+
+  const toggleZoom = useCallback(() => {
+    const target = lastScale.current > 1 ? 1 : 2.5;
+    Animated.timing(scale, {
+      toValue: target,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      lastScale.current = target;
+      if (target === 1) {
+        resetTransform();
+      } else {
+        clampTranslate();
+      }
+    });
+  }, [clampTranslate, resetTransform, scale]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => lastScale.current > 1,
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          lastScale.current > 1 && (Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2),
+        onPanResponderMove: (_, gestureState) => {
+          if (lastScale.current <= 1) return;
+          translateX.setValue(lastTranslate.current.x + gestureState.dx);
+          translateY.setValue(lastTranslate.current.y + gestureState.dy);
+        },
+        onPanResponderRelease: () => {
+          if (lastScale.current <= 1) return;
+          lastTranslate.current = {
+            x: translateX.__getValue(),
+            y: translateY.__getValue(),
+          };
+          clampTranslate();
+        },
+        onPanResponderTerminate: () => {
+          if (lastScale.current <= 1) return;
+          lastTranslate.current = {
+            x: translateX.__getValue(),
+            y: translateY.__getValue(),
+          };
+          clampTranslate();
+        },
+      }),
+    [clampTranslate, translateX, translateY]
+  );
+
+  const handlePress = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTap.current < 250) {
+      toggleZoom();
+    }
+    lastTap.current = now;
+  }, [toggleZoom]);
+
+  if (!uri) {
+    return null;
+  }
+
+  return (
+    <Pressable style={viewerStyles.pressable} onPress={handlePress} {...panResponder.panHandlers}>
+      <Animated.View
+        style={[
+          viewerStyles.animatedWrapper,
+          {
+            transform: [
+              { translateX },
+              { translateY },
+              { scale },
+            ],
+          },
+        ]}
+      >
+        <AnimatedImage source={{ uri }} resizeMode="contain" style={viewerStyles.animatedImage} />
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 export default function ChatDetailScreen() {
   useHideTabBar();
@@ -35,6 +309,7 @@ export default function ChatDetailScreen() {
   const [pendingImages, setPendingImages] = useState([]);
   const [sending, setSending] = useState(false);
   const maxImagesPerMessage = 10;
+  const [imageViewer, setImageViewer] = useState({ visible: false, index: 0, images: [] });
 
   // giữ conversationId đồng bộ theo route param (không dùng "|| conversationId" gây lặp).
   const [conversationId, setConversationId] = useState(chatIdParam || null);
@@ -201,6 +476,19 @@ export default function ChatDetailScreen() {
     setPendingImages((prev) => prev.filter((_, idx) => idx !== index));
   }, []);
 
+  const openImageViewer = useCallback((images, index = 0) => {
+    if (!images?.length) return;
+    setImageViewer({ visible: true, images, index });
+  }, []);
+
+  const closeImageViewer = useCallback(() => {
+    setImageViewer((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  const handleViewerIndexChange = useCallback((idx) => {
+    setImageViewer((prev) => (prev.index === idx ? prev : { ...prev, index: idx }));
+  }, []);
+
   const doSend = async () => {
     if (sending) return;
     const content = text.trim();
@@ -286,6 +574,10 @@ export default function ChatDetailScreen() {
     const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
     const attachments = Array.isArray(item.attachments) ? item.attachments.filter((att) => att && att.url) : [];
     const localImages = Array.isArray(item.localImages) ? item.localImages.filter(Boolean) : [];
+    const viewerImages = [
+      ...localImages.map((uri) => ({ uri })),
+      ...attachments.map((att) => ({ uri: att.url })),
+    ];
     const hasImages = attachments.length > 0 || localImages.length > 0;
     const hasContent = !!item.content?.trim();
     const totalImages = attachments.length + localImages.length;
@@ -314,21 +606,22 @@ export default function ChatDetailScreen() {
           {hasImages && (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {localImages.map((uri, idx) => (
-                <Image
+                <TouchableOpacity
                   key={`local-${idx}`}
-                  source={{ uri }}
-                  style={[imageStyle, { opacity: 0.7 }]}
-                  resizeMode="cover"
-                />
+                  activeOpacity={0.85}
+                  onPress={() => openImageViewer(viewerImages, idx)}
+                >
+                  <Image source={{ uri }} style={[imageStyle, { opacity: 0.7 }]} resizeMode="cover" />
+                </TouchableOpacity>
               ))}
               {attachments.map((att, idx) => (
-                <S3Image
+                <TouchableOpacity
                   key={att.attachmentId || att.url || `att-${idx}`}
-                  src={att.url}
-                  cacheKey={att.updatedAt || att.createdAt}
-                  style={imageStyle}
-                  alt={`attachment-${idx + 1}`}
-                />
+                  activeOpacity={0.85}
+                  onPress={() => openImageViewer(viewerImages, localImages.length + idx)}
+                >
+                  <S3Image src={att.url} style={imageStyle} alt={`attachment-${idx + 1}`} />
+                </TouchableOpacity>
               ))}
             </View>
           )}
@@ -432,6 +725,14 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
         keyExtractor={(it, idx) => `${it.messageId || it.tempId || "k"}-${it.createdAt || idx}`}
         renderItem={renderItem}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+      />
+
+      <AttachmentViewer
+        visible={imageViewer.visible}
+        images={imageViewer.images}
+        index={imageViewer.index}
+        onClose={closeImageViewer}
+        onIndexChange={handleViewerIndexChange}
       />
 
       {pendingImages.length > 0 && (
