@@ -56,3 +56,22 @@ export const fetchFavorites = createAsyncThunk(
     }
   }
 );
+
+// Xoá tất cả favorites
+export const removeAllFavorites = createAsyncThunk(
+  "favorites/removeAllFavorites",
+  async (_, { rejectWithValue, dispatch }) => {
+    try {
+      await axiosInstance.delete("/favorites");
+      dispatch(
+        recordUserEvent({
+          eventType: "FAVORITE",
+          metadata: { action: "remove_all" },
+        })
+      );
+      return true;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
