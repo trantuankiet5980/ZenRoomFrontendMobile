@@ -13,8 +13,12 @@ import TypingText from "../hooks/TypingText";
 import LandlordPanel from "../components/LandlordPanel";
 import TenantPanel from "../components/TenantPanel";
 import { useSelector, useDispatch } from "react-redux";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useNavigation,
+  useFocusEffect,
+  useScrollToTop,
+} from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchProperties } from "../features/properties/propertiesThunks";
 import {
@@ -107,6 +111,9 @@ export default function HomeScreen() {
     error: personalError = null,
     loaded: personalLoaded = false,
   } = personalRecommendationsState;
+
+  const scrollViewRef = useRef(null);
+  useScrollToTop(scrollViewRef);
 
   const selectedCityName = useMemo(() => {
     if (isAllAdministrativeValue(selectedCity)) {
@@ -529,6 +536,7 @@ export default function HomeScreen() {
   return (
     <>
       <ScrollView
+        ref={scrollViewRef}
         style={{ flex: 1, backgroundColor: "#fff" }}
         contentContainerStyle={{ flexGrow: 1, gap: 12, paddingBottom: 70 }}
       >
@@ -621,7 +629,7 @@ export default function HomeScreen() {
             </View>
           ) : (
             <FlatList
-              data={recentlyViewed}
+              data={[...recentlyViewed].reverse()}
               horizontal
               showsHorizontalScrollIndicator={false}
               keyExtractor={(item) => String(item.propertyId)}

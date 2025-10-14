@@ -1,10 +1,11 @@
 import React, { useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
 import { logoutThunk } from "../features/auth/authThunks";
 import { getProfile } from "../features/user/userThunks";
+import { resolveAvatarUrl } from "../utils/cdn";
 
 const ORANGE = "#f36031";
 const BORDER = "#E5E7EB";
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
   const name = profile?.fullName || profile?.name || "Người dùng";
   const phone = profile?.phoneNumber || profile?.phone || "—";
   const role = authUser?.role;
+  const avatar = profile?.avatarUrl ? resolveAvatarUrl(profile.avatarUrl) : null;
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={{ paddingBottom: 28 }}>
@@ -56,12 +58,17 @@ export default function ProfileScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: "#FFE1E1",
+            backgroundColor: avatar ? "#fff" : "#FFE1E1",
             alignItems: "center",
             justifyContent: "center",
+            overflow: "hidden",
           }}
         >
-          <Ionicons name="person" size={22} color="#E26666" />
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+          ) : (
+            <Ionicons name="person" size={22} color="#E26666" />
+          )}
         </View>
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={{ fontWeight: "700" }}>{name}</Text>
