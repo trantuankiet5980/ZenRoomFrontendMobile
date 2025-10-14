@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
     View,
     Text,
@@ -62,6 +62,8 @@ const parseCoordinate = (value) => {
     return Number.isFinite(parsed) ? parsed : null;
 };
 
+const RATING_FILTER_OPTIONS = [5, 4, 3, 2, 1];
+
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
     const { propertyId } = route.params;
@@ -75,6 +77,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         highlightReviewIdParam || null
     );
     const [reviewMenuVisibleId, setReviewMenuVisibleId] = useState(null);
+    const [selectedRatingFilter, setSelectedRatingFilter] = useState(null);
     const [reviewModalVisible, setReviewModalVisible] = useState(false);
     const [selectedReview, setSelectedReview] = useState(null);
     const [reviewRating, setReviewRating] = useState(0);
@@ -116,9 +119,40 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     );
     const isReviewsLoading = reviewsStatus === "loading";
     const propertyReviews = reviewsData.items || [];
-    const displayedReviews = propertyReviews.slice(0, visibleReviewCount);
-    const hasMoreReviews = propertyReviews.length > visibleReviewCount;
-    const canCollapse = visibleReviewCount > 3;
+    const filteredReviews = useMemo(() => {
+        if (!Array.isArray(propertyReviews)) {
+            return [];
+        }
+
+        if (selectedRatingFilter === null) {
+            return propertyReviews;
+        }
+
+        return propertyReviews.filter((review) => {
+            if (!review) {
+                return false;
+            }
+
+            const ratingValueRaw =
+                review.rating ??
+                review.reviewRating ??
+                review.stars ??
+                review.star ??
+                null;
+            const numericRating = Number(ratingValueRaw);
+
+            if (!Number.isFinite(numericRating)) {
+                return false;
+            }
+
+            return Math.round(numericRating) === selectedRatingFilter;
+        });
+    }, [propertyReviews, selectedRatingFilter]);
+    const displayedReviews = filteredReviews.slice(0, visibleReviewCount);
+    const hasMoreReviews = filteredReviews.length > displayedReviews.length;
+    const canCollapse = visibleReviewCount > 3 && filteredReviews.length > 3;
+    const hasAnyReviews = propertyReviews.length > 0;
+    const hasFilteredReviews = filteredReviews.length > 0;
     const rawReplyMutation = useSelector((state) => state.reviews?.mutations?.reply);
     const replyMutation = rawReplyMutation || { status: "idle", error: null };
     const isReplySubmitting = replyMutation.status === "loading";
@@ -263,11 +297,13 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         [currentUserId, normalizedCurrentTenantId]
     );
 
+    const filteredReviewsLength = filteredReviews.length;
+
     const handleShowMoreReviews = useCallback(() => {
         setVisibleReviewCount((prev) =>
-            Math.min(propertyReviews.length, prev + 3)
+            Math.min(filteredReviewsLength, prev + 3)
         );
-    }, [propertyReviews.length]);
+    }, [filteredReviewsLength]);
 
     const handleCollapseReviews = useCallback(() => {
         setVisibleReviewCount(3);
@@ -639,6 +675,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     }, [propertyId, highlightReviewIdParam]);
 
     useEffect(() => {
+        setExpandedReviews({});
+        setVisibleReviewCount(3);
+        setReviewMenuVisibleId(null);
+    }, [selectedRatingFilter]);
+
+    useEffect(() => {
         if (scrollToReviewsParam && !isReviewsLoading) {
             const timeout = setTimeout(() => {
                 handleScrollToReviews();
@@ -699,6 +741,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             [reviewKey]: !prev[reviewKey],
         }));
     };
+
+    const handleSelectRatingFilter = useCallback((rating) => {
+        setSelectedRatingFilter((prev) => (prev === rating ? null : rating));
+    }, []);
 
     useEffect(() => {
         if (property) {
@@ -1636,15 +1682,53 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                         <Text style={[styles.reviewsStatusText, { color: "#d9534f" }]}>
                             {reviewsError || "Không thể tải đánh giá"}
                         </Text>
-                    ) : propertyReviews.length > 0 ? (
+                    ) : hasAnyReviews ? (
                         <>
-                            <View style={styles.reviewsContainer}>
-                                {displayedReviews.map((review, index) => {
-                                    const reviewKey = review.reviewId || `${propertyId}-${index}`;
-                                    const isExpanded = !!expandedReviews[reviewKey];
-                                    const comment = getDisplayedComment(review.comment, isExpanded);
-                                    const showToggle = shouldTruncateComment(review.comment);
-                                    const mine = isMyReview(review);
+                            <View style={styles.ratingFilterWrapper}>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.ratingFilterScrollContent}
+                                >
+                                    {RATING_FILTER_OPTIONS.map((rating) => {
+                                        const active = selectedRatingFilter === rating;
+                                        return (
+                                            <TouchableOpacity
+                                                key={`rating-filter-${rating}`}
+                                                style={[
+                                                    styles.ratingFilterButton,
+                                                    active && styles.ratingFilterButtonActive,
+                                                ]}
+                                                onPress={() => handleSelectRatingFilter(rating)}
+                                            >
+                                                <Ionicons
+                                                    name="star"
+                                                    size={14}
+                                                    color={active ? "#fff" : "#f97316"}
+                                                />
+                                                <Text
+                                                    style={[
+                                                        styles.ratingFilterButtonText,
+                                                        active &&
+                                                            styles.ratingFilterButtonTextActive,
+                                                    ]}
+                                                >
+                                                    {rating} sao
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                            {hasFilteredReviews ? (
+                                <>
+                                    <View style={styles.reviewsContainer}>
+                                        {displayedReviews.map((review, index) => {
+                                            const reviewKey = review.reviewId || `${propertyId}-${index}`;
+                                            const isExpanded = !!expandedReviews[reviewKey];
+                                            const comment = getDisplayedComment(review.comment, isExpanded);
+                                            const showToggle = shouldTruncateComment(review.comment);
+                                            const mine = isMyReview(review);
                                     const isHighlighted =
                                         mine ||
                                         (highlightedReviewId &&
@@ -1675,19 +1759,19 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                         (isCurrentPropertyLandlord && !!reviewIdString);
 
                                     return (
-                                        <TouchableWithoutFeedback
-                                            key={reviewKey}
-                                            onPress={() => setReviewMenuVisibleId(null)}
-                                        >
-                                            <View
-                                                style={[
-                                                    styles.reviewCard,
-                                                    index !== displayedReviews.length - 1 &&
-                                                    styles.reviewCardSpacing,
-                                                    isHighlighted && styles.reviewCardHighlight,
-                                                ]}
-                                            >
-                                                <View style={styles.reviewHeader}>
+                                                <TouchableWithoutFeedback
+                                                    key={reviewKey}
+                                                    onPress={() => setReviewMenuVisibleId(null)}
+                                                >
+                                                    <View
+                                                        style={[
+                                                            styles.reviewCard,
+                                                            index !== displayedReviews.length - 1 &&
+                                                                styles.reviewCardSpacing,
+                                                            isHighlighted && styles.reviewCardHighlight,
+                                                        ]}
+                                                    >
+                                                        <View style={styles.reviewHeader}>
                                                     <Ionicons
                                                         name="person-circle-outline"
                                                         size={36}
@@ -1860,32 +1944,40 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                                     </View>
                                                 )}
                                             </View>
-                                        </TouchableWithoutFeedback>
-                                    );
-                                })}
-                            </View>
-                            {(hasMoreReviews || canCollapse) && (
-                                <View style={styles.reviewsActionsRow}>
-                                    {hasMoreReviews && (
-                                        <TouchableOpacity
-                                            style={styles.reviewsActionButton}
-                                            onPress={handleShowMoreReviews}
-                                        >
-                                            <Text style={styles.reviewsActionText}>Hiển thị thêm đánh giá</Text>
-                                        </TouchableOpacity>
+                                                </TouchableWithoutFeedback>
+                                            );
+                                        })}
+                                    </View>
+                                    {(hasMoreReviews || canCollapse) && (
+                                        <View style={styles.reviewsActionsRow}>
+                                            {hasMoreReviews && (
+                                                <TouchableOpacity
+                                                    style={styles.reviewsActionButton}
+                                                    onPress={handleShowMoreReviews}
+                                                >
+                                                    <Text style={styles.reviewsActionText}>
+                                                        Hiển thị thêm đánh giá
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {canCollapse && (
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.reviewsActionButton,
+                                                        styles.reviewsActionButtonGhost,
+                                                    ]}
+                                                    onPress={handleCollapseReviews}
+                                                >
+                                                    <Text style={styles.reviewsActionText}>Thu gọn đánh giá</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
                                     )}
-                                    {canCollapse && (
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.reviewsActionButton,
-                                                styles.reviewsActionButtonGhost,
-                                            ]}
-                                            onPress={handleCollapseReviews}
-                                        >
-                                            <Text style={styles.reviewsActionText}>Thu gọn đánh giá</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
+                                </>
+                            ) : (
+                                <Text style={styles.reviewsStatusText}>
+                                    Không có đánh giá {selectedRatingFilter} sao.
+                                </Text>
                             )}
                         </>
                     ) : (
@@ -2509,6 +2601,40 @@ const styles = StyleSheet.create({
     reviewsContainer: {
         paddingHorizontal: 12,
         paddingBottom: 4,
+    },
+    ratingFilterWrapper: {
+        paddingHorizontal: 12,
+        marginBottom: 12,
+    },
+    ratingFilterScrollContent: {
+        paddingVertical: 4,
+        paddingRight: 12,
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    ratingFilterButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#f3f4f6",
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginRight: 8,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#d1d5db",
+    },
+    ratingFilterButtonActive: {
+        backgroundColor: "#f97316",
+        borderColor: "#f97316",
+    },
+    ratingFilterButtonText: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#374151",
+        marginLeft: 4,
+    },
+    ratingFilterButtonTextActive: {
+        color: "#fff",
     },
     landlordCard: {
         flexDirection: "row",

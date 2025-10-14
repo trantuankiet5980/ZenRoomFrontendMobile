@@ -153,7 +153,6 @@ export default function ChatListScreen() {
       <View style={{ paddingTop: 30, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderColor: "#F2F2F2" }}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text style={{ fontSize: 20, fontWeight: "800", flex: 1 }}>Tin nhắn</Text>
-          <Ionicons name="search" size={20} color="#111" />
         </View>
         <View style={{ marginTop: 12, flexDirection: "row", gap: 12 }}>
           <TabPill label="Tất cả" active={tab === "all"} onPress={() => setTab("all")} />
