@@ -24,7 +24,6 @@ export const createProperty = createAsyncThunk(
         ...payload,
         services: payload.services || [],
       });
-      console.log("createProperty response:", response.data);
       return response.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
@@ -64,11 +63,9 @@ export const updateProperty = createAsyncThunk(
   "properties/updateProperty",
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      console.log("Updating property with ID:", id, "Payload:", data);
       const res = await axiosInstance.put(`/properties/${id}`, data);
       return res.data;
     } catch (err) {
-      console.error("Update property error:", err.response?.data || err.message);
       return rejectWithValue(err.response?.data || err.message);
     }
   }

@@ -77,6 +77,7 @@ export default function PostsManagerScreen() {
       propertyType: p.propertyType,
       media: p.media || [],        // giữ ảnh
       updatedAt: p.updatedAt || "", // giữ cache
+      original: p,
     }));
 
     setPosts(allPosts);
@@ -207,7 +208,7 @@ function PostCard({ item }) {
       <S3Image
         src={
           item.media?.[0]?.url
-          || item.rooms?.[0]?.media?.[0]?.url
+          || item.original?.rooms?.[0]?.media?.[0]?.url
         }
         cacheKey={item.updatedAt}
         style={{ width: "100%", height: 120, borderRadius: 8 }}
@@ -235,6 +236,15 @@ function PostCard({ item }) {
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => {
+              if (item.status === 'pending') {
+                const targetScreen = item.propertyType === 'BUILDING' ? 'CreateBuilding' : 'CreateRoom';
+                navigation.navigate('CreatePostStack', {
+                  screen: targetScreen,
+                  params: { mode: 'update', property: item.original || item },
+                });
+                return;
+              }
+              
               if (item?.id) {
                 dispatch(
                   recordUserEvent({
