@@ -1,9 +1,10 @@
 import React, { useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, SafeAreaView, Platform, StatusBar } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, SafeAreaView, Platform, StatusBar,Alert } from "react-native";
 import { useSelector } from "react-redux";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useDispatch } from "react-redux";
-import { fetchFavorites } from "../features/favorites/favoritesThunks";
+import { fetchFavorites, removeAllFavorites } from "../features/favorites/favoritesThunks";
+import { recordUserEvent } from "../features/events/eventsThunks";
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from "@expo/vector-icons";
 
@@ -33,10 +34,35 @@ const FavoritesScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
             <Icon name="chevron-left" size={26} color="#111" />
           </TouchableOpacity>
+
           <Text style={styles.headerTitle}>Yêu thích</Text>
-          <View style={styles.headerBtn} /> {/* giữ cân bằng 2 bên */}
+
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => {
+              if (favorites.length > 0) {
+                Alert.alert(
+                  "Xóa tất cả?",
+                  "Bạn có chắc chắn muốn xóa toàn bộ danh sách yêu thích?",
+                  [
+                    { text: "Hủy", style: "cancel" },
+                    {
+                      text: "Xóa",
+                      style: "destructive",
+                      onPress: () => dispatch(removeAllFavorites()),
+                    },
+                  ]
+                );
+              }
+            }}
+          >
+            {favorites.length > 0 && (
+              <Ionicons name="trash-outline" size={22} color="#f33" />
+            )}
+          </TouchableOpacity>
         </View>
       </View>
+
 
       {/* Danh sách favorites */}
       <FlatList
