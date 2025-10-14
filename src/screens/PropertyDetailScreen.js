@@ -795,10 +795,17 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         longitudeDelta: DEFAULT_MAP_REGION.longitudeDelta,
     };
 
-    const landlordAvatarUrl =
-        property?.landlord?.avatarUrl
-            ? resolveAssetUrl(property.landlord.avatarUrl)
-            : null;
+    const landlordAvatarKey = property?.landlord?.avatarUrl || null;
+    const landlordAvatarUrl = landlordAvatarKey
+        ? resolveAssetUrl(landlordAvatarKey)
+        : null;
+    const landlordFullName =
+        property?.landlord?.fullName || property?.landlord?.name || "Ẩn danh";
+    const landlordPhoneNumber = property?.landlord?.phoneNumber || null;
+    const landlordFollowerCount =
+        property?.landlord?.followersCount ??
+        property?.landlord?.followerCount ??
+        128;
     const landlordTotalReviewsLabel =
         landlordStatsStatus === "loading"
             ? "Đang tải..."
@@ -817,6 +824,35 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 : landlordAverageRatingValue !== null
                     ? `${landlordAverageRatingValue}/5 trung bình`
                     : "Chưa có đánh giá";
+    const handleOpenLandlordProfile = useCallback(() => {
+        if (!landlordIdentifier) {
+            return;
+        }
+
+        navigation.navigate("LandlordProperties", {
+            landlordId: landlordIdentifier,
+            landlord: {
+                fullName: landlordFullName,
+                name: landlordFullName,
+                avatarUrl: landlordAvatarKey,
+                phoneNumber: landlordPhoneNumber,
+            },
+            stats: {
+                totalReviews: landlordStats.totalReviews || 0,
+                averageRating: landlordStats.averageRating || 0,
+            },
+            followerCount: landlordFollowerCount,
+        });
+    }, [
+        landlordIdentifier,
+        navigation,
+        landlordFullName,
+        landlordAvatarKey,
+        landlordPhoneNumber,
+        landlordStats.totalReviews,
+        landlordStats.averageRating,
+        landlordFollowerCount,
+    ]);
 
     if (loading || (!property && !error)) {
         return (
@@ -1860,7 +1896,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 <View style={styles.sectionDivider} />
 
                 <Text style={styles.sectionTitle}>Gặp gỡ chủ nhà của bạn</Text>
-                <View style={styles.landlordCard}>
+                <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.landlordCard}
+                    onPress={handleOpenLandlordProfile}
+                    disabled={!landlordIdentifier}
+                >
                     <View style={styles.landlordAvatarWrapper}>
                         {landlordAvatarUrl ? (
                             <S3Image src={landlordAvatarUrl} style={styles.landlordAvatar} />
@@ -1870,15 +1911,15 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.landlordName} numberOfLines={1}>
-                            {property.landlord?.fullName || "Ẩn danh"}
+                            {landlordFullName}
                         </Text>
-                        {property.landlord?.phoneNumber ? (
+                        {landlordPhoneNumber ? (
                             <TouchableOpacity
                                 style={styles.landlordContactRow}
-                                onPress={() => Linking.openURL(`tel:${property.landlord.phoneNumber}`)}
+                                onPress={() => Linking.openURL(`tel:${landlordPhoneNumber}`)}
                             >
                                 <Text style={styles.landlordContactText}>
-                                    Gọi {property.landlord.phoneNumber}
+                                    Gọi {landlordPhoneNumber}
                                 </Text>
                             </TouchableOpacity>
                         ) : null}
@@ -1897,7 +1938,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             </View>
                         </View>
                     </View>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.sectionDivider} />
 
