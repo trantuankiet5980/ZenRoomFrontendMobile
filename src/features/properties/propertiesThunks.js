@@ -53,7 +53,9 @@ export const fetchPropertiesByLandlord = createAsyncThunk(
 
     return {
       type,
-      data: response.data.content,postStatus 
+      data: response.data.content,
+      postStatus,
+      totalElements: response.data.totalElements,
     };
   }
 );

@@ -13,6 +13,7 @@ import InventoryBuildings from '../screens/InventoryBuildingsScreen';
 import InventoryRooms from '../screens/InventoryRoomsScreen';
 
 import PropertyDetailScreen from '../screens/PropertyDetailScreen';
+import LandlordPropertiesScreen from '../screens/LandlordPropertiesScreen';
 import CreatePostStack from './CreatePostStack';
 
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -48,6 +49,7 @@ export default function HomeStack() {
 
       {/* Detail */}
       <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} options={{ title: 'Chi tiết bất động sản', headerShown: false }} />
+      <Stack.Screen name="LandlordProperties" component={LandlordPropertiesScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ChatDetail" component={ChatDetailScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ChatList" component={ChatListScreen} />
       <Stack.Screen name="BookingForm" component={BookingForm} options={{ title: 'Đặt phòng' }} />

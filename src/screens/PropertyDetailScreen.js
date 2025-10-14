@@ -13,6 +13,7 @@ import {
     Alert,
     TouchableWithoutFeedback,
     TextInput,
+    ActivityIndicator,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import MapView, { Marker } from "react-native-maps";
@@ -26,9 +27,13 @@ import { useRole } from "../hooks/useRole";
 import { Video } from "expo-av";
 import S3Image from "../components/S3Image";
 import { resolveAssetUrl } from "../utils/cdn";
+import { resolvePropertyTitle, resolvePropertyName } from "../utils/propertyDisplay";
 import { sendMessage } from "../features/chat/chatThunks";
 import { showToast } from "../utils/AppUtils";
 import { pushServerMessage } from "../features/chat/chatSlice";
+import { fetchSimilarRecommendations } from "../features/recommendations/recommendationsThunks";
+import { clearSimilarRecommendations } from "../features/recommendations/recommendationsSlice";
+import { recordUserEvent } from "../features/events/eventsThunks";
 import {
     fetchPropertyReviewsSummary,
     updateReviewThunk,
@@ -60,6 +65,7 @@ const parseCoordinate = (value) => {
 const PropertyDetailScreen = ({ route, navigation }) => {
     useHideTabBar();
     const { propertyId } = route.params;
+    const loggedViewEvent = Boolean(route?.params?.loggedViewEvent);
     const highlightReviewIdParam = route?.params?.highlightReviewId;
     const scrollToReviewsParam = route?.params?.scrollToReviews;
     const [liked, setLiked] = useState(false);
@@ -80,12 +86,22 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const [replyInputError, setReplyInputError] = useState("");
     const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
     const dispatch = useDispatch();
-    const { current: property, loading, error } = useSelector(
-        (state) => state.properties
-    );
+    const propertiesState = useSelector((state) => state.properties || {});
+    const { current, byId = {}, loading = false, error = null } = propertiesState;
+    const propertyFromMap = byId[propertyId];
+    const property =
+        propertyFromMap ||
+        (current?.propertyId === propertyId ? current : null);
     const { isTenant, isLandlord } = useRole();
     const currentUser = useSelector((s) => s.auth.user);
     const favorites = useSelector((state) => state.favorites.items);
+    const similarState =
+        useSelector((state) => state.recommendations?.similar) || {};
+    const {
+        items: similarRecommendations = [],
+        loading: similarLoading = false,
+        error: similarError = null,
+    } = similarState;
     const reviewsSummary = useSelector(
         (state) => state.reviews.summaries[propertyId] || { average: 0, total: 0 }
     );
@@ -588,6 +604,33 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         [dispatch, propertyId]
     );
 
+    const handleOpenSimilarProperty = useCallback(
+        (targetPropertyId, position) => {
+            if (!targetPropertyId) {
+                return;
+            }
+
+            const metadata = { source: "similar_properties" };
+            if (typeof position === "number") {
+                metadata.position = position;
+            }
+
+            dispatch(
+                recordUserEvent({
+                    eventType: "VIEW",
+                    roomId: targetPropertyId,
+                    metadata,
+                })
+            );
+
+            navigation.push("PropertyDetail", {
+                propertyId: targetPropertyId,
+                loggedViewEvent: true,
+            });
+        },
+        [dispatch, navigation]
+    );
+
     useEffect(() => {
         setExpandedReviews({});
         setVisibleReviewCount(3);
@@ -672,6 +715,32 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     }, [dispatch, propertyId]);
 
     useEffect(() => {
+        if (!propertyId) {
+            return;
+        }
+
+        dispatch(fetchSimilarRecommendations({ roomId: propertyId }));
+
+        return () => {
+            dispatch(clearSimilarRecommendations());
+        };
+    }, [dispatch, propertyId]);
+
+    useEffect(() => {
+        if (!property?.propertyId || loggedViewEvent) {
+            return;
+        }
+
+        dispatch(
+            recordUserEvent({
+                eventType: "VIEW",
+                roomId: property.propertyId,
+                metadata: { screen: "property_detail" },
+            })
+        );
+    }, [dispatch, loggedViewEvent, property?.propertyId]);
+
+    useEffect(() => {
         if (property?.media) {
             // console.log("MEDIA LIST:", property.media);
         }
@@ -726,10 +795,17 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         longitudeDelta: DEFAULT_MAP_REGION.longitudeDelta,
     };
 
-    const landlordAvatarUrl =
-        property?.landlord?.avatarUrl
-            ? resolveAssetUrl(property.landlord.avatarUrl)
-            : null;
+    const landlordAvatarKey = property?.landlord?.avatarUrl || null;
+    const landlordAvatarUrl = landlordAvatarKey
+        ? resolveAssetUrl(landlordAvatarKey)
+        : null;
+    const landlordFullName =
+        property?.landlord?.fullName || property?.landlord?.name || "Ẩn danh";
+    const landlordPhoneNumber = property?.landlord?.phoneNumber || null;
+    const landlordFollowerCount =
+        property?.landlord?.followersCount ??
+        property?.landlord?.followerCount ??
+        128;
     const landlordTotalReviewsLabel =
         landlordStatsStatus === "loading"
             ? "Đang tải..."
@@ -748,8 +824,37 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 : landlordAverageRatingValue !== null
                     ? `${landlordAverageRatingValue}/5 trung bình`
                     : "Chưa có đánh giá";
+    const handleOpenLandlordProfile = useCallback(() => {
+        if (!landlordIdentifier) {
+            return;
+        }
 
-    if (loading) {
+        navigation.navigate("LandlordProperties", {
+            landlordId: landlordIdentifier,
+            landlord: {
+                fullName: landlordFullName,
+                name: landlordFullName,
+                avatarUrl: landlordAvatarKey,
+                phoneNumber: landlordPhoneNumber,
+            },
+            stats: {
+                totalReviews: landlordStats.totalReviews || 0,
+                averageRating: landlordStats.averageRating || 0,
+            },
+            followerCount: landlordFollowerCount,
+        });
+    }, [
+        landlordIdentifier,
+        navigation,
+        landlordFullName,
+        landlordAvatarKey,
+        landlordPhoneNumber,
+        landlordStats.totalReviews,
+        landlordStats.averageRating,
+        landlordFollowerCount,
+    ]);
+
+    if (loading || (!property && !error)) {
         return (
             <View style={styles.center}>
                 <Text>Đang tải...</Text>
@@ -1791,7 +1896,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 <View style={styles.sectionDivider} />
 
                 <Text style={styles.sectionTitle}>Gặp gỡ chủ nhà của bạn</Text>
-                <View style={styles.landlordCard}>
+                <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.landlordCard}
+                    onPress={handleOpenLandlordProfile}
+                    disabled={!landlordIdentifier}
+                >
                     <View style={styles.landlordAvatarWrapper}>
                         {landlordAvatarUrl ? (
                             <S3Image src={landlordAvatarUrl} style={styles.landlordAvatar} />
@@ -1801,15 +1911,15 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.landlordName} numberOfLines={1}>
-                            {property.landlord?.fullName || "Ẩn danh"}
+                            {landlordFullName}
                         </Text>
-                        {property.landlord?.phoneNumber ? (
+                        {landlordPhoneNumber ? (
                             <TouchableOpacity
                                 style={styles.landlordContactRow}
-                                onPress={() => Linking.openURL(`tel:${property.landlord.phoneNumber}`)}
+                                onPress={() => Linking.openURL(`tel:${landlordPhoneNumber}`)}
                             >
                                 <Text style={styles.landlordContactText}>
-                                    Gọi {property.landlord.phoneNumber}
+                                    Gọi {landlordPhoneNumber}
                                 </Text>
                             </TouchableOpacity>
                         ) : null}
@@ -1828,7 +1938,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             </View>
                         </View>
                     </View>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.sectionDivider} />
 
@@ -1848,6 +1958,98 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.ruleItem}>
                         • Trước khi rời đi: Tắt hết các thiết bị - Khóa cửa
                     </Text>
+                </View>
+
+                <View style={styles.sectionDivider} />
+
+                <View style={styles.similarSection}>
+                    <Text style={styles.sectionTitle}>Có lẽ bạn sẽ thích</Text>
+                    {similarError ? (
+                        <Text style={styles.similarErrorText}>{similarError}</Text>
+                    ) : similarLoading && similarRecommendations.length === 0 ? (
+                        <View style={styles.similarLoadingWrapper}>
+                            <ActivityIndicator size="small" color="#f97316" />
+                        </View>
+                    ) : similarRecommendations.length === 0 ? (
+                        <Text style={styles.similarEmptyText}>
+                            Không có gợi ý tương tự.
+                        </Text>
+                    ) : (
+                        <View style={styles.similarGrid}>
+                            {similarRecommendations.map((item, index) => {
+                                const displayTitle = resolvePropertyTitle(item);
+                                const displayName = resolvePropertyName(item);
+
+                                return (
+                                    <TouchableOpacity
+                                        key={`${item.propertyId || index}`}
+                                        style={styles.similarCard}
+                                        onPress={() =>
+                                            handleOpenSimilarProperty(
+                                                item.propertyId,
+                                                index
+                                            )
+                                        }
+                                        >
+                                        <S3Image
+                                            src={
+                                                item.media?.[0]?.url ||
+                                                "https://picsum.photos/600/400"
+                                            }
+                                            cacheKey={item.updatedAt}
+                                            style={styles.similarCardImage}
+                                            alt={displayTitle}
+                                        />
+                                        <View style={styles.similarCardBody}>
+                                            <Text
+                                                style={styles.similarCardTitle}
+                                                numberOfLines={2}
+                                            >
+                                                {displayTitle}
+                                            </Text>
+                                        {displayName ? (
+                                                <Text
+                                                    style={styles.similarCardSubtitle}
+                                                    numberOfLines={1}
+                                                >
+                                                    {displayName}
+                                                </Text>
+                                            ) : null}
+                                            <Text
+                                                style={styles.similarCardPrice}
+                                                numberOfLines={1}
+                                            >
+                                                {formatPriceWithUnit(item)}
+                                            </Text>
+                                            {item.address?.addressFull ? (
+                                                <View style={styles.similarAddressRow}>
+                                                    <Ionicons
+                                                        name="location-outline"
+                                                        size={14}
+                                                        color="#f97316"
+                                                    />
+                                                    <Text
+                                                        style={styles.similarCardAddress}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {item.address.addressFull.replace(
+                                                            /_/g,
+                                                            " "
+                                                        )}
+                                                    </Text>
+                                                </View>
+                                            ) : null}
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    )}
+                    {similarLoading && similarRecommendations.length > 0 ? (
+                        <View style={styles.similarLoadingWrapper}>
+                            <ActivityIndicator size="small" color="#f97316" />
+                        </View>
+                    ) : null}
                 </View>
             </ScrollView>
 
@@ -1911,7 +2113,12 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 // ĐẨY NGAY bubble chào vào Redux để ChatDetail hiện tức thì
                                 if (convId) {
                                     // cập nhật lastMessage cho list + thêm message vào bucket
-                                    dispatch(pushServerMessage(serverMessage));
+                                    dispatch(
+                                        pushServerMessage({
+                                            ...serverMessage,
+                                            __currentUserId: currentUser?.userId,
+                                        })
+                                    );
 
                                     const mini = {
                                         propertyId: property.propertyId,
@@ -2632,6 +2839,71 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#6b7280",
         lineHeight: 18,
+    },
+    similarSection: {
+        marginTop: 16,
+    },
+    similarGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        marginTop: 12,
+        marginHorizontal: 12,
+    },
+    similarCard: {
+        width: "48%",
+        borderRadius: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "#e5e7eb",
+        backgroundColor: "#fff",
+        marginBottom: 12,
+        overflow: "hidden",
+    },
+    similarCardImage: {
+        width: "100%",
+        height: 120,
+    },
+    similarCardBody: {
+        padding: 10,
+        gap: 6,
+    },
+    similarCardSubtitle: {
+        fontSize: 12,
+        color: "#6b7280",
+    },
+    similarCardTitle: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111827",
+    },
+    similarAddressRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    similarCardAddress: {
+        fontSize: 11,
+        color: "#4b5563",
+        flex: 1,
+    },
+    similarCardPrice: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#f97316",
+    },
+    similarEmptyText: {
+        textAlign: "center",
+        color: "#6b7280",
+        marginTop: 8,
+    },
+    similarErrorText: {
+        textAlign: "center",
+        color: "#dc2626",
+        marginTop: 8,
+    },
+    similarLoadingWrapper: {
+        paddingVertical: 12,
+        alignItems: "center",
     },
     bottomBar: {
         position: "absolute",

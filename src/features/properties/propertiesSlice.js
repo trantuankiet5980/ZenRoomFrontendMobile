@@ -1,7 +1,12 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { fetchProperties, createProperty, fetchPropertyDetail, fetchPropertiesByLandlord, updateProperty, searchProperties } from "./propertiesThunks";
-
-
+import {
+  fetchProperties,
+  createProperty,
+  fetchPropertyDetail,
+  fetchPropertiesByLandlord,
+  updateProperty,
+  searchProperties,
+} from "./propertiesThunks";
 
 const propertiesSlice = createSlice({
   name: "properties",
@@ -12,7 +17,12 @@ const propertiesSlice = createSlice({
     landlordBuildings: [],
     landlordRoomsPending: [],
     landlordBuildingsPending: [],
+    landlordRoomsTotal: 0,
+    landlordBuildingsTotal: 0,
+    landlordRoomsPendingTotal: 0,
+    landlordBuildingsPendingTotal: 0,
     searchResults: { content: [], totalElements: 0, totalPages: 0 },
+    byId: {},
     current: null,
     loading: false,
     error: null,
@@ -75,6 +85,10 @@ const propertiesSlice = createSlice({
       .addCase(fetchPropertyDetail.fulfilled, (state, action) => {
         state.loading = false;
         state.current = action.payload;
+        const propertyId = action.payload?.propertyId;
+        if (propertyId !== undefined && propertyId !== null) {
+          state.byId[propertyId] = action.payload;
+        }
       })
       .addCase(fetchPropertyDetail.rejected, (state, action) => {
         state.loading = false;
@@ -86,19 +100,29 @@ const propertiesSlice = createSlice({
       })
       .addCase(fetchPropertiesByLandlord.fulfilled, (state, action) => {
         state.loading = false;
-        const { type, data, postStatus } = action.payload;
+        const { type, data, postStatus, totalElements } = action.payload;
+        const parsedTotal = Number(totalElements);
+        const normalizedTotal = Number.isFinite(parsedTotal)
+          ? parsedTotal
+          : Array.isArray(data)
+            ? data.length
+            : 0;
 
         if (type === "ROOM") {
           if (postStatus === "APPROVED") {
             state.landlordRooms = data;
+            state.landlordRoomsTotal = normalizedTotal;
           } else if (postStatus === "PENDING") {
             state.landlordRoomsPending = data;
+            state.landlordRoomsPendingTotal = normalizedTotal;
           }
         } else if (type === "BUILDING") {
           if (postStatus === "APPROVED") {
             state.landlordBuildings = data;
+            state.landlordBuildingsTotal = normalizedTotal;
           } else if (postStatus === "PENDING") {
             state.landlordBuildingsPending = data;
+            state.landlordBuildingsPendingTotal = normalizedTotal;
           }
         }
       })
@@ -126,6 +150,10 @@ const propertiesSlice = createSlice({
         // Cập nhật chi tiết nếu đang mở
         if (state.current?.propertyId === updated.propertyId) {
           state.current = updated;
+        }
+
+        if (updated?.propertyId !== undefined && updated?.propertyId !== null) {
+          state.byId[updated.propertyId] = updated;
         }
       })
       .addCase(updateProperty.rejected, (state, action) => {

@@ -1,9 +1,10 @@
-import { Provider, useSelector } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import React, { useEffect } from "react";
 import { store } from './src/app/store';
 import RootNavigator from './src/navigation/RootNavigator';
 import Toast from 'react-native-toast-message';
 import { initSocket } from './src/sockets/socket';
+import { fetchNotifications } from './src/features/notifications/notificationsSlice';
 
 function SocketBootstrapper() {
   const token = useSelector(s => s.auth.token);
@@ -17,12 +18,26 @@ function SocketBootstrapper() {
   return null;
 }
 
+function NotificationsBootstrapper() {
+  const dispatch = useDispatch();
+  const token = useSelector(s => s.auth.token);
+
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchNotifications());
+    }
+  }, [dispatch, token]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <Provider store={store}>
       <RootNavigator />
       <Toast />
       <SocketBootstrapper />
+      <NotificationsBootstrapper />
     </Provider>
   );
 }

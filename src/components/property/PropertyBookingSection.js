@@ -14,6 +14,7 @@ import {
     createBooking,
     fetchPropertyBookedDates,
 } from "../../features/bookings/bookingsThunks";
+import { recordUserEvent } from "../../features/events/eventsThunks";
 
 const ORANGE = "#f36031";
 
@@ -232,6 +233,18 @@ const PropertyBookingSection = ({ propertyId, style, onLayout, onSelectionChange
             ).unwrap();
 
             Alert.alert("Thành công", "Đặt phòng thành công!");
+            dispatch(
+                recordUserEvent({
+                    eventType: "BOOKING",
+                    roomId: propertyId,
+                    metadata: {
+                        checkInAt,
+                        checkOutAt,
+                        nights,
+                        source: "property_detail",
+                    },
+                })
+            );
             resetSelection();
             dispatch(fetchPropertyBookedDates(propertyId));
         } catch (err) {
@@ -247,7 +260,7 @@ const PropertyBookingSection = ({ propertyId, style, onLayout, onSelectionChange
         } finally {
             setSubmitting(false);
         }
-    }, [dispatch, note, propertyId, resetSelection, selectedEnd, selectedStart]);
+    }, [dispatch, nights, note, propertyId, resetSelection, selectedEnd, selectedStart]);
 
     return (
         <View style={[styles.container, style]} onLayout={onLayout}>

@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Platform } from "react-native"
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useDispatch } from "react-redux";
 import { createBooking } from "../features/bookings/bookingsThunks";
+import { recordUserEvent } from "../features/events/eventsThunks";
 
 const ORANGE = "#f36031";
 
@@ -25,16 +26,29 @@ export default function BookingForm({ route, navigation }) {
 
   const handleBooking = async () => {
     try {
+      const checkInIso = toLocalISOString(checkInAt);
+      const checkOutIso = toLocalISOString(checkOutAt);
       await dispatch(
         createBooking({
           propertyId: property.propertyId,
-          checkInAt: toLocalISOString(checkInAt),
-          checkOutAt: toLocalISOString(checkOutAt),
+          checkInAt: checkInIso,
+          checkOutAt: checkOutIso,
           note,
         })
       ).unwrap();
       
       alert("Đặt phòng thành công!");
+      dispatch(
+        recordUserEvent({
+          eventType: "BOOKING",
+          roomId: property.propertyId,
+          metadata: {
+            checkInAt: checkInIso,
+            checkOutAt: checkOutIso,
+            source: "booking_form",
+          },
+        })
+      );
       navigation.goBack();
     } catch (err) {
       alert(err?.message || "Đặt phòng thất bại");
