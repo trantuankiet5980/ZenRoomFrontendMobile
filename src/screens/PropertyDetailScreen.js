@@ -44,6 +44,7 @@ import {
 import { resetReviewsSummary, resetLandlordStats } from "../features/reviews/reviewsSlice";
 import ReviewModal from "../components/reviews/ReviewModal";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
+import { formatRelativeTime } from "../utils/time";
 const { width } = Dimensions.get('window');
 
 const DEFAULT_MAP_REGION = {
@@ -710,6 +711,11 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const formatReviewDate = (value) => {
         if (!value) {
             return "--";
+        }
+
+        const relativeLabel = formatRelativeTime(value);
+        if (relativeLabel) {
+            return relativeLabel;
         }
 
         const parsed = new Date(value);
