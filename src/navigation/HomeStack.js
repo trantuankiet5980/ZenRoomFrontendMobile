@@ -13,8 +13,16 @@ import InventoryBuildings from '../screens/InventoryBuildingsScreen';
 import InventoryRooms from '../screens/InventoryRoomsScreen';
 
 import PropertyDetailScreen from '../screens/PropertyDetailScreen';
-import FavoritesScreen from '../screens/FavoritesScreen';
+import LandlordPropertiesScreen from '../screens/LandlordPropertiesScreen';
+import CreatePostStack from './CreatePostStack';
 
+import NotificationsScreen from '../screens/NotificationsScreen';
+import ChatDetailScreen from '../screens/ChatDetailScreen';
+import BookingForm from '../screens/BookingFormScreen';
+import BookingDetailScreen from '../screens/BookingDetailScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
+import ChatListScreen from '../screens/ChatListScreen';
+import ContractDetailScreen from '../screens/ContractDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,6 +36,7 @@ export default function HomeStack() {
 
       {/* Create */}
       <Stack.Screen name="CreateContract" component={CreateContract} options={{ title: 'Tạo hợp đồng', headerShown: false }} />
+      <Stack.Screen name="ContractDetail" component={ContractDetailScreen} options={{ title: 'Chi tiết hợp đồng', headerShown: false }} />
 
       {/* Manager */}
       <Stack.Screen name="RoomsInventoryManager" component={RoomsInventoryManagerScreen} options={{ title: 'Quản lý phòng', headerShown: false }} />
@@ -40,7 +49,18 @@ export default function HomeStack() {
 
       {/* Detail */}
       <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} options={{ title: 'Chi tiết bất động sản', headerShown: false }} />
+      <Stack.Screen name="LandlordProperties" component={LandlordPropertiesScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ChatDetail" component={ChatDetailScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ChatList" component={ChatListScreen} />
+      <Stack.Screen name="BookingForm" component={BookingForm} options={{ title: 'Đặt phòng' }} />
+      <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Chi tiết booking',headerShown: false  }} />
+      <Stack.Screen name="Favorites" component={FavoritesScreen} />
 
+      {/* Create Post */}
+      <Stack.Screen name="CreatePostStack" component={CreatePostStack} options={{ headerShown: false }} />
+
+      {/* Notifications */}
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Thông báo' }} />
     </Stack.Navigator>
   );
 }

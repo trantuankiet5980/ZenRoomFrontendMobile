@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { axiosInstance } from '../../api/axiosInstance';
+import { axiosInstance, setAccessTokenCache, clearAccessTokenCache } from '../../api/axiosInstance';
 import * as SecureStore from 'expo-secure-store';
 
 export const loadSessionThunk = createAsyncThunk('auth/loadSession', async () => {
@@ -31,6 +31,8 @@ export const loginThunk = createAsyncThunk(
       await SecureStore.setItemAsync('accessToken', token);
       await SecureStore.setItemAsync('userLogin', JSON.stringify(user));
 
+      setAccessTokenCache(token);
+
       return { token, user };
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Đăng nhập lỗi';
@@ -42,6 +44,7 @@ export const loginThunk = createAsyncThunk(
 export const logoutThunk = createAsyncThunk('auth/logout', async () => {
   await SecureStore.deleteItemAsync('accessToken');
   await SecureStore.deleteItemAsync('userLogin');
+  clearAccessTokenCache();
   return true;
 });
 
@@ -109,6 +112,19 @@ export const resetPasswordThunk = createAsyncThunk(
       return res.data; // { success, message }
     } catch (err) {
       const msg = err?.response?.data?.message || 'Reset mật khẩu thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+export const changePasswordThunk = createAsyncThunk(
+  'auth/changePassword',
+  async ({ currentPassword, newPassword }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post('/auth/change-password', { currentPassword, newPassword });
+      return res.data; 
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Đổi mật khẩu thất bại';
       return rejectWithValue(msg);
     }
   }

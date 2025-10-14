@@ -20,7 +20,7 @@ export default function CreateContractScreen() {
   // ====== State: Bên thuê ======
   const [tenantName, setTenantName] = useState('');
   const [tenantPhone, setTenantPhone] = useState('');
-  const [postTitle, setPostTitle] = useState('');
+  const [title, setTitle] = useState('');
   const [citizenId, setCitizenId] = useState('');
   const [idFront, setIdFront] = useState(null); // {uri}
   const [idBack, setIdBack] = useState(null);
@@ -49,7 +49,7 @@ export default function CreateContractScreen() {
 
   const onSubmit = () => {
     console.log('CREATE CONTRACT', {
-      tenant: { tenantName, tenantPhone, postTitle, citizenId, idFront, idBack, members },
+      tenant: { tenantName, tenantPhone, title, citizenId, idFront, idBack, members },
       rent: {
         building: selectedBuilding, roomNumber, dateFrom, dateTo,
         price, deposit, billStartDate, paymentCycle
@@ -97,8 +97,8 @@ export default function CreateContractScreen() {
           label="Tiêu đề bài đăng"
           icon={<Ionicons name="pricetag-outline" size={18} color={ORANGE} />}
           placeholder="Nhập tiêu đề bài đăng"
-          value={postTitle}
-          onChangeText={setPostTitle}
+          value={title}
+          onChangeText={setTitle}
         />
 
         <Field

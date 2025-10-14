@@ -1,14 +1,16 @@
-import React from "react";
-import {
-  Modal,
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-} from "react-native";
-import { locations } from "../../data/locationData";
+import React, { useMemo } from "react";
+import { Modal, View, Text, FlatList, TouchableOpacity } from "react-native";
+import { ADMIN_ALL_LABEL, ADMIN_ALL_VALUE } from "../../constants/administrative";
 
-export default function SelectCityModal({ visible, onClose, onSelectCity }) {
+export default function SelectCityModal({ visible, onClose, onSelectCity, provinces }) {
+  const options = useMemo(
+    () => [
+      { code: ADMIN_ALL_VALUE, name_with_type: ADMIN_ALL_LABEL },
+      ...(provinces || []),
+    ],
+    [provinces]
+  );
+
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
@@ -26,8 +28,8 @@ export default function SelectCityModal({ visible, onClose, onSelectCity }) {
           </Text>
 
           <FlatList
-            data={Object.keys(locations)}
-            keyExtractor={(item) => item}
+            data={options}
+            keyExtractor={(item) => item.code}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={{
@@ -35,12 +37,9 @@ export default function SelectCityModal({ visible, onClose, onSelectCity }) {
                   borderBottomWidth: 1,
                   borderBottomColor: "#eee",
                 }}
-                onPress={() => {
-                  onSelectCity(item);
-                  onClose();
-                }}
+                onPress={() => onSelectCity(item.code)}
               >
-                <Text style={{ fontSize: 15 }}>{item}</Text>
+                <Text style={{ fontSize: 15 }}>{item.name_with_type}</Text>
               </TouchableOpacity>
             )}
           />

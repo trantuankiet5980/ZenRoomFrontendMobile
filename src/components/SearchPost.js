@@ -1,56 +1,106 @@
-import { View, Text, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import { View, TouchableOpacity, Text, ActivityIndicator } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { ADMIN_ALL_LABEL, isAllAdministrativeValue } from "../constants/administrative";
 
 export default function SearchPost({
-  city = 'Hồ Chí Minh',
+  city,                     // tên hiển thị
+  provinceCode,             // code thật
+  selectedDistrictName,     // tên hiển thị
+  districtCode,             // code thật
   onPressCity,
+  onPressDistrict,
   onPressSearch,
+  onPressUseLocation,
+  locating,
+  disableDistrictSelect,
 }) {
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        padding: 8,
-        borderRadius: 12,
-        gap: 8,
-      }}
-    >
-      {/* Chip location */}
-      <Pressable
-        onPress={onPressCity}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#FEE6C9', // cam nhạt
-          paddingHorizontal: 10,
-          height: 36,
-          borderRadius: 10,
-          gap: 6,
-        }}
-      >
-        <Ionicons name="location" size={16} color="#F18A2F" />
-        <Text style={{ color: '#F18A2F', fontWeight: '700' }}>{city}</Text>
-      </Pressable>
+  const normalizedCityLabel = city || (isAllAdministrativeValue(provinceCode) ? ADMIN_ALL_LABEL : "Chọn Tỉnh/Thành phố");
+  const normalizedDistrictLabel =
+    selectedDistrictName ||
+    (isAllAdministrativeValue(districtCode) ? ADMIN_ALL_LABEL : "Chọn Quận/Huyện");
+  const isDistrictDisabled = disableDistrictSelect || isAllAdministrativeValue(provinceCode);
 
-      {/* Ô “Tìm kiếm tin đăng” */}
-      <Pressable
-        onPress={onPressSearch}
+  return (
+    <View style={{ gap: 12 }}>
+      {/* Hàng chọn tỉnh & quận */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+        {/* Chọn tỉnh */}
+        <TouchableOpacity
+          onPress={onPressCity}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#f4f4f4",
+            padding: 10,
+            borderRadius: 8,
+          }}
+        >
+          <Ionicons name="location-outline" size={18} color="#333" />
+          <Text style={{ marginLeft: 6, fontSize: 14 }}>
+            {normalizedCityLabel}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Chọn quận/huyện */}
+        <TouchableOpacity
+          onPress={onPressDistrict}
+          disabled={isDistrictDisabled}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#f4f4f4",
+            padding: 10,
+            borderRadius: 8,
+            opacity: isDistrictDisabled ? 0.5 : 1,
+          }}
+        >
+          <Ionicons name="business-outline" size={18} color="#333" />
+          <Text style={{ marginLeft: 6, fontSize: 14 }}>
+            {normalizedDistrictLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {onPressUseLocation && (
+        <TouchableOpacity
+          onPress={onPressUseLocation}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Ionicons name="navigate-circle-outline" size={18} color="#f36031" />
+          <Text style={{ color: "#f36031", fontWeight: "600" }}>
+            Sử dụng vị trí của tôi
+          </Text>
+          {locating && <ActivityIndicator size="small" color="#f36031" />}
+        </TouchableOpacity>
+      )}
+
+      {/* Nút tìm kiếm */}
+      <TouchableOpacity
+        onPress={() =>
+          onPressSearch({
+            provinceCode: isAllAdministrativeValue(provinceCode)
+              ? undefined
+              : provinceCode,
+            districtCode: isAllAdministrativeValue(districtCode)
+              ? undefined
+              : districtCode,
+          })
+        }
         style={{
-          flex: 1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#EDEDED',
-          height: 36,
-          borderRadius: 10,
-          paddingHorizontal: 10,
-          gap: 8,
+          backgroundColor: "#f36031",
+          paddingVertical: 12,
+          borderRadius: 8,
+          alignItems: "center",
         }}
       >
-        <Ionicons name="search" size={16} color="#9CA3AF" />
-        <Text style={{ color: '#9CA3AF', fontWeight: '600' }}>
-          Tìm kiếm tin đăng
+        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
+          Tìm phòng
         </Text>
-      </Pressable>
+      </TouchableOpacity>
     </View>
   );
 }
+

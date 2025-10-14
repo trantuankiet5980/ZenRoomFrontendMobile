@@ -1,13 +1,20 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { axiosInstance } from "../../api/axiosInstance";
-
+import { recordUserEvent } from "../events/eventsThunks";
 
 // Thêm phòng vào favorites
 export const addFavorite = createAsyncThunk(
     "favorites/addFavorite",
-    async (propertyId, { rejectWithValue }) => {
+    async (propertyId, { rejectWithValue, dispatch }) => {
         try {
             const response = await axiosInstance.post("/favorites", { propertyId });
+            dispatch(
+                recordUserEvent({
+                    eventType: "FAVORITE",
+                    roomId: propertyId,
+                    metadata: { action: "add" },
+                })
+            );
             return response.data;
         } catch (err) {
             return rejectWithValue(err.response?.data || err.message);
@@ -18,9 +25,16 @@ export const addFavorite = createAsyncThunk(
 // Xoá phòng khỏi favorites
 export const removeFavorite = createAsyncThunk(
     "favorites/removeFavorite",
-    async (propertyId, { rejectWithValue }) => {
+    async (propertyId, { rejectWithValue, dispatch }) => {
         try {
             await axiosInstance.delete(`/favorites/${propertyId}`);
+            dispatch(
+                recordUserEvent({
+                    eventType: "FAVORITE",
+                    roomId: propertyId,
+                    metadata: { action: "remove" },
+                })
+            );
             return propertyId;
         }
         catch (err) {

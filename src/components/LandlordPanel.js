@@ -1,32 +1,46 @@
-import { useState, useEffect } from "react";
-import { View, Text, Modal, TouchableOpacity, FlatList } from "react-native";
+import { useState } from "react";
+import { View, Text } from "react-native";
 import { useSelector } from "react-redux";
 import ActionGrid from "./ActionGrid";
 import SearchPost from "./SearchPost";
 import { useNavigation } from "@react-navigation/native";
-import { locations } from "../data/locationData";
 import SelectCityModal from "../components/modal/SelectCityModal";
+import SelectDistrictModal from "../components/modal/SelectDistrictModal";
+import { ADMIN_ALL_LABEL, isAllAdministrativeValue} from "../constants/administrative";
 
-export default function LandlordPanel({ selectedCity, setSelectedCity }) {
+export default function LandlordPanel({
+  selectedCity,
+  onSelectCity,
+  selectedDistrict,
+  onSelectDistrict,
+  onUseLocation,
+  locating,
+  disableDistrictSelect,
+}) {
   const role = useSelector((s) => s.auth.user?.role?.toLowerCase?.());
   if (role !== "landlord") return null;
-  
-  const [cityModalVisible, setCityModalVisible] = useState(false);
-  const [districts, setDistricts] = useState(locations[selectedCity] || []);
 
   const navigation = useNavigation();
 
-  // Update districts mỗi khi selectedCity thay đổi
-  useEffect(() => {
-    setDistricts(locations[selectedCity] || []);
-  }, [selectedCity]);
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [districtModalVisible, setDistrictModalVisible] = useState(false);
 
-  const searchItem = {
-    key: "search",
-    label: "Tìm kiếm",
-    icon: "search",
-    iconLib: "ion",
-    onPress: () => navigation.navigate("SearchRooms"), // TODO: tạo màn này
+  const provinces = useSelector((s) => s.administrative.provinces);
+  const districts = useSelector((s) => s.administrative.districts);
+  const selectedCityName = isAllAdministrativeValue(selectedCity)
+    ? ADMIN_ALL_LABEL
+    : provinces.find((p) => p.code === selectedCity)?.name_with_type || selectedCity;
+  const selectedDistrictName = isAllAdministrativeValue(selectedDistrict)
+    ? null
+    : districts.find((d) => d.code === selectedDistrict)?.name_with_type;
+
+  const handleSelectCity = (provinceCode) => {
+    onSelectCity?.(provinceCode);
+    setCityModalVisible(false);
+  };
+  const handleSelectDistrict = (districtCode) => {
+    onSelectDistrict?.(districtCode);
+    setDistrictModalVisible(false);
   };
 
   const manageActions = [
@@ -44,20 +58,20 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
       iconLib: "mc",
       onPress: () => navigation.navigate("TenantsManager"),
     },
-    {
-      key: "manage-contracts",
-      label: "Quản lý hợp đồng",
-      icon: "filetext1",
-      iconLib: "ant",
-      onPress: () => navigation.navigate("ContractsManager"),
-    },
-    {
-      key: "create-contract",
-      label: "Tạo hợp đồng",
-      icon: "filetext1",
-      iconLib: "ant",
-      onPress: () => navigation.navigate("CreateContract"),
-    },
+    // {
+    //   key: "manage-contracts",
+    //   label: "Quản lý hợp đồng",
+    //   icon: "file-document-outline",
+    //   iconLib: "mc",
+    //   onPress: () => navigation.navigate("ContractsManager"),
+    // },
+    // {
+    //   key: "create-contract",
+    //   label: "Tạo hợp đồng",
+    //   icon: "profile",
+    //   iconLib: "ant",
+    //   onPress: () => navigation.navigate("CreateContract"),
+    // },
   ];
 
   return (
@@ -77,13 +91,41 @@ export default function LandlordPanel({ selectedCity, setSelectedCity }) {
         <SelectCityModal
           visible={cityModalVisible}
           onClose={() => setCityModalVisible(false)}
-          onSelectCity={(city) => setSelectedCity(city)}
+          provinces={provinces}
+          districts={districts}
+          selectedCity={selectedCityName}
+          onSelectCity={handleSelectCity}
+        />
+        <SelectDistrictModal
+          visible={districtModalVisible}
+          onClose={() => setDistrictModalVisible(false)}
+          districts={districts}
+          onSelectDistrict={handleSelectDistrict}
         />
         <SearchPost
-          city={selectedCity}
-          districts={districts}
+          city={selectedCityName}
+          provinceCode={selectedCity}
+          selectedDistrictName={selectedDistrictName}
+          districtCode={selectedDistrict}
           onPressCity={() => setCityModalVisible(true)}
-          onPressSearch={() => navigation.navigate("SearchRooms")}
+          onPressDistrict={() => {
+            if (!disableDistrictSelect) {
+              setDistrictModalVisible(true);
+            }
+          }}
+          onPressUseLocation={onUseLocation}
+          locating={locating}
+          disableDistrictSelect={disableDistrictSelect}
+          onPressSearch={({ provinceCode, districtCode }) =>
+            navigation.navigate("SearchRooms", {
+              provinceCode,
+              districtCode,
+              provinceName: provinceCode ? selectedCityName : undefined,
+              districtName: districtCode
+                ? districts.find((d) => d.code === districtCode)?.name_with_type
+                : undefined,
+            })
+          }
         />
       </View>
 
