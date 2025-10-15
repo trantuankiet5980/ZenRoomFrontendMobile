@@ -36,7 +36,7 @@ export default function CreateBuildingScreen() {
   const [addr, setAddr] = useState('');
   const [price, setPrice] = useState(isUpdateMode ? String(property?.price || '') : '');
   const [area, setArea] = useState(isUpdateMode ? String(property?.area || '') : '');
-  const [deposit, setDeposit] = useState(isUpdateMode ? String(property?.deposit || '') : '');
+  const [capacity, setCapacity] = useState(isUpdateMode ? String(property?.capacity || '') : '');
   const [desc, setDesc] = useState(isUpdateMode ? property?.description || '' : '');
   const [furnitures, setFurnitures] = useState(
     isUpdateMode
@@ -104,7 +104,6 @@ export default function CreateBuildingScreen() {
       setAddr('');
       setPrice('');
       setArea('');
-      setDeposit('');
       setDesc('');
       setFurnitures([]);
       setServices([]);
@@ -114,6 +113,7 @@ export default function CreateBuildingScreen() {
       setBedrooms('');
       setBathrooms('');
       setFloor('');
+      setCapacity('');
       setRoomNo('');
       setAddressObj(null);
 
@@ -170,7 +170,6 @@ export default function CreateBuildingScreen() {
 
   if (isUpdateMode && !property?.propertyId) {
     showToast("error", "top", "Lỗi", "Không tìm thấy ID căn hộ để cập nhật.");
-    console.error("Missing propertyId in update mode:", property);
     return;
   }
 
@@ -195,7 +194,7 @@ export default function CreateBuildingScreen() {
     roomNumber: roomNo || "",
     area: parseFloat(area) || 0,
     price: parseFloat(price) || 0,
-    deposit: parseFloat(deposit) || 0,
+    capacity: parseInt(capacity) || 0,
     services: services
       .filter(s => s.serviceName?.trim())
       .map(s => ({
@@ -210,8 +209,6 @@ export default function CreateBuildingScreen() {
       quantity: f.quantity || 1,
     })),
   };
-
-  console.log("Saving property with payload:", payload);
 
   const action = isUpdateMode ? updateProperty({ id: property.propertyId, data: payload }) : createProperty(payload);
 
@@ -228,7 +225,6 @@ export default function CreateBuildingScreen() {
         dispatch(uploadPropertyImages({ propertyId, images }))
           .unwrap()
           .catch(err => {
-            console.error("Upload ảnh thất bại", err);
             Alert.alert("Lỗi", "Không thể tải lên ảnh: " + (err.message || "Lỗi không xác định"));
           });
       }
@@ -238,7 +234,6 @@ export default function CreateBuildingScreen() {
         dispatch(uploadPropertyVideo({ propertyId, video }))
           .unwrap()
           .catch(err => {
-            console.error("Upload video thất bại", err);
             Alert.alert("Lỗi", "Không thể tải lên video: " + (err.message || "Lỗi không xác định"));
           });
       }
@@ -247,7 +242,6 @@ export default function CreateBuildingScreen() {
       nav.navigate("PostsManager");
     })
     .catch((err) => {
-      console.error(isUpdateMode ? "Update property failed:" : "Create property failed:", err);
       let errorMessage = err.message || (isUpdateMode ? "Cập nhật căn hộ thất bại" : "Đăng căn hộ thất bại");
       if (err.status === 400 && err.message.includes("Required request body is missing")) {
         errorMessage = "Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại thông tin.";
@@ -342,14 +336,14 @@ export default function CreateBuildingScreen() {
           value={price}
           onChangeText={setPrice}
         />
-        {/* Tiền cọc */}
+        {/* Số người */}
         <Field
-          label="Tiền cọc"
-          icon={<MaterialCommunityIcons name="cash-lock" size={18} color={ORANGE} />}
-          placeholder="Nhập tiền đặt cọc"
+          label="Số người"
+          icon={<Ionicons name="people-outline" size={18} color={ORANGE} />}
+          placeholder="Nhập số người tối đa"
           keyboardType="numeric"
-          value={deposit}
-          onChangeText={setDeposit}
+          value={capacity}
+          onChangeText={setCapacity}
         />
         <SectionTitle title="Vị trí căn hộ" />
         {/* Vị trí */}
@@ -419,7 +413,7 @@ export default function CreateBuildingScreen() {
             minHeight: 100,
           }}>
             <TextInput
-              placeholder="Nhập mô tả chi tiết về phòng trọ..."
+              placeholder="Nhập mô tả chi tiết..."
               placeholderTextColor={TEXT_MUTED}
               value={desc}
               onChangeText={setDesc}

@@ -611,7 +611,7 @@ export default function BookingDetailScreen() {
                     <Text>
                         Giá:{" "}
                         {formatCurrency(booking.property?.price)}
-                        {booking.property?.propertyType === "ROOM" ? "/tháng" : "/ngày"}
+                        {booking.property?.propertyType === "ROOM" ? "/đêm" : "/đêm"}
                     </Text>
                     <Text>Tổng tiền: {formatCurrency(booking.totalPrice)}</Text>
                 </Card>

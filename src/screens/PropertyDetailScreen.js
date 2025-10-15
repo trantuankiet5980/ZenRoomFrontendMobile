@@ -44,6 +44,7 @@ import {
 import { resetReviewsSummary, resetLandlordStats } from "../features/reviews/reviewsSlice";
 import ReviewModal from "../components/reviews/ReviewModal";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
+import { formatRelativeTime } from "../utils/time";
 const { width } = Dimensions.get('window');
 
 const DEFAULT_MAP_REGION = {
@@ -712,6 +713,11 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             return "--";
         }
 
+        const relativeLabel = formatRelativeTime(value);
+        if (relativeLabel) {
+            return relativeLabel;
+        }
+
         const parsed = new Date(value);
         if (Number.isNaN(parsed.getTime())) {
             return value;
@@ -967,7 +973,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         if (!property?.price) return "Giá liên hệ";
         const formatted = Number(property.price).toLocaleString("vi-VN");
         return property.propertyType === "ROOM"
-            ? `${formatted} đ/tháng`
+            ? `${formatted} đ/đêm`
             : `${formatted} đ/ngày`;
     };
 
