@@ -585,6 +585,45 @@ export default function HomeScreen() {
 
       {/* Panels */}
       <View style={{ marginTop: -40 }}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate("AiChat")}
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 16,
+            backgroundColor: "#fff",
+            borderRadius: 16,
+            padding: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 2,
+          }}
+        >
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 21,
+              backgroundColor: "#fef2f2",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 14,
+            }}
+          >
+            <Image source={require("../../assets/images/zenroom.png")} style={{ width: 45, height: 45, resizeMode: "contain" }} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#111827" }}>Trò chuyện với Zen AI</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, color: "#6b7280" }}>
+              Nhờ trợ lý gợi ý phòng theo nhu cầu, ngân sách và khu vực bạn muốn.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+        </TouchableOpacity>
         <LandlordPanel
           selectedCity={selectedCity}
           onSelectCity={handleSelectCity}

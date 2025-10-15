@@ -664,7 +664,7 @@ const formatPriceWithUnit = (pm) => {
   if (!pm?.price) return "Giá liên hệ";
   const formatted = Number(pm.price).toLocaleString("vi-VN");
   const type = pm.propertyType || "ROOM";
-  return type === "ROOM" ? `${formatted} đ/tháng` : `${formatted} đ/ngày`;
+  return type === "ROOM" ? `${formatted} đ/đêm` : `${formatted} đ/ngày`;
 };
 
 const buildPropertyMetadata = (pm = {}) => {

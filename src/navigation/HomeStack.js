@@ -1,3 +1,5 @@
+import React from 'react';
+import { View, Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import HomeScreen from '../screens/HomeScreen';
@@ -23,8 +25,16 @@ import BookingDetailScreen from '../screens/BookingDetailScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import ContractDetailScreen from '../screens/ContractDetailScreen';
+import AiChatScreen from '../screens/AiChatScreen';
 
 const Stack = createNativeStackNavigator();
+
+const AiChatHeaderTitle = () => (
+  <View>
+    <Text style={{ fontSize: 18, fontWeight: '600', color: '#111827' }}>Zen AI</Text>
+    <Text style={{ fontSize: 12, color: '#6B7280' }}>Trợ lý tìm phòng thông minh</Text>
+  </View>
+);
 
 export default function HomeStack() {
   return (
@@ -55,6 +65,7 @@ export default function HomeStack() {
       <Stack.Screen name="BookingForm" component={BookingForm} options={{ title: 'Đặt phòng' }} />
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Chi tiết booking',headerShown: false  }} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="AiChat" component={AiChatScreen} options={{ headerTitle: AiChatHeaderTitle }} />
 
       {/* Create Post */}
       <Stack.Screen name="CreatePostStack" component={CreatePostStack} options={{ headerShown: false }} />

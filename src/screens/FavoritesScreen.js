@@ -31,7 +31,7 @@ const FavoritesScreen = ({ navigation }) => {
     if (!property?.price) return "Thỏa thuận";
     const formatted = Number(property.price).toLocaleString("vi-VN");
     return property.propertyType === "ROOM"
-      ? `${formatted} đ/tháng`
+      ? `${formatted} đ/đêm`
       : `${formatted} đ/ngày`;
   };
 
