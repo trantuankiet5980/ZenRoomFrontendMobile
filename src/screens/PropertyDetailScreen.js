@@ -973,7 +973,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         if (!property?.price) return "Giá liên hệ";
         const formatted = Number(property.price).toLocaleString("vi-VN");
         return property.propertyType === "ROOM"
-            ? `${formatted} đ/tháng`
+            ? `${formatted} đ/đêm`
             : `${formatted} đ/ngày`;
     };
 

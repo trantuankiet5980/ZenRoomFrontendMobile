@@ -183,7 +183,7 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                             {property.price
                                 ? `${Number(property.price).toLocaleString(
                                     "vi-VN"
-                                )} đ/tháng`
+                                )} đ/đêm`
                                 : "Thỏa thuận"}
                         </Text>
                     </View>
