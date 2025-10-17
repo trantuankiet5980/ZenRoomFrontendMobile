@@ -72,13 +72,13 @@ function buildUserTopics(userId) {
   ];
 }
 
-export async function connectNotificationsSocket(role /* admin|landlord|tenant */, userId) {
+export async function connectNotificationsSocket(role /* admin|landlord|tenant */, userId, tokenFromStore) {
   const normalizedRole = safeLower(role);
   const normalizedUserId = String(userId || '').trim();
   if (client?.active && currentRole === normalizedRole && currentUserId === normalizedUserId) return;
 
   const wsUrl = getWsUrl();                 // ws://.../ws/websocket
-  const token = await SecureStore.getItemAsync('accessToken');
+  const token = tokenFromStore || await SecureStore.getItemAsync('accessToken');
   if (!wsUrl || !token) return;
 
   // đóng kết nối cũ nếu có
