@@ -9,7 +9,8 @@ export const fetchProperties = createAsyncThunk(
 
     return {
       type,
-      data: response.data.content
+      data: response.data.content,
+      totalElements: response.data.totalElements || 0,
     };
   }
 );

@@ -8,6 +8,8 @@ import PaymentScreen from '../screens/PaymentScreen';
 import ContractDetailScreen from '../screens/ContractDetailScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordSrceen';
 import TenantsManagerScreen from '../screens/TenantsManagerScreen';
+import TenantInvoiceHistoryScreen from '../screens/TenantInvoiceHistoryScreen';
+import TenantInvoiceDetailScreen from '../screens/TenantInvoiceDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,6 +25,8 @@ export default function ProfileStack() {
       <Stack.Screen name="ContractDetail" component={ContractDetailScreen} options={{ title: 'Chi tiết hợp đồng', headerShown: false }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Đổi mật khẩu' }} />
       <Stack.Screen name="TenantsManager" component={TenantsManagerScreen} options={{ title: 'Quản lý khách thuê', headerShown: false }} />
+      <Stack.Screen name="TenantInvoiceHistory" component={TenantInvoiceHistoryScreen} options={{ title: 'Lịch sử hóa đơn' }} />
+      <Stack.Screen name="TenantInvoiceDetail" component={TenantInvoiceDetailScreen} options={{ title: 'Chi tiết hóa đơn' }} />
     </Stack.Navigator>
   );
 }

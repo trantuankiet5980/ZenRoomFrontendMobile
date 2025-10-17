@@ -42,12 +42,12 @@ import {
   selectInvoiceBookingId,
 } from "../features/invoices/invoiceSlice";
 import { axiosInstance } from "../api/axiosInstance";
-import { 
-  createReviewThunk, 
+import {
+  createReviewThunk,
   updateReviewThunk,
   fetchReviewByBookingThunk,
   fetchPropertyReviewsSummary,
- } from "../features/reviews/reviewsThunks";
+} from "../features/reviews/reviewsThunks";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { getWsUrl } from "../utils/wsUrl";
 import ReviewModal from "../components/reviews/ReviewModal";
@@ -251,6 +251,7 @@ function hexToRgba(hex, alpha = 0.16) {
 export default function MyBookingsScreen() {
   useHideTabBar();
   const navigation = useNavigation();
+  const me = useSelector(s => s.auth.user);
   const dispatch = useDispatch();
   const route = useRoute();
   const bookings = useSelector(selectMyBookings);
@@ -312,7 +313,7 @@ export default function MyBookingsScreen() {
     dispatch(fetchMyBookings());
   }, [dispatch]);
 
- useEffect(() => {
+  useEffect(() => {
     const targetTab = route?.params?.tab;
     if (typeof targetTab !== "string") {
       return;
@@ -340,8 +341,8 @@ export default function MyBookingsScreen() {
 
     const bookingFromList = Array.isArray(bookings)
       ? bookings.find(
-          (item) => String(item?.bookingId) === String(reviewBookingId)
-        )
+        (item) => String(item?.bookingId) === String(reviewBookingId)
+      )
       : null;
 
     const fallbackBooking =
@@ -466,7 +467,7 @@ export default function MyBookingsScreen() {
     if (!wsUrl) {
       return;
     }
-  
+
     const client = new Client({
       webSocketFactory: () => new WebSocket(wsUrl, ["v10.stomp", "v11.stomp", "v12.stomp"]),
       connectHeaders: authToken ? { Authorization: `Bearer ${authToken}` } : {},
@@ -475,7 +476,7 @@ export default function MyBookingsScreen() {
       heartbeatOutgoing: 20000,
       forceBinaryWSFrames: true,
       appendMissingNULLonIncoming: true,
-      debug: () => {},
+      debug: () => { },
     });
 
     client.onConnect = () => {
@@ -536,7 +537,7 @@ export default function MyBookingsScreen() {
     authToken,
     cleanupPaymentConnection,
     dispatch,
-  ]);
+  ]); 
 
   useEffect(() => {
     const statusesNeedingInvoice = new Set([
@@ -680,7 +681,7 @@ export default function MyBookingsScreen() {
       setReviewModalVisible(true);
       appliedReviewSnapshotRef.current = existingReview
         ? existingReview.reviewId ||
-          `${existingReview.rating ?? ""}-${existingReview.comment ?? ""}`
+        `${existingReview.rating ?? ""}-${existingReview.comment ?? ""}`
         : null;
 
       const bookingId = booking?.bookingId;
@@ -937,15 +938,15 @@ export default function MyBookingsScreen() {
   );
 
   const listEmpty = (
-  <View style={{ alignItems: "center", marginTop: 48 }}>
-    <S3Image
-      src="https://picsum.photos/140/140"
-      style={{ width: 140, height: 140, marginBottom: 16, borderRadius: 16, opacity: 0.9 }}
-      alt="empty-building"
-    />
-    <Text style={{ color: MUTED }}>Chưa có booking phù hợp</Text>
-  </View>
-);
+    <View style={{ alignItems: "center", marginTop: 48 }}>
+      <S3Image
+        src="https://picsum.photos/140/140"
+        style={{ width: 140, height: 140, marginBottom: 16, borderRadius: 16, opacity: 0.9 }}
+        alt="empty-building"
+      />
+      <Text style={{ color: MUTED }}>Chưa có booking phù hợp</Text>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
@@ -1126,7 +1127,7 @@ function TabButton({ label, active, onPress }) {
       }}
     >
       <Text
-        allowFontScaling={false} 
+        allowFontScaling={false}
         numberOfLines={1}
         ellipsizeMode="tail"
         style={{
@@ -1163,8 +1164,8 @@ function BookingCard({
   const invoiceRowValue = invoiceStatusLabel
     ? invoiceStatusLabel
     : invoiceFetched
-    ? "Chưa có hóa đơn"
-    : "Đang tải hóa đơn...";
+      ? "Chưa có hóa đơn"
+      : "Đang tải hóa đơn...";
   const checkInAvailable =
     booking.bookingStatus === "APPROVED" ||
     (booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL" && isInvoicePaid);
@@ -1212,14 +1213,14 @@ function BookingCard({
           }}
         >
           {imageUrl ? (
-  <S3Image
-    src={imageUrl}
-    style={{ width: "100%", height: "100%" }}
-    alt={`booking-${booking.bookingId}`}
-  />
-) : (
-  <Ionicons name="home-outline" size={28} color={ORANGE} />
-)}
+            <S3Image
+              src={imageUrl}
+              style={{ width: "100%", height: "100%" }}
+              alt={`booking-${booking.bookingId}`}
+            />
+          ) : (
+            <Ionicons name="home-outline" size={28} color={ORANGE} />
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -1301,8 +1302,8 @@ function BookingCard({
               backgroundColor="#2563eb"
               disabled={!checkOutAvailable}
               onPress={() => checkOutAvailable && onCheckOut(booking)}
-                style={{ marginRight: 10, marginBottom: 10 }}
-              />
+              style={{ marginRight: 10, marginBottom: 10 }}
+            />
           </>
         )}
 
