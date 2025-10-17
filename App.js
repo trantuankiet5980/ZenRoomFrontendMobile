@@ -5,6 +5,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import Toast from 'react-native-toast-message';
 import { initSocket } from './src/sockets/socket';
 import { fetchNotifications } from './src/features/notifications/notificationsSlice';
+import { connectNotificationsSocket, disconnectNotificationsSocket } from './src/hooks/useNotificationsSocket';
 
 function SocketBootstrapper() {
   const token = useSelector(s => s.auth.token);
@@ -21,12 +22,26 @@ function SocketBootstrapper() {
 function NotificationsBootstrapper() {
   const dispatch = useDispatch();
   const token = useSelector(s => s.auth.token);
+  const role = useSelector(s => s.auth.user?.role);
+  const userId = useSelector(s => s.auth.user?.userId);
 
   useEffect(() => {
     if (token) {
       dispatch(fetchNotifications());
     }
   }, [dispatch, token]);
+
+  useEffect(() => {
+    if (token && role && userId) {
+      connectNotificationsSocket(role, userId, token);
+      return () => {
+        disconnectNotificationsSocket();
+      };
+    }
+
+    disconnectNotificationsSocket();
+    return undefined;
+  }, [token, role, userId]);
 
   return null;
 }

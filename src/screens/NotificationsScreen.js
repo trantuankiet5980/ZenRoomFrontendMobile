@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
 import { fetchNotifications, markOneRead, markAllReadServer } from "../features/notifications/notificationsSlice";
 
+const KNOWN_ROLES = new Set(["tenant", "landlord", "admin"]);
+
 export default function NotificationsScreen({ navigation }) {
   const dispatch = useDispatch();
   const { items, unreadCount, loading } = useSelector(s => s.notifications);
@@ -11,6 +13,85 @@ export default function NotificationsScreen({ navigation }) {
   useFocusEffect(useCallback(() => {
     dispatch(fetchNotifications());
   }, [dispatch]));
+
+   const parseRedirectSegments = useCallback((rawUrl) => {
+    if (!rawUrl || typeof rawUrl !== "string") return [];
+
+    let sanitized = rawUrl.trim();
+    if (!sanitized) return [];
+
+    // Nếu backend trả absolute URL thì lấy phần path
+    if (typeof URL !== "undefined") {
+      try {
+        const maybeUrl = new URL(sanitized);
+        sanitized = maybeUrl.pathname;
+      } catch (_) {
+        // không phải absolute URL -> giữ nguyên
+      }
+    }
+
+    // Bỏ query string, fragment và dấu '/'
+    const [path] = sanitized.split(/[?#]/);
+    return path
+      .split("/")
+      .map(segment => segment.trim())
+      .filter(Boolean);
+  }, []);
+
+  const handleRedirect = useCallback((item) => {
+    const segments = parseRedirectSegments(item?.redirectUrl);
+    if (!segments.length) return;
+
+    const maybeRole = segments[0]?.toLowerCase?.();
+    const roleSegment = KNOWN_ROLES.has(maybeRole) ? maybeRole : null;
+    const resourceIndex = roleSegment ? 1 : 0;
+    const resource = segments[resourceIndex]?.toLowerCase?.();
+    const identifier = segments[resourceIndex + 1];
+    const parentNavigator = navigation.getParent ? navigation.getParent() : null;
+
+    switch (resource) {
+      case "bookings": {
+        if (identifier) {
+          navigation.navigate("BookingDetail", { id: identifier });
+        } else if (roleSegment === "tenant") {
+          if (parentNavigator) {
+            parentNavigator.navigate("Profile", { screen: "MyBookingsScreen" });
+          } else {
+            navigation.navigate("Profile", { screen: "MyBookingsScreen" });
+          }
+        } else if (roleSegment === "landlord") {
+          navigation.navigate("TenantsManager");
+        }
+        break;
+      }
+      case "properties": {
+        if (identifier) {
+          navigation.navigate("PropertyDetail", { propertyId: identifier });
+        } else if (roleSegment === "landlord") {
+          navigation.navigate("LandlordProperties");
+        }
+        break;
+      }
+      case "contracts": {
+        if (identifier) {
+          navigation.navigate("ContractDetail", { contractId: identifier });
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }, [navigation, parseRedirectSegments]);
+
+  const handleNotificationPress = useCallback((item) => {
+    if (!item) return;
+
+    if (!item.isRead) {
+      dispatch(markOneRead(item.notificationId));
+    }
+
+    handleRedirect(item);
+  }, [dispatch, handleRedirect]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -20,11 +101,7 @@ export default function NotificationsScreen({ navigation }) {
         borderBottomColor: "#eee",
         backgroundColor: item.isRead ? "#fff" : "#FFF6EA",
       }}
-      onPress={() => {
-        if (!item.isRead) dispatch(markOneRead(item.notificationId));
-        // Điều hướng theo redirectUrl nếu có
-        // if (item.redirectUrl?.startsWith("/landlord/properties/")) { ... }
-      }}
+      onPress={() => handleNotificationPress(item)}
     >
       <Text style={{ fontWeight: item.isRead ? "500" : "700" }}>
         {item.title || "Thông báo"}
