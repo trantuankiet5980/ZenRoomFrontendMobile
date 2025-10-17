@@ -33,7 +33,7 @@ function NotificationsBootstrapper() {
 
   useEffect(() => {
     if (token && role && userId) {
-      connectNotificationsSocket(role, userId);
+      connectNotificationsSocket(role, userId, token);
       return () => {
         disconnectNotificationsSocket();
       };
