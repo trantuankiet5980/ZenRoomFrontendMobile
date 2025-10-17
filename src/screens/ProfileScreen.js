@@ -82,8 +82,20 @@ export default function ProfileScreen() {
         <MenuItem icon="key-outline" label="Đổi mật khẩu" onPress={() => nav.navigate("ResetPasswordScreen")} />
 
         {role === "tenant" && (
-          <MenuItem icon="albums-outline" label="Danh sách booking của tôi" onPress={() => nav.navigate("MyBookingsScreen")} />
+          <>
+            <MenuItem
+              icon="albums-outline"
+              label="Danh sách booking của tôi"
+              onPress={() => nav.navigate("MyBookingsScreen")}
+            />
+            <MenuItem
+              icon="receipt-outline"
+              label="Lịch sử hóa đơn"
+              onPress={() => nav.navigate("TenantInvoiceHistory")}
+            />
+          </>
         )}
+
 
         <MenuItem icon="exit-outline" label="Đăng xuất" onPress={() => dispatch(logoutThunk())} />
       </View>
