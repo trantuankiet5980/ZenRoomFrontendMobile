@@ -7,6 +7,7 @@ import { fetchConversations, fetchUnreadCount } from "../features/chat/chatThunk
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import { pushServerMessage } from "../features/chat/chatSlice";
 import { formatRelativeTime } from "../utils/time";
+import S3Image from "../components/S3Image";
 
 const ORANGE = "#f36031", MUTED = "#9CA3AF", BORDER = "#E5E7EB", GREEN = "#CBE7A7";
 
@@ -213,5 +214,9 @@ function Avatar({ uri }) {
       </View>
     );
   }
-  return <Image source={{ uri }} style={{ width: 42, height: 42, borderRadius: 21 }} />;
+  return (
+    <View style={{ width: 42, height: 42, borderRadius: 21, overflow: "hidden" }}>
+      <S3Image src={uri} style={{ width: 42, height: 42, borderRadius: 21 }} />
+    </View>
+  );
 }
