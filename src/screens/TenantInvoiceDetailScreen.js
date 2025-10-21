@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  Modal,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchTenantInvoiceDetail } from "../features/invoices/invoiceThunks";
@@ -45,6 +46,7 @@ const TenantInvoiceDetailScreen = ({ route }) => {
   const { invoiceId } = route.params;
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const [isRefundPolicyVisible, setRefundPolicyVisible] = useState(false);
 
   const { tenantInvoiceDetail: invoice, loading, error } = useSelector(
     (state) => state.invoices
@@ -125,6 +127,31 @@ const TenantInvoiceDetailScreen = ({ route }) => {
     <SafeAreaView style={styles.container}>
       <Header />
 
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isRefundPolicyVisible}
+        onRequestClose={() => setRefundPolicyVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Quy định hoàn tiền</Text>
+            <Text style={styles.modalText}>
+              Nếu hủy sau 14:00 ngày nhận phòng thì bạn sẽ bị trừ đi phí một đêm và phí dịch vụ nếu có.
+            </Text>
+            <Text style={styles.modalText}>
+              Nếu hủy trước 14:00 trước ngày nhận phòng thì bạn sẽ được hoàn tiền miễn phí 100%.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setRefundPolicyVisible(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseButtonText}>Đã hiểu</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
           <Text style={styles.title}>Hóa đơn: {toSafeString(invoice.invoiceNo)}</Text>
@@ -156,12 +183,7 @@ const TenantInvoiceDetailScreen = ({ route }) => {
             </View>
 
             <View style={styles.row}>
-              <Text style={styles.label}>Số tiền cần thanh toán:</Text>
-              <Text style={styles.value}>{formatCurrency(invoice.dueAmount)}</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.label}>Ngày thanh toán:</Text>
+              <Text style={styles.label}>Thời gian thanh toán:</Text>
               <Text style={styles.value}>{formatDateTime(invoice.paidAt)}</Text>
             </View>
 
@@ -178,7 +200,15 @@ const TenantInvoiceDetailScreen = ({ route }) => {
 
           {(invoice.status === "REFUND_PENDING" || invoice.status === "REFUNDED") && (
             <View style={[styles.card, styles.refundCard]}>
-              <Text style={styles.sectionTitle}>Thông tin hoàn tiền</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Thông tin hoàn tiền</Text>
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={() => setRefundPolicyVisible(true)}
+                >
+                  <Text style={styles.infoButtonText}>?</Text>
+                </TouchableOpacity>
+              </View>
 
               <Text style={styles.refundMessage}>
                 {invoice.status === "REFUND_PENDING"
@@ -257,7 +287,7 @@ const TenantInvoiceDetailScreen = ({ route }) => {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Thông tin phòng</Text>
             <View style={styles.row}>
-              <Text style={styles.label}>Tên phòng:</Text>
+              <Text style={styles.label}>Tiêu đề:</Text>
               <Text style={styles.value}>{toSafeString(invoice.propertyTitle)}</Text>
             </View>
             <View style={styles.row}>
@@ -322,6 +352,27 @@ const styles = StyleSheet.create({
     color: "#f36031",
     marginBottom: 12,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  infoButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f36031",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  infoButtonText: {
+    color: "#f36031",
+    fontWeight: "700",
+    fontSize: 16,
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -375,5 +426,43 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#f36031",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  modalText: {
+    fontSize: 14,
+    color: "#374151",
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  modalCloseButton: {
+    marginTop: 12,
+    backgroundColor: "#f36031",
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  modalCloseButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
   },
 });

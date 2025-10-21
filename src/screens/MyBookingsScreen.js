@@ -1181,6 +1181,8 @@ function BookingCard({
   const invoiceStatusColor = getInvoiceStatusColor(invoiceStatus);
   const isInvoicePaid =
     invoiceStatus === "PAID" || booking.paymentStatus === "PAID";
+  const isRefundPending =
+    invoiceStatus === "REFUND_PENDING";
   const invoiceRowValue = invoiceStatusLabel
     ? invoiceStatusLabel
     : invoiceFetched
@@ -1198,6 +1200,7 @@ function BookingCard({
   const showCheckButtons = tab === "checkin";
   const showReviewActions = tab === "completed";
   const showInvoiceStatus = booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL";
+  const showRefundInvoiceButton = tab === "cancelled" && isRefundPending;
   const media = booking.property?.media || [];
   const coverImage =
     media.find((item) => item.isCover) || media[0] || null;
@@ -1252,7 +1255,11 @@ function BookingCard({
                 {formatDateVN(booking.startDate)} - {formatDateVN(booking.endDate)}
               </Text>
             </View>
-            <StatusBadge status={booking.bookingStatus} />
+            <StatusBadge
+              status={booking.bookingStatus}
+              invoiceStatus={invoiceStatus}
+              paymentStatus={booking.paymentStatus}
+            />
           </View>
 
           <View style={{ marginTop: 12 }}>
@@ -1337,13 +1344,25 @@ function BookingCard({
             style={{ marginRight: 10, marginBottom: 10 }}
           />
         )}
+
+        {showRefundInvoiceButton && (
+          <ActionButton
+            label="Xem hóa đơn"
+            type="outline"
+            onPress={() => onPay(booking)}
+            style={{ marginRight: 10, marginBottom: 10 }}
+          />
+        )}
       </View>
     </View>
   );
 }
 
-function StatusBadge({ status }) {
-  const label = getBookingStatusLabel(status);
+function StatusBadge({ status, invoiceStatus, paymentStatus }) {
+  const refundPending =
+    status === "CANCELLED" &&
+    (invoiceStatus === "REFUND_PENDING" || paymentStatus === "REFUND_PENDING");
+  const label = refundPending ? "Đã hủy chờ hoàn tiền" : getBookingStatusLabel(status);
   const color = getBookingStatusColor(status);
   return (
     <View
