@@ -20,6 +20,8 @@ const TenantInvoiceHistoryScreen = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { items = [], loading, error } = useSelector((state) => state.invoices);
+  const allowedStatuses = new Set(["PAID", "REFUND_PENDING", "REFUNDED"]);
+  const invoices = items.filter((invoice) => allowedStatuses.has(invoice?.status));
 
   useEffect(() => {
     dispatch(fetchTenantInvoices());
@@ -27,16 +29,12 @@ const TenantInvoiceHistoryScreen = () => {
 
   const translateStatus = (status) => {
     switch (status) {
-      case "DRAFT":
-        return { label: "Bản nháp", color: "#999" };
-      case "ISSUED":
-        return { label: "Chờ thanh toán", color: "#f39c12" };
       case "PAID":
-        return { label: "Đã thanh toán", color: "green" };
+        return { label: "Đã thanh toán", color: "#16a34a" };
+      case "REFUND_PENDING":
+        return { label: "Chờ hoàn tiền", color: "#f97316" };
       case "REFUNDED":
-        return { label: "Đã hoàn tiền", color: "#3498db" };
-      case "VOID":
-        return { label: "Đã hủy", color: "red" };
+        return { label: "Đã hoàn tiền", color: "#0ea5e9" };
       default:
         return { label: "Không xác định", color: "#555" };
     }
@@ -44,6 +42,15 @@ const TenantInvoiceHistoryScreen = () => {
 
   const renderItem = ({ item }) => {
     const { label, color } = translateStatus(item.status);
+    const totalLabel =
+      item.total != null ? `${Number(item.total).toLocaleString("vi-VN")} đ` : "—";
+    const refundableLabel =
+      item.refundableAmount != null
+        ? `${Number(item.refundableAmount).toLocaleString("vi-VN")} đ`
+        : null;
+    const issuedDate = item.issuedAt
+      ? new Date(item.issuedAt).toLocaleDateString("vi-VN")
+      : "—";
 
     return (
       <TouchableOpacity
@@ -55,29 +62,43 @@ const TenantInvoiceHistoryScreen = () => {
         }
       >
         <View style={{ flex: 1 }}>
-          <Text style={styles.invoiceNo}>
-            Mã hóa đơn: {item.invoiceNo || "—"}
-          </Text>
-          <Text style={styles.property}>
-            {item.propertyTitle || "Không có tiêu đề"}
-          </Text>
-          <Text style={styles.date}>
-            Ngày phát hành:{" "}
-            {item.issuedAt
-              ? new Date(item.issuedAt).toLocaleDateString("vi-VN")
-              : "—"}
-          </Text>
-          <Text style={styles.total}>
-            Tổng tiền:{" "}
-            {item.total
-              ? `${Number(item.total).toLocaleString("vi-VN")} đ`
-              : "—"}
-          </Text>
-          <Text style={[styles.status, { color }]}>
-            Trạng thái: {label}
-          </Text>
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.invoiceNo} numberOfLines={1}>
+                {item.invoiceNo || "Mã hóa đơn"}
+              </Text>
+              <Text style={styles.property} numberOfLines={2}>
+                {item.propertyTitle || "Không có tiêu đề"}
+              </Text>
+            </View>
+            <View style={[styles.statusPill, { borderColor: color }]}>
+              <Text style={[styles.statusPillText, { color }]}>{label}</Text>
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <Icon name="calendar" size={16} color="#9ca3af" style={{ marginRight: 6 }} />
+            <Text style={styles.date}>Ngày phát hành: {issuedDate}</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Icon name="cash" size={16} color="#f97316" style={{ marginRight: 6 }} />
+            <Text style={styles.total}>Tổng tiền: {totalLabel}</Text>
+          </View>
+
+          {refundableLabel && (
+            <View style={styles.row}>
+              <Icon
+                name="cash-refund"
+                size={16}
+                color="#0ea5e9"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.refundable}>Hoàn lại: {refundableLabel}</Text>
+            </View>
+          )}
         </View>
-        <Icon name="chevron-right" size={22} color="#999" />
+        <Icon name="chevron-right" size={22} color="#c4c4c4" />
       </TouchableOpacity>
     );
   };
@@ -113,7 +134,7 @@ const TenantInvoiceHistoryScreen = () => {
     </View>
   );
 
-  if (!items || items.length === 0) {
+  if (!invoices || invoices.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <Header />
@@ -128,7 +149,7 @@ const TenantInvoiceHistoryScreen = () => {
     <SafeAreaView style={styles.container}>
       <Header />
       <FlatList
-        data={items}
+        data={invoices}
         keyExtractor={(item) => item.invoiceId?.toString()}
         contentContainerStyle={{ padding: 12 }}
         renderItem={renderItem}
@@ -165,17 +186,37 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    padding: 12,
-    marginBottom: 10,
-    borderRadius: 8,
+    padding: 14,
+    marginBottom: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#f1f5f9",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
-  invoiceNo: { fontWeight: "600", fontSize: 15, marginBottom: 4 },
-  property: { color: "#333", marginBottom: 2 },
-  date: { color: "#777", fontSize: 12 },
-  total: { color: "#f36031", marginTop: 4, fontWeight: "600" },
-  status: { marginTop: 2, fontSize: 13 },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  invoiceNo: { fontWeight: "700", fontSize: 16, color: "#111827" },
+  property: { color: "#4b5563", marginTop: 2, fontSize: 13 },
+  date: { color: "#6b7280", fontSize: 12 },
+  total: { color: "#f97316", fontWeight: "700", fontSize: 13 },
+  refundable: { color: "#0ea5e9", fontWeight: "600", fontSize: 13 },
+  row: { flexDirection: "row", alignItems: "center", marginTop: 6 },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginLeft: 8,
+    backgroundColor: "#f8fafc",
+  },
+  statusPillText: { fontWeight: "600", fontSize: 12 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });
