@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,16 +9,44 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  Modal,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchTenantInvoiceDetail } from "../features/invoices/invoiceThunks";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
+const formatCurrency = (value) => {
+  if (value == null) return "—";
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return "—";
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+const formatDate = (value) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("vi-VN");
+};
+
+const formatDateTime = (value) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("vi-VN");
+};
+
 const TenantInvoiceDetailScreen = ({ route }) => {
   const { invoiceId } = route.params;
   const dispatch = useDispatch();
   const navigation = useNavigation();
+  const [isRefundPolicyVisible, setRefundPolicyVisible] = useState(false);
 
   const { tenantInvoiceDetail: invoice, loading, error } = useSelector(
     (state) => state.invoices
@@ -42,16 +70,12 @@ const TenantInvoiceDetailScreen = ({ route }) => {
 
   const translateStatus = (status) => {
     switch (status) {
-      case "DRAFT":
-        return { label: "Bản nháp", color: "#999" };
-      case "ISSUED":
-        return { label: "Đã phát hành", color: "#f39c12" };
       case "PAID":
-        return { label: "Đã thanh toán", color: "green" };
+        return { label: "Đã thanh toán", color: "#16a34a" };
+      case "REFUND_PENDING":
+        return { label: "Chờ hoàn tiền", color: "#f97316" };
       case "REFUNDED":
-        return { label: "Đã hoàn tiền", color: "#3498db" };
-      case "VOID":
-        return { label: "Đã hủy", color: "red" };
+        return { label: "Đã hoàn tiền", color: "#0ea5e9" };
       default:
         return { label: "Không xác định", color: "#555" };
     }
@@ -103,6 +127,31 @@ const TenantInvoiceDetailScreen = ({ route }) => {
     <SafeAreaView style={styles.container}>
       <Header />
 
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isRefundPolicyVisible}
+        onRequestClose={() => setRefundPolicyVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Quy định hoàn tiền</Text>
+            <Text style={styles.modalText}>
+              Nếu hủy sau 14:00 ngày nhận phòng thì bạn sẽ bị trừ đi phí một đêm và phí dịch vụ nếu có.
+            </Text>
+            <Text style={styles.modalText}>
+              Nếu hủy trước 14:00 trước ngày nhận phòng thì bạn sẽ được hoàn tiền miễn phí 100%.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setRefundPolicyVisible(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseButtonText}>Đã hiểu</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
           <Text style={styles.title}>Hóa đơn: {toSafeString(invoice.invoiceNo)}</Text>
@@ -113,55 +162,30 @@ const TenantInvoiceDetailScreen = ({ route }) => {
 
             <View style={styles.row}>
               <Text style={styles.label}>Trạng thái:</Text>
-              <Text style={[styles.value, { color: statusColor, fontWeight: "600" }]}>
-                {statusLabel}
-              </Text>
+              <View style={[styles.statusPill, { borderColor: statusColor }]}>
+                <Text style={[styles.statusPillText, { color: statusColor }]}>{statusLabel}</Text>
+              </View>
             </View>
 
             <View style={styles.row}>
               <Text style={styles.label}>Ngày phát hành:</Text>
-              <Text style={styles.value}>
-                {invoice.issuedAt
-                  ? new Date(invoice.issuedAt).toLocaleDateString("vi-VN")
-                  : "—"}
-              </Text>
+              <Text style={styles.value}>{formatDate(invoice.issuedAt)}</Text>
             </View>
 
             <View style={styles.row}>
               <Text style={styles.label}>Hạn thanh toán:</Text>
-              <Text style={styles.value}>
-                {invoice.dueAt
-                  ? new Date(invoice.dueAt).toLocaleDateString("vi-VN")
-                  : "—"}
-              </Text>
+              <Text style={styles.value}>{formatDate(invoice.dueAt)}</Text>
             </View>
 
             <View style={styles.row}>
               <Text style={styles.label}>Tổng tiền:</Text>
-              <Text style={styles.value}>
-                {invoice.total
-                  ? `${Number(invoice.total).toLocaleString("vi-VN")} đ`
-                  : "—"}
-              </Text>
+              <Text style={styles.value}>{formatCurrency(invoice.total)}</Text>
             </View>
 
             <View style={styles.row}>
-              <Text style={styles.label}>Số tiền cần thanh toán:</Text>
-              <Text style={styles.value}>
-                {invoice.dueAmount
-                  ? `${Number(invoice.dueAmount).toLocaleString("vi-VN")} đ`
-                  : "—"}
-              </Text>
+              <Text style={styles.label}>Thời gian thanh toán:</Text>
+              <Text style={styles.value}>{formatDateTime(invoice.paidAt)}</Text>
             </View>
-
-            {invoice.paidAt && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Ngày thanh toán:</Text>
-                <Text style={styles.value}>
-                  {new Date(invoice.paidAt).toLocaleDateString("vi-VN")}
-                </Text>
-              </View>
-            )}
 
             <View style={styles.row}>
               <Text style={styles.label}>Phương thức thanh toán:</Text>
@@ -173,6 +197,57 @@ const TenantInvoiceDetailScreen = ({ route }) => {
               <Text style={styles.value}>{toSafeString(invoice.paymentRef)}</Text>
             </View>
           </View>
+
+          {(invoice.status === "REFUND_PENDING" || invoice.status === "REFUNDED") && (
+            <View style={[styles.card, styles.refundCard]}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Thông tin hoàn tiền</Text>
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={() => setRefundPolicyVisible(true)}
+                >
+                  <Text style={styles.infoButtonText}>?</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.refundMessage}>
+                {invoice.status === "REFUND_PENDING"
+                  ? "Yêu cầu hoàn tiền đang được xử lý trong vòng 24 giờ."
+                  : "Yêu cầu hoàn tiền đã hoàn tất. Cảm ơn bạn đã kiên nhẫn."}
+              </Text>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Phí hủy:</Text>
+                <Text style={styles.value}>{formatCurrency(invoice.cancellationFee)}</Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Số tiền hoàn lại:</Text>
+                <Text style={[styles.value, styles.refundAmount]}>
+                  {formatCurrency(invoice.refundableAmount)}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Trạng thái xác nhận:</Text>
+                <Text style={styles.value}>
+                  {invoice.refundConfirmed ? "Đã xác nhận" : "Đang xử lý"}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.label}>Thời gian yêu cầu:</Text>
+                <Text style={styles.value}>{formatDateTime(invoice.refundRequestedAt)}</Text>
+              </View>
+
+              {invoice.status === "REFUNDED" && (
+                <View style={styles.row}>
+                  <Text style={styles.label}>Thời gian hoàn tiền:</Text>
+                  <Text style={styles.value}>{formatDateTime(invoice.refundConfirmedAt)}</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Thông tin khách thuê */}
           <View style={styles.card}>
@@ -212,7 +287,7 @@ const TenantInvoiceDetailScreen = ({ route }) => {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Thông tin phòng</Text>
             <View style={styles.row}>
-              <Text style={styles.label}>Tên phòng:</Text>
+              <Text style={styles.label}>Tiêu đề:</Text>
               <Text style={styles.value}>{toSafeString(invoice.propertyTitle)}</Text>
             </View>
             <View style={styles.row}>
@@ -260,20 +335,43 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#f36031",
     marginBottom: 12,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  infoButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f36031",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  infoButtonText: {
+    color: "#f36031",
+    fontWeight: "700",
+    fontSize: 16,
   },
   row: {
     flexDirection: "row",
@@ -284,9 +382,31 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#333",
+     color: "#1f2937",
     textAlign: "right",
     flex: 1,
+  },
+  statusPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: "#f8fafc",
+  },
+  statusPillText: { fontSize: 13, fontWeight: "600" },
+  refundCard: {
+    backgroundColor: "#fff7ed",
+    borderColor: "#fdba74",
+  },
+  refundMessage: {
+    color: "#c2410c",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  refundAmount: {
+    color: "#0ea5e9",
+    fontWeight: "700",
   },
   center: {
     flex: 1,
@@ -306,5 +426,43 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#f36031",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  modalText: {
+    fontSize: 14,
+    color: "#374151",
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  modalCloseButton: {
+    marginTop: 12,
+    backgroundColor: "#f36031",
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  modalCloseButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
   },
 });
