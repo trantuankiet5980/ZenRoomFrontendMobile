@@ -7,7 +7,7 @@ let client = null;
 let isActive = false;
 const pendingSubs = new Map();
 
-const WS_URL = 'ws://192.168.2.138:8080/ws';
+const WS_URL = 'ws://10.0.2.2:8080/ws';
 
 export function initSocket(token, meId) {
   if (client) return client; // đã init
