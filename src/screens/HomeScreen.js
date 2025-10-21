@@ -121,9 +121,21 @@ export default function HomeScreen() {
     }
     return (
       provinces.find((p) => p.code === selectedCity)?.name_with_type ||
+      provinces.find((p) => p.code === selectedCity)?.name ||
       selectedCity
     );
   }, [provinces, selectedCity]);
+
+  const selectedDistrictName = useMemo(() => {
+    if (isAllAdministrativeValue(selectedDistrict)) {
+      return null;
+    }
+    return (
+      districts.find((d) => d.code === selectedDistrict)?.name_with_type ||
+      districts.find((d) => d.code === selectedDistrict)?.name ||
+      null
+    );
+  }, [districts, selectedDistrict]);
 
   // Load danh sách tỉnh khi mount
   useEffect(() => {
@@ -587,7 +599,13 @@ export default function HomeScreen() {
       <View style={{ marginTop: -40 }}>
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => navigation.navigate("AiChat")}
+          onPress={() => {
+            const locationNameForChat = selectedDistrictName
+              || (isAllAdministrativeValue(selectedCity) ? null : selectedCityName);
+            navigation.navigate("AiChat", {
+              locationName: locationNameForChat || null,
+            });
+          }}
           style={{
             marginHorizontal: 16,
             marginBottom: 16,

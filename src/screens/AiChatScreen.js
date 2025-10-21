@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   SafeAreaView,
   StyleSheet,
@@ -13,7 +14,8 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSelector } from "react-redux";
 import { axiosInstance } from "../api/axiosInstance";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { showToast } from "../utils/AppUtils";
@@ -26,6 +28,7 @@ const INITIAL_ASSISTANT_MESSAGE = {
 };
 
 const CHAT_LIMIT = 5;
+const SUGGESTION_LIMIT = 3;
 
 const EMPTY_FILTERS_MESSAGE =
   "Xin lỗi, Zen AI hiện chỉ hỗ trợ tìm kiếm phòng. Bạn hãy mô tả nhu cầu tìm phòng cụ thể hơn nhé!";
@@ -52,14 +55,38 @@ const formatCurrency = (value) => {
 export default function AiChatScreen() {
   useHideTabBar();
   const navigation = useNavigation();
+  const route = useRoute();
+  const user = useSelector((state) => state.auth?.user);
+  const userId = user?.userId;
 
   const [messages, setMessages] = useState([INITIAL_ASSISTANT_MESSAGE]);
   const [inputValue, setInputValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState(null);
+  const [activeFilters, setActiveFilters] = useState(null);
+  const [homeLocationName, setHomeLocationName] = useState(() => {
+    const rawLocation = route?.params?.locationName;
+    if (typeof rawLocation !== "string") {
+      return null;
+    }
+    const trimmed = rawLocation.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  });
 
   const flatListRef = useRef(null);
   const pendingReplyIdRef = useRef(null);
+  const lastSuggestionParamsRef = useRef(null);
+
+  const locationParam = route?.params?.locationName;
+
+  useEffect(() => {
+    const trimmed =
+      typeof locationParam === "string" ? locationParam.trim() : "";
+    setHomeLocationName(trimmed.length > 0 ? trimmed : null);
+  }, [locationParam]);
 
   useEffect(() => {
     flatListRef.current?.scrollToEnd?.({ animated: true });
@@ -73,85 +100,151 @@ export default function AiChatScreen() {
     [navigation]
   );
 
-  const handleSubmit = useCallback(async () => {
-    const text = inputValue.trim();
-    if (!text || submitting) return;
+  const fetchSuggestions = useCallback(
+    async (locationName) => {
+      if (!userId) return;
 
-    const userMessage = createMessage("user", text);
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setSubmitting(true);
-
-    const pendingMessage = createMessage(
-      "assistant",
-      "Vui lòng chờ trong giây lát, tôi đang tìm kết quả phù hợp cho bạn...",
-      { pending: true }
-    );
-    pendingReplyIdRef.current = pendingMessage.id;
-    setMessages((prev) => [...prev, pendingMessage]);
-
-    try {
       const payload = {
-        message: text,
-        limit: CHAT_LIMIT,
+        userId,
+        limit: SUGGESTION_LIMIT,
       };
 
-      if (conversationHistory.length > 0) {
-        payload.history = conversationHistory;
+      const trimmedLocation = typeof locationName === "string" ? locationName.trim() : "";
+      if (trimmedLocation) {
+        payload.district = trimmedLocation;
       }
 
-      const { data } = await axiosInstance.post("/ai/chat", payload);
+      const paramsKey = JSON.stringify(payload);
+      if (lastSuggestionParamsRef.current === paramsKey && suggestions.length > 0) {
+        return;
+      }
 
-      const replyContent = data?.reply || "";
-      const updatedResults = Array.isArray(data?.results) ? data.results : [];
-      const updatedFilters = data?.filters || null;
-      const hasFilters =
-        updatedFilters && typeof updatedFilters === "object" && Object.keys(updatedFilters).length > 0;
+      lastSuggestionParamsRef.current = paramsKey;
+      setSuggestionsLoading(true);
+      setSuggestionsError(null);
+      try {
+        const { data } = await axiosInstance.post("/ai/suggestions", payload);
+        const items = Array.isArray(data?.suggestions) ? data.suggestions : [];
+        setSuggestions(items);
+      } catch (error) {
+        console.warn("AI suggestion fetch failed", error);
+        setSuggestions([]);
+        setSuggestionsError(error?.response?.data?.message || null);
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    },
+    [suggestions.length, userId]
+  );
 
-      const finalContent = hasFilters ? replyContent : EMPTY_FILTERS_MESSAGE;
-      const finalResults = hasFilters ? updatedResults : [];
-      const finalFilters = hasFilters ? updatedFilters : null;
+  const handleSubmit = useCallback(
+    async (overrideText) => {
+      const sourceText = typeof overrideText === "string" ? overrideText : inputValue;
+      const text = sourceText.trim();
+      if (!text || submitting) return;
 
-      setMessages((prev) =>
-        prev.map((message) =>
-          message.id === pendingReplyIdRef.current
-            ? {
-                ...message,
-                content: finalContent,
-                results: finalResults,
-                filters: finalFilters,
-                pending: false,
-              }
-            : message
-        )
+      const userMessage = createMessage("user", text);
+      setMessages((prev) => [...prev, userMessage]);
+      setInputValue("");
+      setSubmitting(true);
+
+      const pendingMessage = createMessage(
+        "assistant",
+        "Vui lòng chờ trong giây lát, tôi đang tìm kết quả phù hợp cho bạn...",
+        { pending: true }
       );
-      setConversationHistory((prev) => [
-        ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: finalContent },
-      ]);
-    } catch (error) {
-      console.warn("AI chat failed", error);
-      setMessages((prev) =>
-        prev.map((message) =>
-          message.id === pendingReplyIdRef.current
-            ? {
-                ...message,
-                content:
-                  "Xin lỗi, hiện tại tôi chưa thể trả lời bạn. Bạn thử lại sau nhé.",
-                error: true,
-                pending: false,
-              }
-            : message
-        )
-      );
-      const message = error?.response?.data?.message || "Không thể gửi yêu cầu";
-      showToast("error", "top", "Trợ lý ảo", message);
-    } finally {
-      setSubmitting(false);
-      pendingReplyIdRef.current = null;
-    }
-  }, [conversationHistory, inputValue, submitting]);
+      pendingReplyIdRef.current = pendingMessage.id;
+      setMessages((prev) => [...prev, pendingMessage]);
+
+      try {
+        const payload = {
+          message: text,
+          limit: CHAT_LIMIT,
+        };
+
+        if (conversationHistory.length > 0) {
+          payload.history = conversationHistory;
+        }
+
+        const { data } = await axiosInstance.post("/ai/chat", payload);
+
+        const replyContent = data?.reply || "";
+        const updatedResults = Array.isArray(data?.results) ? data.results : [];
+        const updatedFilters = data?.filters || null;
+        const hasFilters =
+          updatedFilters && typeof updatedFilters === "object" && Object.keys(updatedFilters).length > 0;
+
+        const finalContent = hasFilters ? replyContent : EMPTY_FILTERS_MESSAGE;
+        const finalResults = hasFilters ? updatedResults : [];
+        const finalFilters = hasFilters ? updatedFilters : null;
+
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === pendingReplyIdRef.current
+              ? {
+                  ...message,
+                  content: finalContent,
+                  results: finalResults,
+                  filters: finalFilters,
+                  pending: false,
+                }
+              : message
+          )
+        );
+        setActiveFilters(finalFilters);
+        setConversationHistory((prev) => [
+          ...prev,
+          { role: "user", content: text },
+          { role: "assistant", content: finalContent },
+        ]);
+      } catch (error) {
+        console.warn("AI chat failed", error);
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === pendingReplyIdRef.current
+              ? {
+                  ...message,
+                  content:
+                    "Xin lỗi, hiện tại tôi chưa thể trả lời bạn. Bạn thử lại sau nhé.",
+                  error: true,
+                  pending: false,
+                }
+              : message
+          )
+        );
+        setActiveFilters(null);
+        const message = error?.response?.data?.message || "Không thể gửi yêu cầu";
+        showToast("error", "top", "Trợ lý ảo", message);
+      } finally {
+        setSubmitting(false);
+        pendingReplyIdRef.current = null;
+      }
+    }, [conversationHistory, inputValue, submitting]);
+
+  const handleSuggestionPress = useCallback(
+    (text) => {
+      if (!text) return;
+      handleSubmit(text);
+    },
+    [handleSubmit]
+  );
+
+  const activeFiltersKey = useMemo(() => {
+    if (!activeFilters) return "__none";
+    const { district = "", province = "", city = "" } = activeFilters;
+    return JSON.stringify({ district, province, city });
+  }, [activeFilters]);
+
+  useEffect(() => {
+    setSuggestions([]);
+    setSuggestionsError(null);
+    lastSuggestionParamsRef.current = null;
+  }, [homeLocationName, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchSuggestions(homeLocationName);
+  }, [activeFiltersKey, fetchSuggestions, homeLocationName, userId]);
 
   const renderResultCard = useCallback(
     (property, index) => {
@@ -242,6 +335,47 @@ export default function AiChatScreen() {
     [renderResultCard]
   );
 
+  const suggestionsSection = useMemo(() => {
+    const hasSuggestions = Array.isArray(suggestions) && suggestions.length > 0;
+    if (!suggestionsLoading && !hasSuggestions && !suggestionsError) {
+      return null;
+    }
+
+    return (
+      <View style={styles.suggestionsContainer}>
+        <View style={styles.suggestionsHeaderRow}>
+          <Text style={styles.suggestionsTitle}>Gợi ý nhanh</Text>
+          {suggestionsLoading ? <ActivityIndicator size="small" color="#f36031" /> : null}
+        </View>
+        {hasSuggestions ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsList}
+          >
+            {suggestions.map((item, index) => {
+              const key = `${item?.text || "suggestion"}-${index}`;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={styles.suggestionChip}
+                  onPress={() => handleSuggestionPress(item?.text)}
+                  activeOpacity={0.85}
+                  disabled={submitting}
+                >
+                  <Text style={styles.suggestionText}>{item?.text || ""}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+        {suggestionsError ? (
+          <Text style={styles.suggestionsError}>{suggestionsError}</Text>
+        ) : null}
+      </View>
+    );
+  }, [handleSuggestionPress, submitting, suggestions, suggestionsError, suggestionsLoading]);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -256,28 +390,32 @@ export default function AiChatScreen() {
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         />
-        <View style={styles.composerContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Mô tả nhu cầu của bạn..."
-            value={inputValue}
-            onChangeText={setInputValue}
-            editable={!submitting}
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, submitting ? styles.sendButtonDisabled : null]}
-            onPress={handleSubmit}
-            disabled={submitting}
-            activeOpacity={0.8}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Ionicons name="send" size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
+        <View style={styles.bottomContainer}>
+          {suggestionsSection}
+          <View style={styles.composerContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Mô tả nhu cầu của bạn..."
+              value={inputValue}
+              onChangeText={setInputValue}
+              editable={!submitting}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, submitting ? styles.sendButtonDisabled : null]}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons name="send" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     </KeyboardAvoidingView>
@@ -292,8 +430,42 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 220,
     gap: 12,
+  },
+  suggestionsContainer: {
+    gap: 12,
+  },
+  suggestionsHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  suggestionsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  suggestionsList: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  suggestionChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e5e7eb",
+    maxWidth: 260,
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: "#111827",
+  },
+  suggestionsError: {
+    fontSize: 12,
+    color: "#ef4444",
   },
   messageRow: {
     flexDirection: "row",
@@ -411,11 +583,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 12,
-    paddingHorizontal: 16,
     paddingVertical: 14,
+    backgroundColor: "#fff",
+  },
+  bottomContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    backgroundColor: "#fff",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderColor: "#e5e7eb",
-    backgroundColor: "#fff",
+    gap: 12,
   },
   input: {
     flex: 1,
