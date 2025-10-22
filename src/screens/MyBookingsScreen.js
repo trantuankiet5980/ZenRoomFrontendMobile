@@ -109,6 +109,7 @@ const INVOICE_STATUS_LABELS = {
   DRAFT: "Chưa phát hành",
   ISSUED: "Đã phát hành",
   PAID: "Đã thanh toán",
+  REFUND_PENDING: "Chờ hoàn tiền",
   REFUNDED: "Đã hoàn tiền",
   VOID: "Đã hủy",
 };
@@ -117,6 +118,7 @@ const INVOICE_STATUS_COLORS = {
   DRAFT: "#6b7280",
   ISSUED: "#f59e0b",
   PAID: SUCCESS,
+  REFUND_PENDING: "#f97316",
   REFUNDED: "#0ea5e9",
   VOID: "#ef4444",
 };
@@ -613,18 +615,36 @@ export default function MyBookingsScreen() {
 
   const handleCancel = useCallback(
     (booking) => {
+      const bookingId = booking?.bookingId;
+      const relatedInvoice =
+        (bookingId && invoicesByBookingId?.[bookingId]) || booking?.invoice || null;
+      const invoiceStatus = relatedInvoice?.status || booking?.invoiceStatus;
+      const paymentStatus = booking?.paymentStatus;
+      const paidStatuses = new Set(["PAID", "REFUND_PENDING", "REFUNDED"]);
+      const wasPaid =
+        (invoiceStatus && paidStatuses.has(invoiceStatus)) ||
+        (paymentStatus && paidStatuses.has(paymentStatus));
+
+      const title = wasPaid ? "Yêu cầu hoàn tiền" : "Hủy booking";
+      const message = wasPaid
+        ? "Booking này đã được thanh toán. Khi bạn hủy, hệ thống sẽ tạo yêu cầu hoàn tiền và admin sẽ xử lý trong vòng 24 giờ. Bạn có chắc chắn muốn tiếp tục?"
+        : "Bạn có chắc chắn muốn hủy booking này?";
+
       Alert.alert(
-        "Hủy booking",
-        "Bạn có chắc chắn muốn hủy booking này?",
+        title,
+        message,
         [
           { text: "Không", style: "cancel" },
           {
-            text: "Hủy booking",
+            text: wasPaid ? "Xác nhận hủy" : "Hủy booking",
             style: "destructive",
             onPress: async () => {
               try {
                 await dispatch(cancelBooking(booking.bookingId)).unwrap();
-                Alert.alert("Thành công", "Hủy booking thành công");
+                const successMessage = wasPaid
+                  ? "Đã ghi nhận yêu cầu hoàn tiền. Vui lòng chờ tối đa 24 giờ để admin xử lý."
+                  : "Hủy booking thành công";
+                Alert.alert("Thành công", successMessage);
                 dispatch(fetchMyBookings());
                 setActiveTab("cancelled");
               } catch (error) {
@@ -638,7 +658,7 @@ export default function MyBookingsScreen() {
         ]
       );
     },
-    [dispatch, setActiveTab]
+    [dispatch, setActiveTab, invoicesByBookingId]
   );
 
   const handleCheckIn = useCallback(
@@ -1161,6 +1181,8 @@ function BookingCard({
   const invoiceStatusColor = getInvoiceStatusColor(invoiceStatus);
   const isInvoicePaid =
     invoiceStatus === "PAID" || booking.paymentStatus === "PAID";
+  const isRefundPending =
+    invoiceStatus === "REFUND_PENDING";
   const invoiceRowValue = invoiceStatusLabel
     ? invoiceStatusLabel
     : invoiceFetched
@@ -1178,6 +1200,7 @@ function BookingCard({
   const showCheckButtons = tab === "checkin";
   const showReviewActions = tab === "completed";
   const showInvoiceStatus = booking.bookingStatus === "AWAITING_LANDLORD_APPROVAL";
+  const showRefundInvoiceButton = tab === "cancelled" && isRefundPending;
   const media = booking.property?.media || [];
   const coverImage =
     media.find((item) => item.isCover) || media[0] || null;
@@ -1232,7 +1255,11 @@ function BookingCard({
                 {formatDateVN(booking.startDate)} - {formatDateVN(booking.endDate)}
               </Text>
             </View>
-            <StatusBadge status={booking.bookingStatus} />
+            <StatusBadge
+              status={booking.bookingStatus}
+              invoiceStatus={invoiceStatus}
+              paymentStatus={booking.paymentStatus}
+            />
           </View>
 
           <View style={{ marginTop: 12 }}>
@@ -1317,13 +1344,25 @@ function BookingCard({
             style={{ marginRight: 10, marginBottom: 10 }}
           />
         )}
+
+        {showRefundInvoiceButton && (
+          <ActionButton
+            label="Xem hóa đơn"
+            type="outline"
+            onPress={() => onPay(booking)}
+            style={{ marginRight: 10, marginBottom: 10 }}
+          />
+        )}
       </View>
     </View>
   );
 }
 
-function StatusBadge({ status }) {
-  const label = getBookingStatusLabel(status);
+function StatusBadge({ status, invoiceStatus, paymentStatus }) {
+  const refundPending =
+    status === "CANCELLED" &&
+    (invoiceStatus === "REFUND_PENDING" || paymentStatus === "REFUND_PENDING");
+  const label = refundPending ? "Đã hủy chờ hoàn tiền" : getBookingStatusLabel(status);
   const color = getBookingStatusColor(status);
   return (
     <View
@@ -1395,6 +1434,23 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
   const amount = invoice?.total ?? invoice?.dueAmount;
   const qrPayload = invoice?.qrPayload;
   const formattedAmount = formatCurrency(amount);
+  const status = invoice?.status;
+  const statusLabel = getInvoiceStatusLabel(status);
+  const statusColor = getInvoiceStatusColor(status);
+  const showRefundDetails = status === "REFUND_PENDING" || status === "REFUNDED";
+  const isPaidStatus = status === "PAID";
+  const showPaymentSection = !showRefundDetails && !isPaidStatus;
+  const totalFormatted = formatCurrency(invoice?.total);
+  const dueAmountFormatted = formatCurrency(invoice?.dueAmount);
+  const paidAtLabel = formatDateTimeVN(invoice?.paidAt);
+  const dueAtLabel = formatDateVN(invoice?.dueAt);
+  const cancellationFeeFormatted = formatCurrency(invoice?.cancellationFee);
+  const refundableAmountFormatted = formatCurrency(invoice?.refundableAmount);
+  const refundRequestedLabel = formatDateTimeVN(invoice?.refundRequestedAt);
+  const refundConfirmedLabel = formatDateTimeVN(invoice?.refundConfirmedAt);
+  const refundConfirmedText = invoice?.refundConfirmed
+    ? "Đã xác nhận"
+    : "Đang xử lý";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1423,6 +1479,22 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
             <View>
               <Text style={{ fontSize: 18, fontWeight: "700", color: TEXT }}>Thanh toán đặt phòng</Text>
             </View>
+            {statusLabel ? (
+                <View
+                  style={{
+                    marginTop: 6,
+                    alignSelf: "flex-start",
+                    paddingVertical: 4,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: statusColor,
+                    backgroundColor: "#f9fafb",
+                  }}
+                >
+                  <Text style={{ color: statusColor, fontWeight: "600" }}>{statusLabel}</Text>
+                </View>
+              ) : null}
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={22} color={TEXT} />
             </TouchableOpacity>
@@ -1443,48 +1515,120 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
               style={{ marginTop: 16 }}
               contentContainerStyle={{ paddingBottom: 12 }}
             >
-              <Text style={{ color: TEXT, fontWeight: "600", marginBottom: 8 }}>
-                Mở app ngân hàng bất kỳ để quét mã VietQR hoặc chuyển khoản chính xác số tiền bên dưới.
-              </Text>
+              <View
+                style={{
+                  backgroundColor: "#f9fafb",
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <InfoRow label="Mã hóa đơn" value={invoice.invoiceNo} />
+                {totalFormatted ? <InfoRow label="Tổng tiền" value={totalFormatted} bold /> : null}
+                {dueAmountFormatted ? (
+                  <InfoRow label="Số tiền cần thanh toán" value={dueAmountFormatted} />
+                ) : null}
+                {paidAtLabel ? <InfoRow label="Thanh toán lúc" value={paidAtLabel} /> : null}
+                {dueAtLabel ? <InfoRow label="Hạn thanh toán" value={dueAtLabel} /> : null}
+              </View>
 
-              {qrPayload ? (
-                <View style={{ alignItems: "center", marginBottom: 16 }}>
-                  <Text style={{ marginBottom: 12, fontSize: 16, fontWeight: "600", color: TEXT }}>
-                    Quét QR để thanh toán
+              {showRefundDetails ? (
+                <View
+                  style={{
+                    backgroundColor: "#fff7ed",
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: "#fdba74",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Text style={{ color: "#c2410c", fontWeight: "600", marginBottom: 8 }}>
+                    {status === "REFUND_PENDING"
+                      ? "Yêu cầu hoàn tiền đang được xử lý trong tối đa 24 giờ."
+                      : "Yêu cầu hoàn tiền đã được hoàn tất."}
                   </Text>
-                  <View
-                    style={{
-                      backgroundColor: "#fff",
-                      padding: 16,
-                      borderRadius: 16,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.08,
-                      shadowRadius: 12,
-                      shadowOffset: { width: 0, height: 4 },
-                      elevation: 3,
-                    }}
-                  >
-                    <QRCode value={qrPayload} size={220} ecl="M" quietZone={10} backgroundColor="#fff" />
+                  {cancellationFeeFormatted ? (
+                    <InfoRow label="Phí hủy" value={cancellationFeeFormatted} />
+                  ) : null}
+                  {refundableAmountFormatted ? (
+                    <InfoRow label="Số tiền hoàn lại" value={refundableAmountFormatted} bold />
+                  ) : null}
+                  <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                    <Text style={{ color: MUTED, width: 140 }}>Trạng thái hoàn tiền</Text>
+                    <Text style={{ color: TEXT, fontWeight: "600", flex: 1 }}>{refundConfirmedText}</Text>
                   </View>
+                  {refundRequestedLabel ? (
+                    <InfoRow label="Thời gian yêu cầu" value={refundRequestedLabel} />
+                  ) : null}
+                  {refundConfirmedLabel && status === "REFUNDED" ? (
+                    <InfoRow label="Thời gian hoàn tiền" value={refundConfirmedLabel} />
+                  ) : null}
+                  <Text style={{ color: "#92400e", marginTop: 8, fontStyle: "italic" }}>
+                    Cảm ơn bạn đã kiên nhẫn trong khi chúng tôi xử lý khoản hoàn tiền.
+                  </Text>
                 </View>
               ) : null}
 
-              <View style={{ backgroundColor: "#f9fafb", borderRadius: 12, padding: 12, marginBottom: 12 }}>
-                <InfoRow label="Ngân hàng" value={BANK_INFO.bankName} />
-                <InfoRow label="Chủ TK" value={BANK_INFO.accountName} />
-                <InfoRow label="Số tài khoản" value={BANK_INFO.accountNumber} />
-                {formattedAmount ? <InfoRow label="Số tiền" value={formattedAmount} bold /> : null}
-                <InfoRow label="Nội dung" value={invoice.invoiceNo} />
-                <InfoRow
-                  label="Hạn thanh toán"
-                  value={formatDateVN(invoice.dueAt)}
-                />
-              </View>
+              {isPaidStatus ? (
+                <View
+                  style={{
+                    backgroundColor: "#ecfdf5",
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: "#6ee7b7",
+                  }}
+                >
+                  <Text style={{ color: "#047857", fontWeight: "600" }}>
+                    Hóa đơn đã được thanh toán. Cảm ơn bạn!
+                  </Text>
+                </View>
+              ) : null}
+
+              {showPaymentSection ? (
+                <>
+                  <Text style={{ color: TEXT, fontWeight: "600", marginBottom: 8 }}>
+                    Mở app ngân hàng bất kỳ để quét mã VietQR hoặc chuyển khoản chính xác số tiền bên dưới.
+                  </Text>
+
+                  {qrPayload ? (
+                    <View style={{ alignItems: "center", marginBottom: 16 }}>
+                      <Text style={{ marginBottom: 12, fontSize: 16, fontWeight: "600", color: TEXT }}>
+                        Quét QR để thanh toán
+                      </Text>
+                      <View
+                        style={{
+                          backgroundColor: "#fff",
+                          padding: 16,
+                          borderRadius: 16,
+                          shadowColor: "#000",
+                          shadowOpacity: 0.08,
+                          shadowRadius: 12,
+                          shadowOffset: { width: 0, height: 4 },
+                          elevation: 3,
+                        }}
+                      >
+                        <QRCode value={qrPayload} size={220} ecl="M" quietZone={10} backgroundColor="#fff" />
+                      </View>
+                    </View>
+                  ) : null}
+
+                  <View style={{ backgroundColor: "#f9fafb", borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                    <InfoRow label="Ngân hàng" value={BANK_INFO.bankName} />
+                    <InfoRow label="Chủ TK" value={BANK_INFO.accountName} />
+                    <InfoRow label="Số tài khoản" value={BANK_INFO.accountNumber} />
+                    {formattedAmount ? <InfoRow label="Số tiền" value={formattedAmount} bold /> : null}
+                    <InfoRow label="Nội dung" value={invoice.invoiceNo} />
+                    {dueAtLabel ? <InfoRow label="Hạn thanh toán" value={dueAtLabel} /> : null}
+                  </View>
 
               {formattedAmount ? (
-                <Text style={{ marginTop: 12, color: "#ef4444", fontStyle: "italic" }}>
-                  Lưu ý: Nhập chính xác số tiền {formattedAmount} khi chuyển khoản.
-                </Text>
+                    <Text style={{ marginTop: 12, color: "#ef4444", fontStyle: "italic" }}>
+                      Lưu ý: Nhập chính xác số tiền {formattedAmount} khi chuyển khoản.
+                    </Text>
+                  ) : null}
+                </>
               ) : null}
             </ScrollView>
           ) : null}

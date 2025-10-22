@@ -14,6 +14,7 @@ const initialState = {
   loading: false,
   error: null,
   byBookingId: {},
+  items: [],
 };
 
 const invoiceSlice = createSlice({
@@ -66,7 +67,13 @@ const invoiceSlice = createSlice({
       })
       .addCase(fetchTenantInvoices.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload || [];
+        const allowedStatuses = new Set(["PAID", "REFUND_PENDING", "REFUNDED"]);
+        const invoices = Array.isArray(action.payload) ? action.payload : [];
+        const filtered = invoices.filter((invoice) =>
+          allowedStatuses.has(invoice?.status)
+        );
+        state.items = filtered;
+        state.tenantInvoices = filtered;
       })
       .addCase(fetchTenantInvoices.rejected, (state, action) => {
         state.loading = false;

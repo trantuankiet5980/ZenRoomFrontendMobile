@@ -33,6 +33,43 @@ const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
+function getOtherParty(conv, meId, meRole) {
+  if (!conv) return null;
+  const { tenant, landlord } = conv || {};
+
+  if (meRole === "LANDLORD") return tenant || null;
+  if (meRole === "TENANT") return landlord || null;
+
+  if (tenant?.userId === meId) return landlord || null;
+  if (landlord?.userId === meId) return tenant || null;
+  return landlord || tenant || null;
+}
+
+function CircleAvatar({ uri, size = 32 }) {
+  if (!uri) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: "#FFE1E1",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Ionicons name="person" size={Math.max(16, size * 0.55)} color="#E26666" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden" }}>
+      <S3Image src={uri} style={{ width: size, height: size, borderRadius: size / 2 }} />
+    </View>
+  );
+}
+
 const clampIndex = (index, length) => {
   if (!length) return 0;
   if (index < 0) return 0;
@@ -306,6 +343,7 @@ export default function ChatDetailScreen() {
 
   const listRef = useRef();
   const me = useSelector((s) => s.auth.user);
+  const conversations = useSelector((s) => s.chat.conversations || []);
   const myId = me?.userId || null;
   const [text, setText] = useState("");
   const [pendingImages, setPendingImages] = useState([]);
@@ -397,6 +435,34 @@ export default function ChatDetailScreen() {
 
     return list;
   }, [bucketItems, normalizePropertyMini, propMiniFromRoute, initialMessage]);
+
+  const conversationRow = useMemo(() => {
+    if (!conversationId) return null;
+    return conversations.find((c) => c.conversationId === conversationId) || null;
+  }, [conversations, conversationId]);
+
+  const initialConversation = initialMessage?.conversation;
+  const peerInfo = useMemo(() => {
+    const conv = conversationRow || initialConversation || null;
+    if (!conv) return null;
+    return getOtherParty(conv, myId, me?.role);
+  }, [conversationRow, initialConversation, myId, me?.role]);
+
+  const fallbackPeerFromInitial = useMemo(() => {
+    if (!initialMessage?.sender) return null;
+    const sender = initialMessage.sender;
+    if (sender?.userId && sender.userId === myId) return null;
+    return sender;
+  }, [initialMessage?.sender, myId]);
+
+  const peerAvatarKey = peerInfo?.avatarUrl || avatar || fallbackPeerFromInitial?.avatarUrl || null;
+  const headerTitle = useMemo(() => {
+    if (title && title !== "Chat") return title;
+    if (peerInfo?.fullName) return peerInfo.fullName;
+    if (peerInfo?.role === "TENANT") return "Khách thuê";
+    if (peerInfo?.role === "LANDLORD") return "Chủ trọ";
+    return title;
+  }, [title, peerInfo?.fullName, peerInfo?.role]);
 
   // Mỗi lần đổi conversationId → luôn fetch + mark read (bỏ điều kiện initialMessage && empty)
   useEffect(() => {
@@ -611,49 +677,75 @@ export default function ChatDetailScreen() {
     if (timeLabel) metaParts.push(timeLabel);
     if (statusText) metaParts.push(statusText);
     const metaLabel = metaParts.join(" · ");
+    const messageAvatar = !mine ? item.sender?.avatarUrl || peerAvatarKey || null : null;
 
     return (
       <View style={{ paddingHorizontal: 16, marginTop: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
-        {!mine && <Text style={{ fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 2, marginLeft: 4 }}>{senderName}</Text>}
         <View
           style={{
-            maxWidth: "80%",
-            padding: hasContent ? 10 : hasImages ? 8 : 10,
-            borderRadius: 14,
-            backgroundColor: bubbleColor,
-            gap: hasImages && hasContent ? 8 : 0,
+            flexDirection: mine ? "column" : "row",
+            alignItems: "flex-end",
+            maxWidth: "100%",
+            gap: mine ? 0 : 8,
           }}
         >
-          {hasImages && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {localImages.map((uri, idx) => (
-                <TouchableOpacity
-                  key={`local-${idx}`}
-                  activeOpacity={0.85}
-                  onPress={() => openImageViewer(viewerImages, idx)}
-                >
-                  <Image source={{ uri }} style={[imageStyle, { opacity: 0.7 }]} resizeMode="cover" />
-                </TouchableOpacity>
-              ))}
-              {attachments.map((att, idx) => (
-                <TouchableOpacity
-                  key={att.attachmentId || att.url || `att-${idx}`}
-                  activeOpacity={0.85}
-                  onPress={() => openImageViewer(viewerImages, localImages.length + idx)}
-                >
-                  <S3Image src={att.url} style={imageStyle} alt={`attachment-${idx + 1}`} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {!mine && <CircleAvatar uri={messageAvatar} size={32} />}
+          <View style={{ maxWidth: "80%", alignItems: mine ? "flex-end" : "flex-start" }}>
+            {!mine && (
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 4, marginLeft: 4 }}>
+                {senderName}
+              </Text>
+            )}
+            <View
+              style={{
+                alignSelf: mine ? "flex-end" : "flex-start",
+                padding: hasContent ? 10 : hasImages ? 8 : 10,
+                borderRadius: 14,
+                backgroundColor: bubbleColor,
+                gap: hasImages && hasContent ? 8 : 0,
+              }}
+            >
+              {hasImages && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {localImages.map((uri, idx) => (
+                    <TouchableOpacity
+                      key={`local-${idx}`}
+                      activeOpacity={0.85}
+                      onPress={() => openImageViewer(viewerImages, idx)}
+                    >
+                      <Image source={{ uri }} style={[imageStyle, { opacity: 0.7 }]} resizeMode="cover" />
+                    </TouchableOpacity>
+                  ))}
+                  {attachments.map((att, idx) => (
+                    <TouchableOpacity
+                      key={att.attachmentId || att.url || `att-${idx}`}
+                      activeOpacity={0.85}
+                      onPress={() => openImageViewer(viewerImages, localImages.length + idx)}
+                    >
+                      <S3Image src={att.url} style={imageStyle} alt={`attachment-${idx + 1}`} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
           {hasContent && <Text style={{ color: textColor }}>{item.content}</Text>}
+            </View>
+            {!!metaLabel && (
+              <Text
+                style={{
+                  color: MUTED,
+                  fontSize: 11,
+                  marginTop: 4,
+                  textAlign: mine ? "right" : "left",
+                  alignSelf: mine ? "flex-end" : "flex-start",
+                }}
+              >
+                {metaLabel}
+              </Text>
+            )}
+          </View>
         </View>
-        {!!metaLabel && (
-          <Text style={{ color: MUTED, fontSize: 11, marginTop: 4, textAlign: mine ? "right" : "left" }}>
-            {metaLabel}
-          </Text>
-        )}
+        
       </View>
     );
   };
@@ -734,7 +826,12 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8, marginRight: 4 }}>
           <Ionicons name="chevron-back" size={24} color="#111" />
         </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontWeight: "700" }}>{title}</Text>
+        <View style={{ marginRight: 10 }}>
+          <CircleAvatar uri={peerAvatarKey} size={36} />
+        </View>
+        <Text style={{ fontSize: 18, fontWeight: "700" }} numberOfLines={1}>
+          {headerTitle}
+        </Text>
         <View style={{ flex: 1 }} />
       </View>
 
