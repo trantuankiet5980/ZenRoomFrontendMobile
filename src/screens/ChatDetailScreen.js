@@ -15,12 +15,13 @@ import {
   StatusBar,
   Pressable,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchMessages, sendMessage, sendImages, markReadAll } from "../features/chat/chatThunks";
+import { fetchMessages, sendMessage, sendImages, markReadAll, deleteConversation } from "../features/chat/chatThunks";
 import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import S3Image from "../components/S3Image";
@@ -28,6 +29,7 @@ import { recordUserEvent } from "../features/events/eventsThunks";
 import * as ImagePicker from "expo-image-picker";
 import { showToast } from "../utils/AppUtils";
 import { formatRelativeTime } from "../utils/time";
+import useMessageNotificationSound from "../hooks/useMessageNotificationSound";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -350,6 +352,7 @@ export default function ChatDetailScreen() {
   const [sending, setSending] = useState(false);
   const maxImagesPerMessage = 10;
   const [imageViewer, setImageViewer] = useState({ visible: false, index: 0, images: [] });
+  const playNotificationSound = useMessageNotificationSound();
 
   // giữ conversationId đồng bộ theo route param (không dùng "|| conversationId" gây lặp).
   const [conversationId, setConversationId] = useState(chatIdParam || null);
@@ -487,6 +490,9 @@ export default function ChatDetailScreen() {
             dispatch(markReadAll(conversationId));
           }
           dispatch(pushServerMessage({ ...dto, __currentUserId: myId }));
+          if (dto?.sender?.userId && myId && dto.sender.userId !== myId) {
+            playNotificationSound();
+          }
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 16);
         } catch {}
       });
@@ -498,7 +504,40 @@ export default function ChatDetailScreen() {
     else ensureConnected(() => { cleanup = doSubscribe(); }, conversationId);
 
     return () => { cleanup && cleanup(); };
-  }, [conversationId, myId, dispatch]);
+  }, [conversationId, myId, dispatch, playNotificationSound]);
+
+  const handleConfirmDeleteConversation = useCallback(() => {
+    if (!conversationId) return;
+    Alert.alert(
+      "Xóa đoạn chat",
+      "Bạn có chắc chắn muốn xóa đoạn chat này?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await dispatch(deleteConversation(conversationId)).unwrap();
+              dispatch(setActiveConversation(null));
+              setConversationId(null);
+              showToast("success", "top", "Thành công", "Đã xóa đoạn chat.");
+              navigation.goBack();
+            } catch (err) {
+              const message =
+                (typeof err === "string" && err) ||
+                err?.message ||
+                err?.error ||
+                err?.data?.message ||
+                err?.response?.data?.message ||
+                "Không thể xóa đoạn chat. Vui lòng thử lại.";
+              showToast("error", "top", "Lỗi", message);
+            }
+          },
+        },
+      ]
+    );
+  }, [conversationId, dispatch, navigation, setConversationId]);
 
   const handlePickImages = useCallback(async () => {
     try {
@@ -833,6 +872,17 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
           {headerTitle}
         </Text>
         <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          onPress={handleConfirmDeleteConversation}
+          disabled={!conversationId}
+          style={{ padding: 8 }}
+        >
+          <Ionicons
+            name="trash-outline"
+            size={22}
+            color={conversationId ? "#EF4444" : "#D1D5DB"}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Messages */}
