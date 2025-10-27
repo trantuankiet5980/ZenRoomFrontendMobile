@@ -131,3 +131,16 @@ export const markReadSome = createAsyncThunk(
     }
   }
 );
+
+// 7) Xóa đoạn chat
+export const deleteConversation = createAsyncThunk(
+  "chat/deleteConversation",
+  async (conversationId, { rejectWithValue }) => {
+    try {
+      await axiosInstance.delete(`/chat/${conversationId}`);
+      return { conversationId };
+    } catch (e) {
+      return rejectWithValue(e?.response?.data || { message: "Delete conversation failed" });
+    }
+  }
+);

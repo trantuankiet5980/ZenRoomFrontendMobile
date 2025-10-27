@@ -5,6 +5,7 @@ import {
   fetchMessages,
   sendMessage,
   sendImages,
+  deleteConversation,
 } from "./chatThunks";
 
 const initialState = {
@@ -384,6 +385,20 @@ const chatSlice = createSlice({
             unread: 0,
             lastMessageAt: messageAt,
           });
+        }
+        })
+
+      .addCase(deleteConversation.fulfilled, (state, action) => {
+        const resolvedId = action.payload?.conversationId || action.meta?.arg;
+        if (!resolvedId) return;
+        state.conversations = state.conversations.filter(
+          (c) => c.conversationId !== resolvedId
+        );
+        if (state.messagesByConv[resolvedId]) {
+          delete state.messagesByConv[resolvedId];
+        }
+        if (state.activeConversationId === resolvedId) {
+          state.activeConversationId = null;
         }
       });
   },
