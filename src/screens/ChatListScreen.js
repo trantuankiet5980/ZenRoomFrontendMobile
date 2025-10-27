@@ -8,7 +8,6 @@ import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import { pushServerMessage } from "../features/chat/chatSlice";
 import { formatRelativeTime } from "../utils/time";
 import S3Image from "../components/S3Image";
-import useMessageNotificationSound from "../hooks/useMessageNotificationSound";
 
 const ORANGE = "#f36031", MUTED = "#9CA3AF", BORDER = "#E5E7EB", GREEN = "#CBE7A7";
 
@@ -33,8 +32,7 @@ export default function ChatListScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const me = useSelector(s => s.auth?.user);
-  const { conversations, convLoading, activeConversationId } = useSelector(s => s.chat);
-  const playNotificationSound = useMessageNotificationSound();
+  const { conversations, convLoading } = useSelector(s => s.chat);
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
 
@@ -57,17 +55,6 @@ export default function ChatListScreen() {
       const sub = client.subscribe(`/topic/chat.${cid}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
-          const convId = dto?.conversation?.conversationId || dto?.conversationId || cid;
-          const senderId = dto?.sender?.userId;
-          if (
-            senderId &&
-            me?.userId &&
-            senderId !== me.userId &&
-            convId &&
-            activeConversationId !== convId
-          ) {
-            playNotificationSound();
-          }
           dispatch(pushServerMessage({ ...dto, __currentUserId: me?.userId }));
         } catch {}
       });
@@ -87,7 +74,7 @@ export default function ChatListScreen() {
     return () => {
 
     };
-  }, [conversations, me?.userId, activeConversationId, playNotificationSound, dispatch]);
+  }, [conversations]);
 
   const data = useMemo(() => {
     const base = Array.isArray(conversations) ? conversations : [];

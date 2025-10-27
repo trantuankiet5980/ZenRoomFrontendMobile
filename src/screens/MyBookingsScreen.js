@@ -1477,8 +1477,6 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
         transactionId: `VIRTUAL_${Date.now()}`,
       });
 
-      Alert.alert("Thành công", "Đã gửi yêu cầu xác nhận thanh toán.");
-
       if (bookingId) {
         dispatch(fetchInvoiceByBooking(bookingId));
       }
@@ -1494,7 +1492,7 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
       setConfirming(false);
     }
   };
-  
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View
