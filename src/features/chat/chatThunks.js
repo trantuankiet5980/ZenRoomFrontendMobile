@@ -59,7 +59,12 @@ export const sendMessage = createAsyncThunk(
   async (payload, { rejectWithValue }) => {
     try {
       const { clientRequestId, ...rest } = payload || {};
-      const body = { ...rest };
+      const body = {};
+      Object.entries(rest || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          body[key] = value;
+        }
+      });
       if (clientRequestId) body.clientRequestId = clientRequestId;
       const { data } = await axiosInstance.post(`/chat/send`, body);
       const cid = data?.conversation?.conversationId;
@@ -75,7 +80,10 @@ export const sendMessage = createAsyncThunk(
  */
 export const sendImages = createAsyncThunk(
   "chat/sendImages",
-  async ({ conversationId, propertyId, peerId, content, images, clientRequestId }, { rejectWithValue }) => {
+  async (
+    { conversationId, propertyId, peerId, content, images, clientRequestId, systemConversation, sendToAdmins, targetRole },
+    { rejectWithValue }
+  ) => {
     try {
       const form = new FormData();
       if (conversationId) form.append("conversationId", conversationId);
@@ -83,7 +91,10 @@ export const sendImages = createAsyncThunk(
       if (peerId) form.append("peerId", peerId);
       if (content) form.append("content", content);
       if (clientRequestId) form.append("clientRequestId", clientRequestId);
-
+      if (systemConversation) form.append("systemConversation", systemConversation);
+      if (sendToAdmins !== undefined) form.append("sendToAdmins", sendToAdmins ? "true" : "false");
+      if (targetRole) form.append("targetRole", targetRole);
+      
       (images || []).forEach((img, idx) => {
         if (!img?.uri) return;
         const name = img.name || img.fileName || img.filename || `image-${idx}.jpg`;

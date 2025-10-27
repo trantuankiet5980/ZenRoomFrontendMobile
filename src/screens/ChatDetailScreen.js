@@ -30,6 +30,12 @@ import * as ImagePicker from "expo-image-picker";
 import { showToast } from "../utils/AppUtils";
 import { formatRelativeTime } from "../utils/time";
 import useMessageNotificationSound from "../hooks/useMessageNotificationSound";
+import {
+  SYSTEM_ADMIN_AVATAR,
+  SYSTEM_ADMIN_DISPLAY_NAME,
+  findSystemAdminConversation,
+  isSystemAdminConversation,
+} from "../utils/chat";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -47,7 +53,17 @@ function getOtherParty(conv, meId, meRole) {
   return landlord || tenant || null;
 }
 
-function CircleAvatar({ uri, size = 32 }) {
+function CircleAvatar({ uri, source, size = 32 }) {
+  if (source) {
+    return (
+      <Image
+        source={source}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="cover"
+      />
+    );
+  }
+
   if (!uri) {
     return (
       <View
@@ -336,11 +352,13 @@ export default function ChatDetailScreen() {
   const {
     title = "Chat",
     avatar,
+    avatarSource,
     conversationId: chatIdParam,
     peerId,
     propertyId,
     propertyMini: propMiniFromRoute,
-    initialMessage
+    initialMessage,
+    systemConversation: systemConversationParam = false,
   } = route.params || {};
 
   const listRef = useRef();
@@ -359,6 +377,20 @@ export default function ChatDetailScreen() {
   useEffect(() => {
     if (chatIdParam && chatIdParam !== conversationId) setConversationId(chatIdParam);
   }, [chatIdParam]); // eslint-disable-line
+
+  const systemConversationRow = useMemo(
+    () => findSystemAdminConversation(conversations || []),
+    [conversations]
+  );
+
+  useEffect(() => {
+    if (conversationId) return;
+    if (!systemConversationParam && chatIdParam) return;
+    const candidateId = systemConversationRow?.conversationId;
+    if (candidateId && candidateId !== conversationId) {
+      setConversationId(candidateId);
+    }
+  }, [conversationId, chatIdParam, systemConversationParam, systemConversationRow?.conversationId]);
 
   // lấy bucket thô từ redux
   const rawBucket = useSelector((s) =>
@@ -445,9 +477,24 @@ export default function ChatDetailScreen() {
   }, [conversations, conversationId]);
 
   const initialConversation = initialMessage?.conversation;
+  const isSystemConversation = useMemo(() => {
+    if (systemConversationParam) return true;
+    if (conversationRow && isSystemAdminConversation(conversationRow)) return true;
+    if (!conversationId && systemConversationRow) return true;
+    if (initialConversation && isSystemAdminConversation(initialConversation)) return true;
+    return false;
+  }, [
+    systemConversationParam,
+    conversationRow,
+    conversationId,
+    systemConversationRow,
+    initialConversation,
+  ]);
+
   const peerInfo = useMemo(() => {
     const conv = conversationRow || initialConversation || null;
     if (!conv) return null;
+    if (isSystemAdminConversation(conv)) return null;
     return getOtherParty(conv, myId, me?.role);
   }, [conversationRow, initialConversation, myId, me?.role]);
 
@@ -458,14 +505,24 @@ export default function ChatDetailScreen() {
     return sender;
   }, [initialMessage?.sender, myId]);
 
-  const peerAvatarKey = peerInfo?.avatarUrl || avatar || fallbackPeerFromInitial?.avatarUrl || null;
+  const peerAvatarUri = useMemo(() => {
+    if (isSystemConversation) return null;
+    return peerInfo?.avatarUrl || avatar || fallbackPeerFromInitial?.avatarUrl || null;
+  }, [isSystemConversation, peerInfo?.avatarUrl, avatar, fallbackPeerFromInitial?.avatarUrl]);
+
+  const peerAvatarSource = useMemo(() => {
+    if (isSystemConversation) return SYSTEM_ADMIN_AVATAR;
+    return avatarSource || null;
+  }, [isSystemConversation, avatarSource]);
+
   const headerTitle = useMemo(() => {
+    if (isSystemConversation) return SYSTEM_ADMIN_DISPLAY_NAME;
     if (title && title !== "Chat") return title;
     if (peerInfo?.fullName) return peerInfo.fullName;
     if (peerInfo?.role === "TENANT") return "Khách thuê";
     if (peerInfo?.role === "LANDLORD") return "Chủ trọ";
     return title;
-  }, [title, peerInfo?.fullName, peerInfo?.role]);
+  }, [isSystemConversation, title, peerInfo?.fullName, peerInfo?.role]);
 
   // Mỗi lần đổi conversationId → luôn fetch + mark read (bỏ điều kiện initialMessage && empty)
   useEffect(() => {
@@ -628,16 +685,26 @@ export default function ChatDetailScreen() {
 
     try {
       const thunk = hasImages ? sendImages : sendMessage;
-      const res = await dispatch(
-        thunk({
-          conversationId,
-          peerId,
-          propertyId,
-          content: content || undefined,
-          images: hasImages ? imagesToSend : undefined,
-          clientRequestId: tempId,
-        })
-      ).unwrap();
+      const payload = {
+        conversationId,
+        content: content || undefined,
+        clientRequestId: tempId,
+      };
+
+      if (hasImages) {
+        payload.images = imagesToSend;
+      }
+
+      if (isSystemConversation) {
+        payload.systemConversation = "ADMIN";
+        payload.sendToAdmins = true;
+        payload.targetRole = "ADMIN";
+      } else {
+        if (peerId) payload.peerId = peerId;
+        if (propertyId) payload.propertyId = propertyId;
+      }
+
+      const res = await dispatch(thunk(payload)).unwrap();
 
       const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
       if (!conversationId && newCid) setConversationId(newCid);
@@ -685,7 +752,10 @@ export default function ChatDetailScreen() {
 
   const renderItem = ({ item }) => {
     const mine = !!myId && item.sender?.userId === myId;
-    const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
+    const senderName =
+      item.sender?.fullName ||
+      item.fullname ||
+      (!mine && isSystemConversation ? SYSTEM_ADMIN_DISPLAY_NAME : "Ẩn danh");
     const attachments = Array.isArray(item.attachments) ? item.attachments.filter((att) => att && att.url) : [];
     const localImages = Array.isArray(item.localImages) ? item.localImages.filter(Boolean) : [];
     const viewerImages = [
@@ -716,7 +786,9 @@ export default function ChatDetailScreen() {
     if (timeLabel) metaParts.push(timeLabel);
     if (statusText) metaParts.push(statusText);
     const metaLabel = metaParts.join(" · ");
-    const messageAvatar = !mine ? item.sender?.avatarUrl || peerAvatarKey || null : null;
+    const messageAvatarUri = !mine ? item.sender?.avatarUrl || peerAvatarUri || null : null;
+    const messageAvatarSource =
+      !mine && !item.sender?.avatarUrl ? peerAvatarSource : null;
 
     return (
       <View style={{ paddingHorizontal: 16, marginTop: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
@@ -728,7 +800,7 @@ export default function ChatDetailScreen() {
             gap: mine ? 0 : 8,
           }}
         >
-          {!mine && <CircleAvatar uri={messageAvatar} size={32} />}
+          {!mine && <CircleAvatar uri={messageAvatarUri} source={messageAvatarSource} size={32} />}
           <View style={{ maxWidth: "80%", alignItems: mine ? "flex-end" : "flex-start" }}>
             {!mine && (
               <Text style={{ fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 4, marginLeft: 4 }}>
@@ -789,7 +861,9 @@ export default function ChatDetailScreen() {
     );
   };
 
-const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
+  const canDeleteConversation = !!conversationId && !isSystemConversation;
+
+  const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
 
 const formatPriceWithUnit = (pm) => {
   if (!pm?.price) return "Giá liên hệ";
@@ -866,7 +940,7 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
           <Ionicons name="chevron-back" size={24} color="#111" />
         </TouchableOpacity>
         <View style={{ marginRight: 10 }}>
-          <CircleAvatar uri={peerAvatarKey} size={36} />
+          <CircleAvatar uri={peerAvatarUri} source={peerAvatarSource} size={36} />
         </View>
         <Text style={{ fontSize: 18, fontWeight: "700" }} numberOfLines={1}>
           {headerTitle}
@@ -874,13 +948,13 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
         <View style={{ flex: 1 }} />
         <TouchableOpacity
           onPress={handleConfirmDeleteConversation}
-          disabled={!conversationId}
+          disabled={!canDeleteConversation}
           style={{ padding: 8 }}
         >
           <Ionicons
             name="trash-outline"
             size={22}
-            color={conversationId ? "#EF4444" : "#D1D5DB"}
+            color={canDeleteConversation ? "#EF4444" : "#D1D5DB"}
           />
         </TouchableOpacity>
       </View>
