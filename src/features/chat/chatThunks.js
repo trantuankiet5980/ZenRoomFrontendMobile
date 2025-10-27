@@ -59,12 +59,7 @@ export const sendMessage = createAsyncThunk(
   async (payload, { rejectWithValue }) => {
     try {
       const { clientRequestId, ...rest } = payload || {};
-      const body = {};
-      Object.entries(rest || {}).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          body[key] = value;
-        }
-      });
+      const body = { ...rest };
       if (clientRequestId) body.clientRequestId = clientRequestId;
       const { data } = await axiosInstance.post(`/chat/send`, body);
       const cid = data?.conversation?.conversationId;
@@ -80,10 +75,7 @@ export const sendMessage = createAsyncThunk(
  */
 export const sendImages = createAsyncThunk(
   "chat/sendImages",
-  async (
-    { conversationId, propertyId, peerId, content, images, clientRequestId, systemConversation, sendToAdmins, targetRole },
-    { rejectWithValue }
-  ) => {
+  async ({ conversationId, propertyId, peerId, content, images, clientRequestId }, { rejectWithValue }) => {
     try {
       const form = new FormData();
       if (conversationId) form.append("conversationId", conversationId);
@@ -91,10 +83,7 @@ export const sendImages = createAsyncThunk(
       if (peerId) form.append("peerId", peerId);
       if (content) form.append("content", content);
       if (clientRequestId) form.append("clientRequestId", clientRequestId);
-      if (systemConversation) form.append("systemConversation", systemConversation);
-      if (sendToAdmins !== undefined) form.append("sendToAdmins", sendToAdmins ? "true" : "false");
-      if (targetRole) form.append("targetRole", targetRole);
-      
+
       (images || []).forEach((img, idx) => {
         if (!img?.uri) return;
         const name = img.name || img.fileName || img.filename || `image-${idx}.jpg`;
@@ -139,19 +128,6 @@ export const markReadSome = createAsyncThunk(
       return { conversationId, count: data, messageIds };
     } catch (e) {
       return rejectWithValue(e?.response?.data || { message: "Mark read some failed" });
-    }
-  }
-);
-
-// 7) Xóa đoạn chat
-export const deleteConversation = createAsyncThunk(
-  "chat/deleteConversation",
-  async (conversationId, { rejectWithValue }) => {
-    try {
-      await axiosInstance.delete(`/chat/${conversationId}`);
-      return { conversationId };
-    } catch (e) {
-      return rejectWithValue(e?.response?.data || { message: "Delete conversation failed" });
     }
   }
 );

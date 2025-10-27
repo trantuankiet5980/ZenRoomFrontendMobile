@@ -15,13 +15,12 @@ import {
   StatusBar,
   Pressable,
   StyleSheet,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import useHideTabBar from "../hooks/useHideTabBar";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchMessages, sendMessage, sendImages, markReadAll, deleteConversation } from "../features/chat/chatThunks";
+import { fetchMessages, sendMessage, sendImages, markReadAll } from "../features/chat/chatThunks";
 import { setActiveConversation, clearUnread, pushLocalMessage, pushServerMessage } from "../features/chat/chatSlice";
 import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import S3Image from "../components/S3Image";
@@ -29,13 +28,6 @@ import { recordUserEvent } from "../features/events/eventsThunks";
 import * as ImagePicker from "expo-image-picker";
 import { showToast } from "../utils/AppUtils";
 import { formatRelativeTime } from "../utils/time";
-import useMessageNotificationSound from "../hooks/useMessageNotificationSound";
-import {
-  SYSTEM_ADMIN_AVATAR,
-  SYSTEM_ADMIN_DISPLAY_NAME,
-  findSystemAdminConversation,
-  isSystemAdminConversation,
-} from "../utils/chat";
 
 const ORANGE = "#f36031", BORDER = "#E5E7EB", MUTED = "#9CA3AF";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -53,17 +45,7 @@ function getOtherParty(conv, meId, meRole) {
   return landlord || tenant || null;
 }
 
-function CircleAvatar({ uri, source, size = 32 }) {
-  if (source) {
-    return (
-      <Image
-        source={source}
-        style={{ width: size, height: size, borderRadius: size / 2 }}
-        resizeMode="cover"
-      />
-    );
-  }
-
+function CircleAvatar({ uri, size = 32 }) {
   if (!uri) {
     return (
       <View
@@ -352,13 +334,11 @@ export default function ChatDetailScreen() {
   const {
     title = "Chat",
     avatar,
-    avatarSource,
     conversationId: chatIdParam,
     peerId,
     propertyId,
     propertyMini: propMiniFromRoute,
-    initialMessage,
-    systemConversation: systemConversationParam = false,
+    initialMessage
   } = route.params || {};
 
   const listRef = useRef();
@@ -370,27 +350,12 @@ export default function ChatDetailScreen() {
   const [sending, setSending] = useState(false);
   const maxImagesPerMessage = 10;
   const [imageViewer, setImageViewer] = useState({ visible: false, index: 0, images: [] });
-  const playNotificationSound = useMessageNotificationSound();
 
   // giữ conversationId đồng bộ theo route param (không dùng "|| conversationId" gây lặp).
   const [conversationId, setConversationId] = useState(chatIdParam || null);
   useEffect(() => {
     if (chatIdParam && chatIdParam !== conversationId) setConversationId(chatIdParam);
   }, [chatIdParam]); // eslint-disable-line
-
-  const systemConversationRow = useMemo(
-    () => findSystemAdminConversation(conversations || []),
-    [conversations]
-  );
-
-  useEffect(() => {
-    if (conversationId) return;
-    if (!systemConversationParam && chatIdParam) return;
-    const candidateId = systemConversationRow?.conversationId;
-    if (candidateId && candidateId !== conversationId) {
-      setConversationId(candidateId);
-    }
-  }, [conversationId, chatIdParam, systemConversationParam, systemConversationRow?.conversationId]);
 
   // lấy bucket thô từ redux
   const rawBucket = useSelector((s) =>
@@ -477,24 +442,9 @@ export default function ChatDetailScreen() {
   }, [conversations, conversationId]);
 
   const initialConversation = initialMessage?.conversation;
-  const isSystemConversation = useMemo(() => {
-    if (systemConversationParam) return true;
-    if (conversationRow && isSystemAdminConversation(conversationRow)) return true;
-    if (!conversationId && systemConversationRow) return true;
-    if (initialConversation && isSystemAdminConversation(initialConversation)) return true;
-    return false;
-  }, [
-    systemConversationParam,
-    conversationRow,
-    conversationId,
-    systemConversationRow,
-    initialConversation,
-  ]);
-
   const peerInfo = useMemo(() => {
     const conv = conversationRow || initialConversation || null;
     if (!conv) return null;
-    if (isSystemAdminConversation(conv)) return null;
     return getOtherParty(conv, myId, me?.role);
   }, [conversationRow, initialConversation, myId, me?.role]);
 
@@ -505,24 +455,14 @@ export default function ChatDetailScreen() {
     return sender;
   }, [initialMessage?.sender, myId]);
 
-  const peerAvatarUri = useMemo(() => {
-    if (isSystemConversation) return null;
-    return peerInfo?.avatarUrl || avatar || fallbackPeerFromInitial?.avatarUrl || null;
-  }, [isSystemConversation, peerInfo?.avatarUrl, avatar, fallbackPeerFromInitial?.avatarUrl]);
-
-  const peerAvatarSource = useMemo(() => {
-    if (isSystemConversation) return SYSTEM_ADMIN_AVATAR;
-    return avatarSource || null;
-  }, [isSystemConversation, avatarSource]);
-
+  const peerAvatarKey = peerInfo?.avatarUrl || avatar || fallbackPeerFromInitial?.avatarUrl || null;
   const headerTitle = useMemo(() => {
-    if (isSystemConversation) return SYSTEM_ADMIN_DISPLAY_NAME;
     if (title && title !== "Chat") return title;
     if (peerInfo?.fullName) return peerInfo.fullName;
     if (peerInfo?.role === "TENANT") return "Khách thuê";
     if (peerInfo?.role === "LANDLORD") return "Chủ trọ";
     return title;
-  }, [isSystemConversation, title, peerInfo?.fullName, peerInfo?.role]);
+  }, [title, peerInfo?.fullName, peerInfo?.role]);
 
   // Mỗi lần đổi conversationId → luôn fetch + mark read (bỏ điều kiện initialMessage && empty)
   useEffect(() => {
@@ -547,9 +487,6 @@ export default function ChatDetailScreen() {
             dispatch(markReadAll(conversationId));
           }
           dispatch(pushServerMessage({ ...dto, __currentUserId: myId }));
-          if (dto?.sender?.userId && myId && dto.sender.userId !== myId) {
-            playNotificationSound();
-          }
           setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 16);
         } catch {}
       });
@@ -561,40 +498,7 @@ export default function ChatDetailScreen() {
     else ensureConnected(() => { cleanup = doSubscribe(); }, conversationId);
 
     return () => { cleanup && cleanup(); };
-  }, [conversationId, myId, dispatch, playNotificationSound]);
-
-  const handleConfirmDeleteConversation = useCallback(() => {
-    if (!conversationId) return;
-    Alert.alert(
-      "Xóa đoạn chat",
-      "Bạn có chắc chắn muốn xóa đoạn chat này?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await dispatch(deleteConversation(conversationId)).unwrap();
-              dispatch(setActiveConversation(null));
-              setConversationId(null);
-              showToast("success", "top", "Thành công", "Đã xóa đoạn chat.");
-              navigation.goBack();
-            } catch (err) {
-              const message =
-                (typeof err === "string" && err) ||
-                err?.message ||
-                err?.error ||
-                err?.data?.message ||
-                err?.response?.data?.message ||
-                "Không thể xóa đoạn chat. Vui lòng thử lại.";
-              showToast("error", "top", "Lỗi", message);
-            }
-          },
-        },
-      ]
-    );
-  }, [conversationId, dispatch, navigation, setConversationId]);
+  }, [conversationId, myId, dispatch]);
 
   const handlePickImages = useCallback(async () => {
     try {
@@ -685,26 +589,16 @@ export default function ChatDetailScreen() {
 
     try {
       const thunk = hasImages ? sendImages : sendMessage;
-      const payload = {
-        conversationId,
-        content: content || undefined,
-        clientRequestId: tempId,
-      };
-
-      if (hasImages) {
-        payload.images = imagesToSend;
-      }
-
-      if (isSystemConversation) {
-        payload.systemConversation = "ADMIN";
-        payload.sendToAdmins = true;
-        payload.targetRole = "ADMIN";
-      } else {
-        if (peerId) payload.peerId = peerId;
-        if (propertyId) payload.propertyId = propertyId;
-      }
-
-      const res = await dispatch(thunk(payload)).unwrap();
+      const res = await dispatch(
+        thunk({
+          conversationId,
+          peerId,
+          propertyId,
+          content: content || undefined,
+          images: hasImages ? imagesToSend : undefined,
+          clientRequestId: tempId,
+        })
+      ).unwrap();
 
       const newCid = res?.serverMessage?.conversation?.conversationId || res?.conversationId;
       if (!conversationId && newCid) setConversationId(newCid);
@@ -752,10 +646,7 @@ export default function ChatDetailScreen() {
 
   const renderItem = ({ item }) => {
     const mine = !!myId && item.sender?.userId === myId;
-    const senderName =
-      item.sender?.fullName ||
-      item.fullname ||
-      (!mine && isSystemConversation ? SYSTEM_ADMIN_DISPLAY_NAME : "Ẩn danh");
+    const senderName = item.sender?.fullName || item.fullname || "Ẩn danh";
     const attachments = Array.isArray(item.attachments) ? item.attachments.filter((att) => att && att.url) : [];
     const localImages = Array.isArray(item.localImages) ? item.localImages.filter(Boolean) : [];
     const viewerImages = [
@@ -786,9 +677,7 @@ export default function ChatDetailScreen() {
     if (timeLabel) metaParts.push(timeLabel);
     if (statusText) metaParts.push(statusText);
     const metaLabel = metaParts.join(" · ");
-    const messageAvatarUri = !mine ? item.sender?.avatarUrl || peerAvatarUri || null : null;
-    const messageAvatarSource =
-      !mine && !item.sender?.avatarUrl ? peerAvatarSource : null;
+    const messageAvatar = !mine ? item.sender?.avatarUrl || peerAvatarKey || null : null;
 
     return (
       <View style={{ paddingHorizontal: 16, marginTop: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
@@ -800,7 +689,7 @@ export default function ChatDetailScreen() {
             gap: mine ? 0 : 8,
           }}
         >
-          {!mine && <CircleAvatar uri={messageAvatarUri} source={messageAvatarSource} size={32} />}
+          {!mine && <CircleAvatar uri={messageAvatar} size={32} />}
           <View style={{ maxWidth: "80%", alignItems: mine ? "flex-end" : "flex-start" }}>
             {!mine && (
               <Text style={{ fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 4, marginLeft: 4 }}>
@@ -861,9 +750,7 @@ export default function ChatDetailScreen() {
     );
   };
 
-  const canDeleteConversation = !!conversationId && !isSystemConversation;
-
-  const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
+const formatAddress = (addr = "") => addr.replace(/_/g, " ").trim();
 
 const formatPriceWithUnit = (pm) => {
   if (!pm?.price) return "Giá liên hệ";
@@ -940,23 +827,12 @@ const HeaderPropertyList = ({ items, onPressProperty }) => {
           <Ionicons name="chevron-back" size={24} color="#111" />
         </TouchableOpacity>
         <View style={{ marginRight: 10 }}>
-          <CircleAvatar uri={peerAvatarUri} source={peerAvatarSource} size={36} />
+          <CircleAvatar uri={peerAvatarKey} size={36} />
         </View>
         <Text style={{ fontSize: 18, fontWeight: "700" }} numberOfLines={1}>
           {headerTitle}
         </Text>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity
-          onPress={handleConfirmDeleteConversation}
-          disabled={!canDeleteConversation}
-          style={{ padding: 8 }}
-        >
-          <Ionicons
-            name="trash-outline"
-            size={22}
-            color={canDeleteConversation ? "#EF4444" : "#D1D5DB"}
-          />
-        </TouchableOpacity>
       </View>
 
       {/* Messages */}

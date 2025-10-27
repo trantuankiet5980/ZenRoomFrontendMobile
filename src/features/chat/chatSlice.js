@@ -5,7 +5,6 @@ import {
   fetchMessages,
   sendMessage,
   sendImages,
-  deleteConversation,
 } from "./chatThunks";
 
 const initialState = {
@@ -44,17 +43,6 @@ function getLastMessagePreview(message) {
   if (locals.length === 1) return "Đang gửi hình ảnh";
 
   return "";
-}
-
-function mergeConversationData(base = {}, incoming = {}) {
-  const result = { ...base };
-  if (!incoming || typeof incoming !== "object") return result;
-  Object.entries(incoming).forEach(([key, value]) => {
-    if (value !== undefined) {
-      result[key] = value;
-    }
-  });
-  return result;
 }
 
 const chatSlice = createSlice({
@@ -176,42 +164,31 @@ const chatSlice = createSlice({
       const last = getLastMessagePreview(m) || "";
       const messageAt = getMessageTimestamp(m);
 
-      const conversationMeta = mergeConversationData({}, m?.conversation);
-
       if (idx >= 0) {
         const conv = state.conversations[idx];
         const isActive = state.activeConversationId === convId;
         const senderId = m?.sender?.userId;
         const isMine = currentUserId && senderId === currentUserId;
-        
-        const merged = mergeConversationData(conv, conversationMeta);
+
         const updatedConv = {
-          ...merged,
-          conversationId: convId,
-          lastMessage: last || merged.lastMessage || "",
-          propertyMini: propMini || merged.propertyMini || null,
+          ...conv,
+          lastMessage: last || conv.lastMessage || "",
+          propertyMini: propMini || conv.propertyMini || null,
           lastMessageAt: messageAt,
           unread:
-            !isActive && senderId && !isMine ? (merged.unread || 0) + 1 : merged.unread || 0,
+            !isActive && senderId && !isMine ? (conv.unread || 0) + 1 : conv.unread || 0,
         };
         state.conversations.splice(idx, 1);
         state.conversations.unshift(updatedConv);
       } else {
         // chưa có trong danh sách (VD: gửi tin từ property lần đầu)
-        const baseConv = mergeConversationData(
-          {
-            conversationId: convId,
-            tenant: m?.conversation?.tenant || null,
-            landlord: m?.conversation?.landlord || null,
-            createdAt: m?.conversation?.createdAt || new Date().toISOString(),
-          },
-          conversationMeta
-        );
         state.conversations.unshift({
-          ...baseConv,
           conversationId: convId,
+          tenant: m?.conversation?.tenant || null,
+          landlord: m?.conversation?.landlord || null,
+          createdAt: m?.conversation?.createdAt || new Date().toISOString(),
           lastMessage: last,
-          propertyMini: propMini || baseConv.propertyMini || null,
+          propertyMini: propMini || null,
           unread: currentUserId && m?.sender?.userId === currentUserId ? 0 : 1,
           lastMessageAt: messageAt,
         });
@@ -331,33 +308,23 @@ const chatSlice = createSlice({
         const idx = state.conversations.findIndex((c) => c.conversationId === convId);
         const propMini = toPropertyMini(sm?.conversation?.property);
         const messageAt = getMessageTimestamp(sm);
-        const conversationMeta = mergeConversationData({}, sm?.conversation);
         if (idx >= 0) {
-          const merged = mergeConversationData(state.conversations[idx], conversationMeta);
           const updated = {
-            ...merged,
-            conversationId: convId,
-            lastMessage: getLastMessagePreview(sm) || merged.lastMessage || "",
-            propertyMini: propMini || merged.propertyMini || null,
+            ...state.conversations[idx],
+            lastMessage: getLastMessagePreview(sm) || state.conversations[idx].lastMessage || "",
+            propertyMini: propMini || state.conversations[idx].propertyMini || null,
             lastMessageAt: messageAt,
           };
           state.conversations.splice(idx, 1);
           state.conversations.unshift(updated);
         } else {
-          const baseConv = mergeConversationData(
-            {
-              conversationId: convId,
-              tenant: sm?.conversation?.tenant || null,
-              landlord: sm?.conversation?.landlord || null,
-              createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
-            },
-            conversationMeta
-          );
           state.conversations.unshift({
-            ...baseConv,
             conversationId: convId,
-            lastMessage: getLastMessagePreview(sm) || baseConv.lastMessage || "",
-            propertyMini: propMini || baseConv.propertyMini || null,
+            tenant: sm?.conversation?.tenant || null,
+            landlord: sm?.conversation?.landlord || null,
+            createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
+            lastMessage: getLastMessagePreview(sm) || "",
+            propertyMini: propMini || null,
             unread: 0,
             lastMessageAt: messageAt,
           });
@@ -397,50 +364,26 @@ const chatSlice = createSlice({
         const idx = state.conversations.findIndex((c) => c.conversationId === convId);
         const propMini = toPropertyMini(sm?.conversation?.property);
         const messageAt = getMessageTimestamp(sm);
-        const conversationMeta = mergeConversationData({}, sm?.conversation);
         if (idx >= 0) {
-          const merged = mergeConversationData(state.conversations[idx], conversationMeta);
           const updated = {
-            ...merged,
-            conversationId: convId,
-            lastMessage: getLastMessagePreview(sm) || merged.lastMessage || "",
-            propertyMini: propMini || merged.propertyMini || null,
+            ...state.conversations[idx],
+            lastMessage: getLastMessagePreview(sm) || state.conversations[idx].lastMessage || "",
+            propertyMini: propMini || state.conversations[idx].propertyMini || null,
             lastMessageAt: messageAt,
           };
           state.conversations.splice(idx, 1);
           state.conversations.unshift(updated);
         } else {
-          const baseConv = mergeConversationData(
-            {
-              conversationId: convId,
-              tenant: sm?.conversation?.tenant || null,
-              landlord: sm?.conversation?.landlord || null,
-              createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
-            },
-            conversationMeta
-          );
           state.conversations.unshift({
-            ...baseConv,
             conversationId: convId,
-            lastMessage: getLastMessagePreview(sm) || baseConv.lastMessage || "",
-            propertyMini: propMini || baseConv.propertyMini || null,
+            tenant: sm?.conversation?.tenant || null,
+            landlord: sm?.conversation?.landlord || null,
+            createdAt: sm?.conversation?.createdAt || new Date().toISOString(),
+            lastMessage: getLastMessagePreview(sm) || "",
+            propertyMini: propMini || null,
             unread: 0,
             lastMessageAt: messageAt,
           });
-        }
-        })
-
-      .addCase(deleteConversation.fulfilled, (state, action) => {
-        const resolvedId = action.payload?.conversationId || action.meta?.arg;
-        if (!resolvedId) return;
-        state.conversations = state.conversations.filter(
-          (c) => c.conversationId !== resolvedId
-        );
-        if (state.messagesByConv[resolvedId]) {
-          delete state.messagesByConv[resolvedId];
-        }
-        if (state.activeConversationId === resolvedId) {
-          state.activeConversationId = null;
         }
       });
   },

@@ -8,13 +8,6 @@ import { getClient, ensureConnected, isConnected } from "../sockets/socket";
 import { pushServerMessage } from "../features/chat/chatSlice";
 import { formatRelativeTime } from "../utils/time";
 import S3Image from "../components/S3Image";
-import useMessageNotificationSound from "../hooks/useMessageNotificationSound";
-import {
-  SYSTEM_ADMIN_AVATAR,
-  SYSTEM_ADMIN_CONVERSATION_FALLBACK_ID,
-  SYSTEM_ADMIN_DISPLAY_NAME,
-  isSystemAdminConversation,
-} from "../utils/chat";
 
 const ORANGE = "#f36031", MUTED = "#9CA3AF", BORDER = "#E5E7EB", GREEN = "#CBE7A7";
 
@@ -39,8 +32,7 @@ export default function ChatListScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const me = useSelector(s => s.auth?.user);
-  const { conversations, convLoading, activeConversationId } = useSelector(s => s.chat);
-  const playNotificationSound = useMessageNotificationSound();
+  const { conversations, convLoading } = useSelector(s => s.chat);
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
 
@@ -63,17 +55,6 @@ export default function ChatListScreen() {
       const sub = client.subscribe(`/topic/chat.${cid}`, (msg) => {
         try {
           const dto = JSON.parse(msg.body);
-          const convId = dto?.conversation?.conversationId || dto?.conversationId || cid;
-          const senderId = dto?.sender?.userId;
-          if (
-            senderId &&
-            me?.userId &&
-            senderId !== me.userId &&
-            convId &&
-            activeConversationId !== convId
-          ) {
-            playNotificationSound();
-          }
           dispatch(pushServerMessage({ ...dto, __currentUserId: me?.userId }));
         } catch {}
       });
@@ -93,24 +74,13 @@ export default function ChatListScreen() {
     return () => {
 
     };
-  }, [conversations, me?.userId, activeConversationId, playNotificationSound, dispatch]);
+  }, [conversations]);
 
   const data = useMemo(() => {
     const base = Array.isArray(conversations) ? conversations : [];
+    const filtered = tab === "tenant" ? base.filter(c => Boolean(c?.tenant)) : base;
 
-    let systemConversation = null;
-    const others = [];
-    for (const conv of base) {
-      if (!systemConversation && isSystemAdminConversation(conv)) {
-        systemConversation = conv;
-        continue;
-      }
-      others.push(conv);
-    }
-
-    const filtered = tab === "tenant" ? others.filter((c) => Boolean(c?.tenant)) : others;
-
-    const mapped = filtered.map((c) => {
+  const mapped = filtered.map((c) => {
       const other = getOtherParty(c, me?.userId, me?.role);
       const lastTimeIso =
         c.lastMessageAt ||
@@ -120,17 +90,13 @@ export default function ChatListScreen() {
         null;
       return {
         id: c.conversationId,
-        conversationId: c.conversationId,
         name: other?.fullName || (other?.role === "TENANT" ? "Khách thuê" : "Chủ trọ"),
-        avatarUri: other?.avatarUrl || null,
-        avatarSource: null,
-        time: lastTimeIso ? formatRelativeTime(lastTimeIso) : "",
+        avatar: other?.avatarUrl || null,
+        time: formatRelativeTime(lastTimeIso),
         unread: c.unread || 0,
         last: c.lastMessage || "",
         raw: c,
         lastTimeIso,
-        isSystemAdmin: false,
-        isPinned: false,
       };
     });
 
@@ -140,55 +106,19 @@ export default function ChatListScreen() {
       return timeB - timeA;
     });
 
-    const systemLastTimeIso = systemConversation
-      ? systemConversation.lastMessageAt ||
-        systemConversation.updatedAt ||
-        systemConversation.lastMessage?.createdAt ||
-        systemConversation.createdAt ||
-        null
-      : null;
-
-    const systemLastMessage =
-      (systemConversation && systemConversation.lastMessage) ||
-      "Nhắn cho quản trị hệ thống để được hỗ trợ.";
-
-    const systemRow = {
-      id: systemConversation?.conversationId || SYSTEM_ADMIN_CONVERSATION_FALLBACK_ID,
-      conversationId: systemConversation?.conversationId || null,
-      name: SYSTEM_ADMIN_DISPLAY_NAME,
-      avatarUri: null,
-      avatarSource: SYSTEM_ADMIN_AVATAR,
-      time: systemLastTimeIso ? formatRelativeTime(systemLastTimeIso) : "",
-      unread: systemConversation?.unread || 0,
-      last: systemLastMessage,
-      raw: systemConversation,
-      lastTimeIso: systemLastTimeIso,
-      isSystemAdmin: true,
-      isPinned: true,
-    };
-
-    const query = q.trim().toLowerCase();
-    const matchesQuery = (item) => (!query ? true : item.name.toLowerCase().includes(query));
-
-    const list = query ? sorted.filter((item) => matchesQuery(item)) : sorted;
-    const result = [];
-    if (matchesQuery(systemRow)) {
-      result.push(systemRow);
-    }
-    result.push(...list);
-    return result;
+    if (!q) return sorted;
+    const s = q.toLowerCase();
+    return sorted.filter((x) => x.name.toLowerCase().includes(s));
   }, [conversations, tab, q, me?.userId, me?.role]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={() => navigation.navigate("ChatDetail", {
-        conversationId: item.conversationId,
+        conversationId: item.id,
         title: item.name,
-        avatar: item.avatarUri,
-        avatarSource: item.avatarSource,
-        propertyMini: item.raw?.propertyMini || null,
-        systemConversation: item.isSystemAdmin,
+        avatar: item.avatar,
+        propertyMini: null,
       })}
       style={{
         marginHorizontal: 16, marginTop: 12, borderRadius: 16, backgroundColor: "#fff",
@@ -196,22 +126,10 @@ export default function ChatListScreen() {
         flexDirection: "row", alignItems: "center"
       }}
     >
-      <Avatar uri={item.avatarUri} source={item.avatarSource} />
+      <Avatar uri={item.avatar} />
       <View style={{ flex: 1, marginLeft: 12 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
-            <Text style={{ fontWeight: "700", flexShrink: 1 }} numberOfLines={1}>{item.name}</Text>
-            {item.isPinned && (
-              <View style={{
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                borderRadius: 8,
-                backgroundColor: "#FEE2E2",
-              }}>
-                <Text style={{ fontSize: 10, color: "#B91C1C", fontWeight: "700" }}>Ghim</Text>
-              </View>
-            )}
-          </View>
+          <Text style={{ fontWeight: "700" }} numberOfLines={1}>{item.name}</Text>
           <Text style={{ color: MUTED, fontSize: 12 }}>{item.time}</Text>
         </View>
         {/* preview last message */}
@@ -285,31 +203,17 @@ function TabPill({ label, active, onPress }) {
   );
 }
 
-function Avatar({ uri, source }) {
-  if (source) {
-    return (
-      <Image
-        source={source}
-        style={{ width: 42, height: 42, borderRadius: 21 }}
-        resizeMode="cover"
-      />
-    );
-  }
+function Avatar({ uri }) {
   if (!uri) {
     return (
       <View style={{
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        backgroundColor: "#FFE1E1",
-        alignItems: "center",
-        justifyContent: "center",
+        width: 42, height: 42, borderRadius: 21, backgroundColor: "#FFE1E1",
+        alignItems: "center", justifyContent: "center"
       }}>
         <Ionicons name="person" size={22} color="#E26666" />
       </View>
     );
   }
-  
   return (
     <View style={{ width: 42, height: 42, borderRadius: 21, overflow: "hidden" }}>
       <S3Image src={uri} style={{ width: 42, height: 42, borderRadius: 21 }} />
