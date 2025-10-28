@@ -3,6 +3,8 @@ import {
   fetchInvoiceByBooking,
   fetchTenantInvoices,
   fetchTenantInvoiceDetail,
+  fetchLandlordInvoices,
+  fetchLandlordInvoiceDetail
 } from "./invoiceThunks";
 
 const initialState = {
@@ -15,6 +17,8 @@ const initialState = {
   error: null,
   byBookingId: {},
   items: [],
+  landlordInvoices: [],
+  landlordInvoiceDetail: null,
 };
 
 const invoiceSlice = createSlice({
@@ -95,6 +99,41 @@ const invoiceSlice = createSlice({
         state.loading = false;
         state.tenantInvoiceDetail = null;
         state.error = action.payload?.message || action.payload || "Không thể tải chi tiết hóa đơn";
+      })
+      .addCase(fetchLandlordInvoices.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.meta.arg.page === 0) {
+          state.landlordInvoices = action.payload.content;
+        } else {
+          state.landlordInvoices = [...state.landlordInvoices, ...action.payload.content];
+        }
+        state.pagination = {
+          page: action.payload.page,
+          size: action.payload.size,
+          totalElements: action.payload.totalElements,
+          totalPages: action.payload.totalPages,
+        };
+      })
+      .addCase(fetchLandlordInvoices.pending, (state, action) => {
+        state.loading = action.meta.arg.page > 0 ? state.landlordInvoices.length > 0 : true;
+      })
+      .addCase(fetchLandlordInvoices.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchLandlordInvoiceDetail.pending, (state) => {
+        state.loading = true;
+        state.landlordInvoiceDetail = null;
+        state.error = null;
+      })
+      .addCase(fetchLandlordInvoiceDetail.fulfilled, (state, action) => {
+        state.loading = false;
+        state.landlordInvoiceDetail = action.payload;
+      })
+      .addCase(fetchLandlordInvoiceDetail.rejected, (state, action) => {
+        state.loading = false;
+        state.landlordInvoiceDetail = null;
+        state.error = action.payload || "Lỗi tải chi tiết hóa đơn";
       });
   },
 });
@@ -110,4 +149,5 @@ export const selectTenantInvoices = (state) => state.invoices.tenantInvoices;
 export const selectTenantPagination = (state) => state.invoices.pagination;
 export const selectTenantInvoiceDetail = (state) =>
   state.invoices.tenantInvoiceDetail;
+export const selectLandlordInvoiceDetail = (state) => state.invoices.landlordInvoiceDetail;
 export default invoiceSlice.reducer;

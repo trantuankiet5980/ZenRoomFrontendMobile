@@ -53,3 +53,39 @@ export const fetchTenantInvoiceDetail = createAsyncThunk(
     }
   }
 );
+
+// Xem danh sách hóa đơn của landlord (phân trang)
+export const fetchLandlordInvoices = createAsyncThunk(
+  "invoices/fetchLandlordInvoices",
+  async ({ page = 0, size = 10 }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.get("/invoices/landlord", {
+        params: { page, size },
+      });
+      return {
+        content: res.data.content || [],
+        page: res.data.number,
+        size: res.data.size,
+        totalElements: res.data.totalElements,
+        totalPages: res.data.totalPages,
+      };
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Không thể tải hóa đơn");
+    }
+  }
+);
+
+// Xem chi tiết hóa đơn cụ thể của landlord
+export const fetchLandlordInvoiceDetail = createAsyncThunk(
+  "invoices/fetchLandlordInvoiceDetail",
+  async (invoiceId, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.get(`/invoices/landlord/${invoiceId}`);
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Không thể tải chi tiết hóa đơn"
+      );
+    }
+  }
+);

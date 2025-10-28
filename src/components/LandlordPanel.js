@@ -58,6 +58,13 @@ export default function LandlordPanel({
       iconLib: "mc",
       onPress: () => navigation.navigate("TenantsManager"),
     },
+    {
+      key: "invoice-history",
+      label: "Lịch sử hóa đơn",
+      icon: "file-document-outline",
+      iconLib: "mc",
+      onPress: () => navigation.navigate("LandlordInvoiceHistory"),
+    },
     // {
     //   key: "manage-contracts",
     //   label: "Quản lý hợp đồng",
