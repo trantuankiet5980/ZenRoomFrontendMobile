@@ -134,6 +134,7 @@ const formatStatus = (status) => {
     case "PAID": return "Đã thanh toán";
     case "REFUNDED": return "Đã hoàn tiền";
     case "VOID": return "Đã hủy";
+    case "REFUND_PENDING": return "Đang hoàn tiền";
     default: return status;
   }
 };
