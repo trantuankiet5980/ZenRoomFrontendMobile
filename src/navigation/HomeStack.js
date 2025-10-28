@@ -26,6 +26,8 @@ import FavoritesScreen from '../screens/FavoritesScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import ContractDetailScreen from '../screens/ContractDetailScreen';
 import AiChatScreen from '../screens/AiChatScreen';
+import LandlordInvoiceHistoryScreen from '../screens/LandlordInvoiceHistoryScreen';
+import LandlordInvoiceDetailScreen from '../screens/LandlordInvoiceDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -55,7 +57,8 @@ export default function HomeStack() {
       <Stack.Screen name="PostsManager" component={PostManagerScreen} options={{ title: 'Quản lý tin đăng', headerShown: false }} />
       <Stack.Screen name="TenantsManager" component={TenantsManagerScreen} options={{ title: 'Quản lý khách thuê', headerShown: false }} />
       <Stack.Screen name="ContractsManager" component={ContractsManagerScreen} options={{ title: 'Quản lý hợp đồng', headerShown: false }} />
-
+      <Stack.Screen name="LandlordInvoiceHistory" component={LandlordInvoiceHistoryScreen} options={{ title: 'Lịch sử hóa đơn', headerShown: false }} />
+      <Stack.Screen name="LandlordInvoiceDetail" component={LandlordInvoiceDetailScreen} options={{ title: 'Chi tiết hóa đơn', headerShown: false }} />
 
       {/* Detail */}
       <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} options={{ title: 'Chi tiết bất động sản', headerShown: false }} />
