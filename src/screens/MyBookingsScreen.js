@@ -1431,6 +1431,8 @@ function ActionButton({
 }
 
 function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) {
+  const dispatch = useDispatch();
+  const [confirming, setConfirming] = useState(false);
   const amount = invoice?.total ?? invoice?.dueAmount;
   const qrPayload = invoice?.qrPayload;
   const formattedAmount = formatCurrency(amount);
@@ -1451,6 +1453,45 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
   const refundConfirmedText = invoice?.refundConfirmed
     ? "Đã xác nhận"
     : "Đang xử lý";
+  const paymentAmountRaw = invoice?.dueAmount ?? invoice?.total ?? 0;
+  const paymentAmount =
+    typeof paymentAmountRaw === "number"
+      ? paymentAmountRaw
+      : Number(paymentAmountRaw) || 0;
+
+  const handleConfirmPayment = async () => {
+    if (!invoice?.invoiceId) {
+      Alert.alert("Lỗi", "Không tìm thấy thông tin hóa đơn để xác nhận.");
+      return;
+    }
+
+    if (confirming) {
+      return;
+    }
+
+    setConfirming(true);
+    try {
+      await axiosInstance.post("/payments/confirm", {
+        invoiceId: invoice.invoiceId,
+        amount: paymentAmount,
+        transactionId: `VIRTUAL_${Date.now()}`,
+      });
+
+      if (bookingId) {
+        dispatch(fetchInvoiceByBooking(bookingId));
+      }
+      dispatch(fetchMyBookings());
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data ||
+        error?.message ||
+        "Không thể xác nhận thanh toán, vui lòng thử lại.";
+      Alert.alert("Lỗi", message);
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1623,11 +1664,37 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
                     {dueAtLabel ? <InfoRow label="Hạn thanh toán" value={dueAtLabel} /> : null}
                   </View>
 
-              {formattedAmount ? (
+                  {formattedAmount ? (
                     <Text style={{ marginTop: 12, color: "#ef4444", fontStyle: "italic" }}>
                       Lưu ý: Nhập chính xác số tiền {formattedAmount} khi chuyển khoản.
                     </Text>
                   ) : null}
+
+                  <TouchableOpacity
+                    onPress={handleConfirmPayment}
+                    disabled={confirming}
+                    style={{
+                      marginTop: 18,
+                      backgroundColor: confirming ? "#d1d5db" : ORANGE,
+                      paddingVertical: 14,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {confirming ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
+                        Xác nhận đã thanh toán
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <Text style={{ marginTop: 8, color: MUTED, textAlign: "center" }}>
+                    Sử dụng nút này để xác nhận giao dịch sau khi bạn đã chuyển khoản.
+                  </Text>
                 </>
               ) : null}
             </ScrollView>
