@@ -14,6 +14,7 @@ import {
     TouchableWithoutFeedback,
     TextInput,
     ActivityIndicator,
+    Modal,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import MapView, { Marker } from "react-native-maps";
@@ -45,6 +46,11 @@ import { resetReviewsSummary, resetLandlordStats } from "../features/reviews/rev
 import ReviewModal from "../components/reviews/ReviewModal";
 import PropertyBookingSection from "../components/property/PropertyBookingSection";
 import { formatRelativeTime } from "../utils/time";
+import {
+    fetchReportReasonsThunk,
+    submitPropertyReportThunk,
+} from "../features/reports/reportsThunks";
+import { resetReportSubmission } from "../features/reports/reportsSlice";
 const { width } = Dimensions.get('window');
 
 const DEFAULT_MAP_REGION = {
@@ -89,6 +95,10 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const [replyInputValue, setReplyInputValue] = useState("");
     const [replyInputError, setReplyInputError] = useState("");
     const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
+    const [reportModalVisible, setReportModalVisible] = useState(false);
+    const [selectedReportReason, setSelectedReportReason] = useState(null);
+    const [reportDescription, setReportDescription] = useState("");
+    const [reportFormError, setReportFormError] = useState("");
     const dispatch = useDispatch();
     const propertiesState = useSelector((state) => state.properties || {});
     const { current, byId = {}, loading = false, error = null } = propertiesState;
@@ -106,6 +116,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         loading: similarLoading = false,
         error: similarError = null,
     } = similarState;
+    const reportsState = useSelector((state) => state.reports || {});
+    const {
+        reasons: reportReasons = [],
+        reasonsStatus: reportReasonsStatus = "idle",
+        reasonsError: reportReasonsError = null,
+        submitStatus: reportSubmitStatus = "idle",
+        submitError: reportSubmitError = null,
+    } = reportsState;
     const reviewsSummary = useSelector(
         (state) => state.reviews.summaries[propertyId] || { average: 0, total: 0 }
     );
@@ -158,6 +176,13 @@ const PropertyDetailScreen = ({ route, navigation }) => {
     const replyMutation = rawReplyMutation || { status: "idle", error: null };
     const isReplySubmitting = replyMutation.status === "loading";
     const MAX_COMMENT_LENGTH = 160;
+    const normalizedReportReasonsError =
+        typeof reportReasonsError === "string"
+            ? reportReasonsError
+            : reportReasonsError?.message ||
+              "Không thể tải danh sách lý do báo cáo.";
+    const isSubmittingReport = reportSubmitStatus === "loading";
+    const isOtherReasonSelected = selectedReportReason === "OTHER";
     const landlordIdentifier =
         property?.landlord?.landlordId ||
         property?.landlord?.userId ||
@@ -486,6 +511,94 @@ const PropertyDetailScreen = ({ route, navigation }) => {
         setReviewError("");
     }, []);
 
+    const handleOpenReportModal = useCallback(() => {
+        setReportModalVisible(true);
+        setReportFormError("");
+        if (
+            reportReasonsStatus === "idle" ||
+            reportReasonsStatus === "failed" ||
+            reportReasons.length === 0
+        ) {
+            dispatch(fetchReportReasonsThunk());
+        }
+        dispatch(resetReportSubmission());
+    }, [dispatch, reportReasons.length, reportReasonsStatus]);
+
+    const handleCloseReportModal = useCallback(() => {
+        setReportModalVisible(false);
+        setSelectedReportReason(null);
+        setReportDescription("");
+        setReportFormError("");
+        dispatch(resetReportSubmission());
+    }, [dispatch]);
+
+    const handleSelectReportReason = useCallback((reasonCode) => {
+        setSelectedReportReason(reasonCode);
+        setReportFormError("");
+        if (reasonCode !== "OTHER") {
+            setReportDescription("");
+        }
+    }, []);
+
+    const handleRetryFetchReportReasons = useCallback(() => {
+        dispatch(fetchReportReasonsThunk());
+    }, [dispatch]);
+
+    const handleSubmitReport = useCallback(async () => {
+        if (isSubmittingReport) {
+            return;
+        }
+
+        if (!selectedReportReason) {
+            setReportFormError("Vui lòng chọn lý do báo cáo");
+            return;
+        }
+
+        const trimmedDescription = reportDescription.trim();
+        if (selectedReportReason === "OTHER" && trimmedDescription.length === 0) {
+            setReportFormError("Vui lòng nhập mô tả cho lý do khác");
+            return;
+        }
+
+        setReportFormError("");
+
+        try {
+            const result = await dispatch(
+                submitPropertyReportThunk({
+                    propertyId,
+                    reason: selectedReportReason,
+                    description:
+                        selectedReportReason === "OTHER" ? trimmedDescription : undefined,
+                })
+            ).unwrap();
+
+            const successMessage =
+                (result && typeof result === "object" && result.message) ||
+                "Tạo báo cáo thành công";
+
+            showToast("success", "top", "Thành công", successMessage);
+            setReportModalVisible(false);
+            setSelectedReportReason(null);
+            setReportDescription("");
+            dispatch(resetReportSubmission());
+        } catch (error) {
+            const message =
+                (typeof error === "string" && error) ||
+                error?.message ||
+                error?.error ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                "Không thể gửi báo cáo. Vui lòng thử lại.";
+            setReportFormError(message);
+        }
+    }, [
+        dispatch,
+        isSubmittingReport,
+        propertyId,
+        reportDescription,
+        selectedReportReason,
+    ]);
+
     const handleSubmitReviewUpdate = useCallback(async () => {
         if (!selectedReview?.reviewId) {
             setReviewError("Không tìm thấy mã đánh giá");
@@ -588,6 +701,19 @@ const PropertyDetailScreen = ({ route, navigation }) => {
             lastReplySubmittedIdRef.current = null;
         }
     }, [replyMutation.status, replyMutation.error, activeReplyReviewId]);
+
+    useEffect(() => {
+        if (reportSubmitStatus === "failed" && reportSubmitError) {
+            const message =
+                (typeof reportSubmitError === "string" && reportSubmitError) ||
+                reportSubmitError?.message ||
+                reportSubmitError?.error ||
+                "Không thể gửi báo cáo. Vui lòng thử lại.";
+            setReportFormError(message);
+        } else if (reportSubmitStatus === "succeeded") {
+            setReportFormError("");
+        }
+    }, [reportSubmitStatus, reportSubmitError]);
 
     const handleDeleteReview = useCallback(
         (review) => {
@@ -1238,6 +1364,14 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                 </Text> */}
 
                 <View style={{ flexDirection: "row" }}>
+                    {/* Report */}
+                    <TouchableOpacity
+                        style={styles.headerBtn}
+                        onPress={handleOpenReportModal}
+                    >
+                        <Icon name="alert-circle-outline" size={22} color="#111" />
+                    </TouchableOpacity>
+
                     {/* Share */}
                     <TouchableOpacity
                         style={styles.headerBtn}
@@ -2150,6 +2284,135 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                     ) : null}
                 </View>
             </ScrollView>
+            
+            <Modal
+                transparent
+                animationType="fade"
+                visible={reportModalVisible}
+                onRequestClose={handleCloseReportModal}
+            >
+                <TouchableWithoutFeedback onPress={handleCloseReportModal}>
+                    <View style={styles.reportModalBackdrop}>
+                        <TouchableWithoutFeedback onPress={() => {}}>
+                            <View style={styles.reportModalContent}>
+                                <Text style={styles.reportModalTitle}>Báo cáo bài đăng</Text>
+                                <Text style={styles.reportModalSubtitle}>
+                                    Hãy chọn lý do phù hợp để chúng tôi xử lý kịp thời.
+                                </Text>
+
+                                <View style={styles.reportReasonsContainer}>
+                                    {reportReasonsStatus === "loading" ? (
+                                        <View style={styles.reportLoadingWrapper}>
+                                            <ActivityIndicator size="small" color="#f36031" />
+                                        </View>
+                                    ) : reportReasonsStatus === "failed" ? (
+                                        <View style={styles.reportErrorContainer}>
+                                            <Text style={styles.reportReasonsErrorText}>
+                                                {normalizedReportReasonsError}
+                                            </Text>
+                                            <TouchableOpacity
+                                                style={styles.reportRetryButton}
+                                                onPress={handleRetryFetchReportReasons}
+                                            >
+                                                <Text style={styles.reportRetryButtonText}>Thử lại</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : reportReasons.length === 0 ? (
+                                        <View style={styles.reportErrorContainer}>
+                                            <Text style={styles.reportReasonsErrorText}>
+                                                Hiện chưa có lý do báo cáo khả dụng.
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <ScrollView
+                                            style={styles.reportReasonsList}
+                                            contentContainerStyle={styles.reportReasonsContent}
+                                            showsVerticalScrollIndicator={false}
+                                        >
+                                            {reportReasons.map((reason) => (
+                                                <TouchableOpacity
+                                                    key={reason.code}
+                                                    style={[
+                                                        styles.reportReasonItem,
+                                                        selectedReportReason === reason.code
+                                                            ? styles.reportReasonItemSelected
+                                                            : null,
+                                                    ]}
+                                                    onPress={() => handleSelectReportReason(reason.code)}
+                                                >
+                                                    <View style={styles.reportReasonRadioOuter}>
+                                                        {selectedReportReason === reason.code ? (
+                                                            <View style={styles.reportReasonRadioInner} />
+                                                        ) : null}
+                                                    </View>
+                                                    <View style={styles.reportReasonTextWrapper}>
+                                                        <Text style={styles.reportReasonTitle}>
+                                                            {reason.title}
+                                                        </Text>
+                                                        {reason.description ? (
+                                                            <Text style={styles.reportReasonDescription}>
+                                                                {reason.description}
+                                                            </Text>
+                                                        ) : null}
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    )}
+                                </View>
+
+                                {isOtherReasonSelected ? (
+                                    <View style={styles.reportDescriptionWrapper}>
+                                        <Text style={styles.reportDescriptionLabel}>Mô tả thêm</Text>
+                                        <TextInput
+                                            style={styles.reportDescriptionInput}
+                                            placeholder="Nhập chi tiết lý do báo cáo"
+                                            placeholderTextColor="#9ca3af"
+                                            multiline
+                                            value={reportDescription}
+                                            onChangeText={(text) => {
+                                                setReportDescription(text);
+                                                if (reportFormError) {
+                                                    setReportFormError("");
+                                                }
+                                            }}
+                                        />
+                                    </View>
+                                ) : null}
+
+                                {reportFormError ? (
+                                    <Text style={styles.reportErrorText}>{reportFormError}</Text>
+                                ) : null}
+
+                                <View style={styles.reportModalButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.reportModalButton, styles.reportModalCancelButton]}
+                                        onPress={handleCloseReportModal}
+                                        disabled={isSubmittingReport}
+                                    >
+                                        <Text style={styles.reportModalCancelText}>Hủy</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.reportModalButton,
+                                            styles.reportModalSubmitButton,
+                                            isSubmittingReport && styles.reportModalSubmitButtonDisabled,
+                                        ]}
+                                        onPress={handleSubmitReport}
+                                        disabled={isSubmittingReport}
+                                    >
+                                        {isSubmittingReport ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <Text style={styles.reportModalSubmitText}>Gửi báo cáo</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
 
             <ReviewModal
                 visible={reviewModalVisible}
@@ -3096,5 +3359,173 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: "#6b7280",
         marginTop: 2,
+    },
+    reportModalBackdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.45)",
+        padding: 20,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    reportModalContent: {
+        width: "100%",
+        maxWidth: 480,
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+        maxHeight: "90%",
+    },
+    reportModalTitle: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: "#111827",
+        textAlign: "center",
+    },
+    reportModalSubtitle: {
+        fontSize: 14,
+        color: "#4b5563",
+        textAlign: "center",
+        marginTop: 8,
+    },
+    reportReasonsContainer: {
+        marginTop: 20,
+    },
+    reportLoadingWrapper: {
+        paddingVertical: 32,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    reportErrorContainer: {
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 16,
+        paddingHorizontal: 8,
+    },
+    reportReasonsErrorText: {
+        fontSize: 14,
+        color: "#dc2626",
+        textAlign: "center",
+        marginBottom: 12,
+    },
+    reportRetryButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: "#f3f4f6",
+        borderRadius: 10,
+    },
+    reportRetryButtonText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111827",
+    },
+    reportReasonsList: {
+        maxHeight: 260,
+    },
+    reportReasonsContent: {
+        paddingBottom: 4,
+    },
+    reportReasonItem: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#e5e7eb",
+        marginBottom: 12,
+        backgroundColor: "#fff",
+    },
+    reportReasonItemSelected: {
+        borderColor: "#f97316",
+        backgroundColor: "#fff7ed",
+    },
+    reportReasonRadioOuter: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: "#f97316",
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: 2,
+        marginRight: 12,
+    },
+    reportReasonRadioInner: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: "#f97316",
+    },
+    reportReasonTextWrapper: {
+        flex: 1,
+    },
+    reportReasonTitle: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#111827",
+        marginBottom: 4,
+    },
+    reportReasonDescription: {
+        fontSize: 14,
+        color: "#4b5563",
+        lineHeight: 20,
+    },
+    reportDescriptionWrapper: {
+        marginTop: 12,
+    },
+    reportDescriptionLabel: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111827",
+        marginBottom: 8,
+    },
+    reportDescriptionInput: {
+        minHeight: 96,
+        borderWidth: 1,
+        borderColor: "#d1d5db",
+        borderRadius: 12,
+        padding: 12,
+        fontSize: 14,
+        textAlignVertical: "top",
+        color: "#111827",
+    },
+    reportErrorText: {
+        marginTop: 12,
+        color: "#dc2626",
+        fontSize: 14,
+        textAlign: "center",
+    },
+    reportModalButtons: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        marginTop: 20,
+    },
+    reportModalButton: {
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        marginLeft: 12,
+    },
+    reportModalCancelButton: {
+        backgroundColor: "#f3f4f6",
+    },
+    reportModalCancelText: {
+        color: "#111827",
+        fontSize: 15,
+        fontWeight: "600",
+    },
+    reportModalSubmitButton: {
+        backgroundColor: "#f97316",
+    },
+    reportModalSubmitButtonDisabled: {
+        opacity: 0.7,
+    },
+    reportModalSubmitText: {
+        color: "#fff",
+        fontSize: 15,
+        fontWeight: "700",
     },
 });

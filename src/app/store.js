@@ -21,6 +21,7 @@ import searchHistoryReducer from "../features/searchHistory/searchHistorySlice";
 import eventsReducer from "../features/events/eventsSlice";
 import searchSuggestionsReducer from "../features/searchSuggestions/searchSuggestionsSlice";
 import recommendationsReducer from "../features/recommendations/recommendationsSlice";
+import reportsReducer from "../features/reports/reportsSlice";
 
 export const store = configureStore({
   reducer: {
@@ -46,6 +47,7 @@ export const store = configureStore({
     events: eventsReducer,
     searchSuggestions: searchSuggestionsReducer,
     recommendations: recommendationsReducer,
+    reports: reportsReducer,
   },
   middleware: (getDefault) => getDefault({ serializableCheck: false }),
 });
