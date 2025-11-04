@@ -60,7 +60,7 @@ export const registerThunk = createAsyncThunk(
         password,
         roles, 
       });
-      return res.data; // { success, message, data }
+      return res.data;
     } catch (err) {
       const msg = err?.response?.data?.message || 'Đăng ký thất bại';
       return rejectWithValue(msg);
@@ -77,7 +77,7 @@ export const verifyOtpThunk = createAsyncThunk(
         phoneNumber,
         otp,
       });
-      return res.data; // { success, message }
+      return res.data; 
     } catch (err) {
       const msg = err?.response?.data?.message || 'Xác thực OTP thất bại';
       return rejectWithValue(msg);
@@ -109,7 +109,7 @@ export const resetPasswordThunk = createAsyncThunk(
   async ({ phoneNumber, newPassword }, { rejectWithValue }) => {
     try {
       const res = await axiosInstance.post('/auth/reset-password', { phoneNumber, newPassword });
-      return res.data; // { success, message }
+      return res.data;
     } catch (err) {
       const msg = err?.response?.data?.message || 'Reset mật khẩu thất bại';
       return rejectWithValue(msg);
@@ -125,6 +125,23 @@ export const changePasswordThunk = createAsyncThunk(
       return res.data; 
     } catch (err) {
       const msg = err?.response?.data?.message || 'Đổi mật khẩu thất bại';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+// API: Xác thực OTP cho reset password
+export const verifyResetOtpThunk = createAsyncThunk(
+  'auth/verifyResetOtp',
+  async ({ phoneNumber, otp }, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post('/auth/verify-reset-otp', {
+        phoneNumber,
+        otp,
+      });
+      return res.data;
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Xác thực OTP thất bại';
       return rejectWithValue(msg);
     }
   }
