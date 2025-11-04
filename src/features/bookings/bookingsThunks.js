@@ -155,9 +155,28 @@ export const rejectBooking = createAsyncThunk(
 
 export const cancelBooking = createAsyncThunk(
   "bookings/cancel",
-  async (bookingId, thunkAPI) => {
+  async (payload, thunkAPI) => {
     try {
-      const res = await axiosInstance.post(`/bookings/${bookingId}/cancel`);
+      let bookingId = null;
+      let requestBody;
+
+      if (typeof payload === "string" || typeof payload === "number") {
+        bookingId = payload;
+      } else if (payload && typeof payload === "object") {
+        bookingId = payload.bookingId;
+        if (payload.reason) {
+          requestBody = { reason: payload.reason };
+        }
+      }
+
+      if (!bookingId) {
+        throw new Error("Thiếu mã booking để hủy");
+      }
+
+      const res = await axiosInstance.post(
+        `/bookings/${bookingId}/cancel`,
+        requestBody
+      );
       return res.data;
     } catch (err) {
       return thunkAPI.rejectWithValue(err.response?.data || err.message);

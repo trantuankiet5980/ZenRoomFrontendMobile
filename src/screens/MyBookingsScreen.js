@@ -51,6 +51,7 @@ import {
 import useHideTabBar from "../hooks/useHideTabBar";
 import { getWsUrl } from "../utils/wsUrl";
 import ReviewModal from "../components/reviews/ReviewModal";
+import CancelReasonModal from "../components/CancelReasonModal";
 import { upsertBookingReview } from "../features/reviews/reviewsSlice";
 
 const ORANGE = "#f97316";
@@ -274,6 +275,11 @@ export default function MyBookingsScreen() {
   const paymentSubscriptionRef = useRef(null);
   const [paymentEvent, setPaymentEvent] = useState(null);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [cancelReasonModalVisible, setCancelReasonModalVisible] = useState(false);
+  const [cancelReasonBooking, setCancelReasonBooking] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasonError, setCancelReasonError] = useState("");
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [reviewTargetBooking, setReviewTargetBooking] = useState(null);
   const [reviewRating, setReviewRating] = useState(0);
@@ -630,21 +636,26 @@ export default function MyBookingsScreen() {
         ? "Booking này đã được thanh toán. Khi bạn hủy, hệ thống sẽ tạo yêu cầu hoàn tiền và admin sẽ xử lý trong vòng 24 giờ. Bạn có chắc chắn muốn tiếp tục?"
         : "Bạn có chắc chắn muốn hủy booking này?";
 
+      if (wasPaid) {
+        setCancelReasonBooking(booking);
+        setCancelReason("");
+        setCancelReasonError("");
+        setCancelReasonModalVisible(true);
+        return;
+      }
+
       Alert.alert(
         title,
         message,
         [
           { text: "Không", style: "cancel" },
           {
-            text: wasPaid ? "Xác nhận hủy" : "Hủy booking",
+            text: "Hủy booking",
             style: "destructive",
             onPress: async () => {
               try {
                 await dispatch(cancelBooking(booking.bookingId)).unwrap();
-                const successMessage = wasPaid
-                  ? "Đã ghi nhận yêu cầu hoàn tiền. Vui lòng chờ tối đa 24 giờ để admin xử lý."
-                  : "Hủy booking thành công";
-                Alert.alert("Thành công", successMessage);
+                Alert.alert("Thành công", "Hủy booking thành công");
                 dispatch(fetchMyBookings());
                 setActiveTab("cancelled");
               } catch (error) {
@@ -660,6 +671,55 @@ export default function MyBookingsScreen() {
     },
     [dispatch, setActiveTab, invoicesByBookingId]
   );
+
+  const closeCancelReasonModal = useCallback(() => {
+    setCancelReasonModalVisible(false);
+    setCancelReasonBooking(null);
+    setCancelReason("");
+    setCancelReasonError("");
+  }, []);
+
+  const submitCancelWithReason = useCallback(async () => {
+    if (!cancelReasonBooking) {
+      return;
+    }
+
+    const trimmedReason = cancelReason.trim();
+    if (!trimmedReason) {
+      setCancelReasonError("Vui lòng nhập lý do hủy.");
+      return;
+    }
+
+    setCancelSubmitting(true);
+    try {
+      await dispatch(
+        cancelBooking({
+          bookingId: cancelReasonBooking.bookingId,
+          reason: trimmedReason,
+        })
+      ).unwrap();
+      closeCancelReasonModal();
+      Alert.alert(
+        "Thành công",
+        "Đã ghi nhận yêu cầu hoàn tiền. Vui lòng chờ tối đa 24 giờ để admin xử lý."
+      );
+      dispatch(fetchMyBookings());
+      setActiveTab("cancelled");
+    } catch (error) {
+      Alert.alert(
+        "Lỗi",
+        error?.message || "Không thể hủy booking, vui lòng thử lại"
+      );
+    } finally {
+      setCancelSubmitting(false);
+    }
+  }, [
+    cancelReason,
+    cancelReasonBooking,
+    closeCancelReasonModal,
+    dispatch,
+    setActiveTab,
+  ]);
 
   const handleCheckIn = useCallback(
     (booking) => {
@@ -1089,6 +1149,23 @@ export default function MyBookingsScreen() {
         submitLabel={
           activeReview ? "Cập nhật" : "Đánh giá"
         }
+      />
+      <CancelReasonModal
+        visible={cancelReasonModalVisible}
+        title="Yêu cầu hoàn tiền"
+        description="Booking này đã được thanh toán. Khi bạn hủy, hệ thống sẽ tạo yêu cầu hoàn tiền và admin sẽ xử lý trong vòng 24 giờ. Bạn có chắc chắn muốn tiếp tục?"
+        reason={cancelReason}
+        onReasonChange={(text) => {
+          setCancelReason(text);
+          if (cancelReasonError) {
+            setCancelReasonError("");
+          }
+        }}
+        errorMessage={cancelReasonError}
+        submitting={cancelSubmitting}
+        onCancel={closeCancelReasonModal}
+        onSubmit={submitCancelWithReason}
+        confirmLabel="Xác nhận hủy"
       />
     </View>
   );
