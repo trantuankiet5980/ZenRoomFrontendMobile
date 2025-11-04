@@ -550,10 +550,10 @@ export default function BookingDetailScreen() {
                         </Text>
                     </Text>
                     <Text style={{ color: TEXT }}>
-                        Check-in: <Text style={{ fontWeight: "600" }}>{formatDateVN(booking.startDate)}</Text>
+                        Ngày nhận phòng: <Text style={{ fontWeight: "600" }}>{formatDateVN(booking.startDate)}</Text>
                     </Text>
                     <Text style={{ color: TEXT }}>
-                        Check-out: <Text style={{ fontWeight: "600" }}>{formatDateVN(booking.endDate)}</Text>
+                        Ngày trả phòng: <Text style={{ fontWeight: "600" }}>{formatDateVN(booking.endDate)}</Text>
                     </Text>
                     {booking.note ? (
                         <Text style={{ marginTop: 6, color: TEXT }}>
@@ -561,7 +561,7 @@ export default function BookingDetailScreen() {
                         </Text>
                     ) : null}
                     <Text style={{ color: TEXT }}>
-                        Ngày tạo: <Text style={{ fontWeight: "600" }}>{formatDateVN(booking.createdAt)}</Text>
+                        Ngày đặt phòng: <Text style={{ fontWeight: "600" }}>{formatDateVN(booking.createdAt)}</Text>
                     </Text>
                     {booking.paymentStatus ? (
                         <Text style={{ color: TEXT }}>
