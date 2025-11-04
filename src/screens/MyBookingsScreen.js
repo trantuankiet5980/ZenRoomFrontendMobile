@@ -1282,6 +1282,19 @@ function BookingCard({
   const coverImage =
     media.find((item) => item.isCover) || media[0] || null;
   const imageUrl = coverImage?.url ? resolveAssetUrl(coverImage.url) : null;
+  const cancellationReason = (() => {
+    const reasonSources = [
+      booking?.cancellationReason,
+      booking?.invoice?.cancellationReason,
+    ];
+    for (const reason of reasonSources) {
+      if (typeof reason === "string" && reason.trim()) {
+        return reason.trim();
+      }
+    }
+    return "";
+  })();
+  const showCancellationReason = booking.bookingStatus === "CANCELLED";
 
   const handleViewPress = useCallback(() => onView(booking), [onView, booking]);
 
@@ -1356,6 +1369,13 @@ function BookingCard({
               />
             ) : null}
             {booking.note ? <InfoRow label="Ghi chú" value={booking.note} /> : null}
+            {showCancellationReason ? (
+              <InfoRow
+                label="Lý do hủy"
+                value={cancellationReason || "-"}
+                labelWidth={110}
+              />
+            ) : null}
           </View>
         </View>
       </View>
@@ -1455,11 +1475,13 @@ function StatusBadge({ status, invoiceStatus, paymentStatus }) {
   );
 }
 
-function InfoRow({ label, value, bold, valueColor }) {
-  if (!value) return null;
+function InfoRow({ label, value, bold, valueColor, labelWidth = 90 }) {
+  if (value == null) return null;
+  const displayValue =
+    typeof value === "string" && value.trim() === "" ? "-" : value;
   return (
     <View style={{ flexDirection: "row", marginBottom: 6 }}>
-      <Text style={{ color: MUTED, width: 90 }}>{label}</Text>
+      <Text style={{ color: MUTED, width: labelWidth }}>{label}</Text>
       <Text
         style={{
           color: valueColor || TEXT,
@@ -1467,7 +1489,7 @@ function InfoRow({ label, value, bold, valueColor }) {
           flex: 1,
         }}
       >
-        {value}
+        {displayValue}
       </Text>
     </View>
   );
@@ -1521,12 +1543,32 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
   const showPaymentSection = !showRefundDetails && !isPaidStatus;
   const totalFormatted = formatCurrency(invoice?.total);
   const dueAmountFormatted = formatCurrency(invoice?.dueAmount);
-  const paidAtLabel = formatDateTimeVN(invoice?.paidAt);
-  const dueAtLabel = formatDateVN(invoice?.dueAt);
   const cancellationFeeFormatted = formatCurrency(invoice?.cancellationFee);
   const refundableAmountFormatted = formatCurrency(invoice?.refundableAmount);
+  const paidAtLabel = formatDateTimeVN(invoice?.paidAt);
+  const dueAtLabel = formatDateTimeVN(invoice?.dueAt);
+  const issuedAtLabel = formatDateTimeVN(invoice?.issuedAt);
+  const cancelledAtLabel = formatDateTimeVN(invoice?.cancelledAt);
   const refundRequestedLabel = formatDateTimeVN(invoice?.refundRequestedAt);
   const refundConfirmedLabel = formatDateTimeVN(invoice?.refundConfirmedAt);
+  const withFallback = (value, fallback = "-") => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === "string" && value.trim() === "") {
+      return fallback;
+    }
+    return value;
+  };
+  const invoiceNoDisplay = withFallback(invoice?.invoiceNo);
+  const totalDisplay = withFallback(totalFormatted);
+  const dueAmountDisplay = withFallback(dueAmountFormatted);
+  const cancellationFeeDisplay = withFallback(cancellationFeeFormatted);
+  const refundableAmountDisplay = withFallback(refundableAmountFormatted);
+  const issuedAtDisplay = withFallback(issuedAtLabel);
+  const dueAtDisplay = withFallback(dueAtLabel);
+  const paidAtDisplay = withFallback(paidAtLabel);
+  const cancelledAtDisplay = withFallback(cancelledAtLabel);
+  const refundRequestedDisplay = withFallback(refundRequestedLabel);
+  const refundConfirmedDisplay = withFallback(refundConfirmedLabel);
   const refundConfirmedText = invoice?.refundConfirmed
     ? "Đã xác nhận"
     : "Đang xử lý";
@@ -1641,13 +1683,36 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
                   marginBottom: 12,
                 }}
               >
-                <InfoRow label="Mã hóa đơn" value={invoice.invoiceNo} />
-                {totalFormatted ? <InfoRow label="Tổng tiền" value={totalFormatted} bold /> : null}
-                {dueAmountFormatted ? (
-                  <InfoRow label="Số tiền cần thanh toán" value={dueAmountFormatted} />
-                ) : null}
-                {paidAtLabel ? <InfoRow label="Thanh toán lúc" value={paidAtLabel} /> : null}
-                {dueAtLabel ? <InfoRow label="Hạn thanh toán" value={dueAtLabel} /> : null}
+                <InfoRow label="Mã hóa đơn" value={invoiceNoDisplay} />
+                <InfoRow label="Tổng tiền" value={totalDisplay} bold />
+                <InfoRow label="Số tiền cần thanh toán" value={dueAmountDisplay} />
+                <InfoRow label="Phí hủy" value={cancellationFeeDisplay} />
+                <InfoRow label="Số tiền hoàn" value={refundableAmountDisplay} bold />
+              </View>
+
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: "#e5e7eb",
+                }}
+              >
+                <Text style={{ color: TEXT, fontWeight: "600", marginBottom: 8 }}>
+                  Mốc thời gian
+                </Text>
+                <InfoRow label="Phát hành lúc" value={issuedAtDisplay} labelWidth={140} />
+                <InfoRow label="Hạn thanh toán" value={dueAtDisplay} labelWidth={140} />
+                <InfoRow label="Thanh toán lúc" value={paidAtDisplay} labelWidth={140} />
+                <InfoRow label="Hủy hóa đơn" value={cancelledAtDisplay} labelWidth={140} />
+                <InfoRow
+                  label="Yêu cầu hoàn tiền"
+                  value={refundRequestedDisplay}
+                  labelWidth={140}
+                />
+                <InfoRow label="Hoàn tiền lúc" value={refundConfirmedDisplay} labelWidth={140} />
               </View>
 
               {showRefundDetails ? (
@@ -1666,21 +1731,15 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
                       ? "Yêu cầu hoàn tiền đang được xử lý trong tối đa 24 giờ."
                       : "Yêu cầu hoàn tiền đã được hoàn tất."}
                   </Text>
-                  {cancellationFeeFormatted ? (
-                    <InfoRow label="Phí hủy" value={cancellationFeeFormatted} />
-                  ) : null}
-                  {refundableAmountFormatted ? (
-                    <InfoRow label="Số tiền hoàn lại" value={refundableAmountFormatted} bold />
-                  ) : null}
+                  <InfoRow label="Phí hủy" value={cancellationFeeDisplay} />
+                  <InfoRow label="Số tiền hoàn lại" value={refundableAmountDisplay} bold />
                   <View style={{ flexDirection: "row", marginBottom: 6 }}>
                     <Text style={{ color: MUTED, width: 140 }}>Trạng thái hoàn tiền</Text>
                     <Text style={{ color: TEXT, fontWeight: "600", flex: 1 }}>{refundConfirmedText}</Text>
                   </View>
-                  {refundRequestedLabel ? (
-                    <InfoRow label="Thời gian yêu cầu" value={refundRequestedLabel} />
-                  ) : null}
-                  {refundConfirmedLabel && status === "REFUNDED" ? (
-                    <InfoRow label="Thời gian hoàn tiền" value={refundConfirmedLabel} />
+                  <InfoRow label="Thời gian yêu cầu" value={refundRequestedDisplay} />
+                  {status === "REFUNDED" ? (
+                    <InfoRow label="Thời gian hoàn tiền" value={refundConfirmedDisplay} />
                   ) : null}
                   <Text style={{ color: "#92400e", marginTop: 8, fontStyle: "italic" }}>
                     Cảm ơn bạn đã kiên nhẫn trong khi chúng tôi xử lý khoản hoàn tiền.
@@ -1738,7 +1797,9 @@ function InvoiceModal({ visible, loading, invoice, error, bookingId, onClose }) 
                     <InfoRow label="Số tài khoản" value={BANK_INFO.accountNumber} />
                     {formattedAmount ? <InfoRow label="Số tiền" value={formattedAmount} bold /> : null}
                     <InfoRow label="Nội dung" value={invoice.invoiceNo} />
-                    {dueAtLabel ? <InfoRow label="Hạn thanh toán" value={dueAtLabel} /> : null}
+                    {invoice?.dueAt ? (
+                      <InfoRow label="Hạn thanh toán" value={dueAtDisplay} />
+                    ) : null}
                   </View>
 
                   {formattedAmount ? (
