@@ -338,9 +338,9 @@ export default function CreateBuildingScreen() {
         />
         {/* Số người */}
         <Field
-          label="Số người"
+          label="Sức chứa"
           icon={<Ionicons name="people-outline" size={18} color={ORANGE} />}
-          placeholder="Nhập số người tối đa"
+          placeholder="Nhập số người tối đa/phòng"
           keyboardType="numeric"
           value={capacity}
           onChangeText={setCapacity}
@@ -356,9 +356,9 @@ export default function CreateBuildingScreen() {
           keyboardType="numeric"
         />
         <Field
-          label="Số phòng"
+          label="Tên phòng"
           icon={<MaterialCommunityIcons name="door" size={18} color={ORANGE} />}
-          placeholder="VD: 502"
+          placeholder="VD: 502A"
           value={roomNo}
           onChangeText={setRoomNo}
           keyboardType="numeric"
