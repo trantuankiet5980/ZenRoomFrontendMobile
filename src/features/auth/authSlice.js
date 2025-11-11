@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import {
   loginThunk, loadSessionThunk, logoutThunk, changePasswordThunk,
-  verifyOtpThunk, verifyResetOtpThunk, sendResetOtpThunk
+  registerThunk, verifyOtpThunk, sendResetOtpThunk, verifyResetOtpThunk
 } from './authThunks';
 
 const initialState = {
@@ -13,6 +13,8 @@ const initialState = {
   changePasswordLoading: false,
   changePasswordError: null,
   changePasswordSuccess: false,
+  registerSuccess: false,
+  verifyOtpSuccess: false,
 };
 
 const authSlice = createSlice({
@@ -24,10 +26,14 @@ const authSlice = createSlice({
       state.changePasswordError = null;
       state.changePasswordSuccess = false;
     },
+    resetRegisterState: (state) => {
+      state.registerSuccess = false;
+      state.error = null;
+    },
   },
   extraReducers: (b) => {
     // loadSession
-    b.addCase(loadSessionThunk.pending, (s) => { s.loading = true; s.error = null; })
+    b.addCase(loadSessionThunk.pending, (s) => { s.loading = true; })
       .addCase(loadSessionThunk.fulfilled, (s, a) => {
         s.loading = false; s.loadedSession = true;
         s.token = a.payload?.token || null;
@@ -41,14 +47,45 @@ const authSlice = createSlice({
     // login
     b.addCase(loginThunk.pending, (s) => { s.loading = true; s.error = null; })
       .addCase(loginThunk.fulfilled, (s, a) => {
-        s.loading = false; s.token = a.payload.token; s.user = a.payload.user;
+        s.loading = false;
+        s.token = a.payload.token;
+        s.user = a.payload.user;
       })
       .addCase(loginThunk.rejected, (s, a) => {
-        s.loading = false; s.error = a.payload || 'Đăng nhập thất bại';
+        s.loading = false;
+        s.error = a.payload;
       });
 
     // logout
-    b.addCase(logoutThunk.fulfilled, (s) => { s.token = null; s.user = null; });
+    b.addCase(logoutThunk.fulfilled, (s) => {
+      s.token = null; s.user = null;
+    });
+
+    // REGISTER
+    b.addCase(registerThunk.pending, (s) => { s.loading = true; s.error = null; s.registerSuccess = false; })
+      .addCase(registerThunk.fulfilled, (s) => {
+        s.loading = false;
+        s.registerSuccess = true;
+      })
+      .addCase(registerThunk.rejected, (s, a) => {
+        s.loading = false;
+        s.error = a.payload;
+        s.registerSuccess = false;
+      });
+
+    // VERIFY OTP
+    b.addCase(verifyOtpThunk.pending, (s) => { s.loading = true; s.error = null; s.verifyOtpSuccess = false; })
+      .addCase(verifyOtpThunk.fulfilled, (s, a) => {
+        s.loading = false;
+        s.token = a.payload.token;
+        s.user = a.payload.user;
+        s.verifyOtpSuccess = true;
+      })
+      .addCase(verifyOtpThunk.rejected, (s, a) => {
+        s.loading = false;
+        s.error = a.payload;
+        s.verifyOtpSuccess = false;
+      });
 
     // change password
     b.addCase(changePasswordThunk.pending, (s) => {
@@ -58,27 +95,28 @@ const authSlice = createSlice({
         s.changePasswordLoading = false; s.changePasswordSuccess = true;
       })
       .addCase(changePasswordThunk.rejected, (s, a) => {
-        s.changePasswordLoading = false;
-        s.changePasswordError = a.payload || 'Đổi mật khẩu thất bại';
-        s.changePasswordSuccess = false;
+        s.changePasswordLoading = false; s.changePasswordError = a.payload;
       });
-
-    // verifyOtp (register)
-    b.addCase(verifyOtpThunk.pending, (s) => { s.loading = true; s.error = null; })
-      .addCase(verifyOtpThunk.fulfilled, (s) => { s.loading = false; })
-      .addCase(verifyOtpThunk.rejected, (s, a) => { s.loading = false; s.error = a.payload; });
-
-    // verifyResetOtp (reset password)
-    b.addCase(verifyResetOtpThunk.pending, (s) => { s.loading = true; s.error = null; })
-      .addCase(verifyResetOtpThunk.fulfilled, (s) => { s.loading = false; })
-      .addCase(verifyResetOtpThunk.rejected, (s, a) => { s.loading = false; s.error = a.payload; });
+    
+    // verifyResetOtp
+    b.addCase(verifyResetOtpThunk.pending, (s) => {
+      s.loading = true;
+      s.error = null;
+    })
+      .addCase(verifyResetOtpThunk.fulfilled, (s) => {
+        s.loading = false;
+      })
+      .addCase(verifyResetOtpThunk.rejected, (s, a) => {
+        s.loading = false;
+        s.error = a.payload;
+      });
 
     // sendResetOtp
     b.addCase(sendResetOtpThunk.pending, (s) => { s.loading = true; })
       .addCase(sendResetOtpThunk.fulfilled, (s) => { s.loading = false; })
       .addCase(sendResetOtpThunk.rejected, (s, a) => { s.loading = false; s.error = a.payload; });
-  }
+  },
 });
 
-export const { resetChangePasswordState } = authSlice.actions;
+export const { resetChangePasswordState, resetRegisterState } = authSlice.actions;
 export default authSlice.reducer;

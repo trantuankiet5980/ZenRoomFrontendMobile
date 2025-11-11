@@ -14,7 +14,7 @@ export const loginThunk = createAsyncThunk(
   'auth/login',
   async ({ phoneNumber, password }, { rejectWithValue }) => {
     try {
-      const res = await axiosInstance.post('/auth/login', { phoneNumber, password });
+      const res = await axiosInstance.post('/auth/sign-in', { phoneNumber, password });
       const data = res?.data || {};
       const token = data?.token;
       if (!token) throw new Error('MISSING_TOKEN');
@@ -85,13 +85,13 @@ export const verifyOtpThunk = createAsyncThunk(
   }
 );
 
-// Gửi OTP để reset password
+// Gửi OTP để thực hiện reset mật khẩu đã đăng nhập
 export const sendResetOtpThunk = createAsyncThunk(
   'auth/sendResetOtp',
   async ({ phoneNumber }, { rejectWithValue }) => {
     try {
       console.log('Gửi OTP cho số:', phoneNumber);
-      const res = await axiosInstance.post('/auth/send-reset-otp', { phoneNumber });
+      const res = await axiosInstance.post('/auth/send-otp', { phoneNumber });
       console.log('Response từ server:', res.data);
       return res.data;
     } catch (err) {
@@ -117,6 +117,7 @@ export const resetPasswordThunk = createAsyncThunk(
   }
 );
 
+
 export const changePasswordThunk = createAsyncThunk(
   'auth/changePassword',
   async ({ currentPassword, newPassword }, { rejectWithValue }) => {
@@ -130,18 +131,14 @@ export const changePasswordThunk = createAsyncThunk(
   }
 );
 
-// API: Xác thực OTP cho reset password
 export const verifyResetOtpThunk = createAsyncThunk(
   'auth/verifyResetOtp',
   async ({ phoneNumber, otp }, { rejectWithValue }) => {
     try {
-      const res = await axiosInstance.post('/auth/verify-reset-otp', {
-        phoneNumber,
-        otp,
-      });
+      const res = await axiosInstance.post('/auth/verify-reset-otp', { phoneNumber, otp });
       return res.data;
     } catch (err) {
-      const msg = err?.response?.data?.message || 'Xác thực OTP thất bại';
+      const msg = err?.response?.data?.message || 'OTP không đúng hoặc đã hết hạn';
       return rejectWithValue(msg);
     }
   }
