@@ -40,8 +40,8 @@ const ORANGE = "#f36031";
 const TEXT = "#111827";
 
 const BOOKING_STATUS_LABELS = {
-    PENDING_PAYMENT: "Chờ thanh toán",
-    AWAITING_LANDLORD_APPROVAL: "Chờ chủ nhà duyệt",
+    PENDING_PAYMENT: "Chờ duyệt",
+    AWAITING_LANDLORD_APPROVAL: "Chờ thanh toán",
     APPROVED: "Đã duyệt",
     CANCELLED: "Đã hủy",
     CHECKED_IN: "Đang lưu trú",
