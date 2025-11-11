@@ -323,7 +323,7 @@ export default function TenantsManagerScreen() {
           contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
         >
           <TabButton
-            label={`Chờ duyệt${counts.pending ? ` (${counts.pending})` : ""}`}
+            label={`Đang chờ duyệt${counts.pending ? ` (${counts.pending})` : ""}`}
             active={tab === "pending"}
             onPress={() => setTab("pending")}
           />
@@ -331,6 +331,11 @@ export default function TenantsManagerScreen() {
             label={`Đã duyệt${counts.approved ? ` (${counts.approved})` : ""}`}
             active={tab === "approved"}
             onPress={() => setTab("approved")}
+          />
+          <TabButton
+            label={`Chờ Check-in${counts.renting ? ` (${counts.renting})` : ""}`}
+            active={tab === "renting"}
+            onPress={() => setTab("renting")}
           />
           <TabButton
             label={`Đang lưu trú${counts.staying ? ` (${counts.staying})` : ""}`}
