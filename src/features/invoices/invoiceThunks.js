@@ -89,3 +89,51 @@ export const fetchLandlordInvoiceDetail = createAsyncThunk(
     }
   }
 );
+
+// --- THỐNG KÊ DOANH THU CỦA CHỦ NHÀ (THEO NGÀY, THÁNG, NĂM) ---
+export const fetchLandlordDailyRevenue = createAsyncThunk(
+  "invoices/fetchLandlordDailyRevenue",
+  async ({ from, to } = {}, { rejectWithValue }) => {
+    try {
+      const params = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+
+      const res = await axiosInstance.get("/invoices/stats/me/daily", { params });
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Không thể tải doanh thu theo ngày");
+    }
+  }
+);
+
+export const fetchLandlordMonthlyRevenue = createAsyncThunk(
+  "invoices/fetchLandlordMonthlyRevenue",
+  async ({ year, month } = {}, { rejectWithValue }) => {
+    try {
+      const params = {};
+      if (year) params.year = year;
+      if (month) params.month = month;
+
+      const res = await axiosInstance.get("/invoices/stats/me/monthly", { params });
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Không thể tải doanh thu theo tháng");
+    }
+  }
+);
+
+export const fetchLandlordYearlyRevenue = createAsyncThunk(
+  "invoices/fetchLandlordYearlyRevenue",
+  async ({ year } = {}, { rejectWithValue }) => {
+    try {
+      const params = {};
+      if (year) params.year = year;
+
+      const res = await axiosInstance.get("/invoices/stats/me/yearly", { params });
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Không thể tải doanh thu theo năm");
+    }
+  }
+);
