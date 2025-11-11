@@ -6,19 +6,20 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import {
   verifyOtpThunk,
-  verifyResetOtpThunk,
-  sendResetOtpThunk
+  sendResetOtpThunk,
+  registerThunk,
+  verifyResetOtpThunk
 } from "../features/auth/authThunks";
 
 const AuthOTPScreen = ({ route, navigation }) => {
-  const { phoneNumber, mode } = route.params || {};
+  const { phoneNumber, mode, registerData } = route.params || {};
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(30);
   const [canResend, setCanResend] = useState(false);
 
   const inputRefs = useRef([]);
   const dispatch = useDispatch();
-  const { loading, error } = useSelector((state) => state.auth);
+  const { loading, error, registerSuccess, verifyOtpSuccess } = useSelector((state) => state.auth);
 
   useEffect(() => {
     inputRefs.current = inputRefs.current.slice(0, 6);
@@ -59,8 +60,14 @@ const AuthOTPScreen = ({ route, navigation }) => {
       } else {
         Alert.alert("Lỗi", result.payload || "Gửi lại OTP thất bại");
       }
-    } else {
-      Alert.alert("Thành công", "Mã OTP mới đã được gửi!");
+    } else if (mode === 'register') {
+      // Gửi lại OTP cho đăng ký
+      const result = await dispatch(registerThunk(registerData));
+      if (result.meta.requestStatus === 'fulfilled') {
+        Alert.alert("Thành công", "Mã OTP mới đã được gửi!");
+      } else {
+        Alert.alert("Lỗi", result.payload || "Gửi lại OTP thất bại");
+      }
     }
   };
 
@@ -72,19 +79,18 @@ const AuthOTPScreen = ({ route, navigation }) => {
     }
 
     let result;
-    if (mode === 'reset') {
-      result = await dispatch(verifyResetOtpThunk({ phoneNumber, otp: code }));
-    } else {
+    if (mode === 'register') {
       result = await dispatch(verifyOtpThunk({ phoneNumber, otp: code }));
+    } else if (mode === 'reset') {
+      result = await dispatch(verifyResetOtpThunk({ phoneNumber, otp: code }));
     }
 
     if (result.meta.requestStatus === 'fulfilled') {
       if (mode === 'register') {
+        // Đăng ký thành công → vào Login
         navigation.replace("Login");
       } else if (mode === 'reset') {
-        navigation.replace("ResetPasswordScreen", { phoneNumber });
-      } else {
-        navigation.replace("Login");
+        navigation.replace("ResetPasswordScreen", { phoneNumber, otp: code });
       }
     } else {
       Alert.alert("Thất bại", result.payload || "OTP không đúng");
@@ -102,7 +108,7 @@ const AuthOTPScreen = ({ route, navigation }) => {
 
       <Text style={styles.title}>Nhập mã xác thực OTP</Text>
       <Text style={styles.subtitle}>
-        ZenRoom đã gửi mã xác thực đến số điện thoại {phoneNumber}.
+        ZenRoom đã gửi mã xác thực đến số điện thoại <Text style={styles.bold}>{phoneNumber}</Text>.
         {"\n"}Bạn hãy kiểm tra tin nhắn SMS nhé!
       </Text>
 
@@ -111,7 +117,7 @@ const AuthOTPScreen = ({ route, navigation }) => {
           <TextInput
             key={index}
             ref={(ref) => (inputRefs.current[index] = ref)}
-            style={styles.otpInput}
+            style={[styles.otpInput, value && styles.otpInputFilled]}
             keyboardType="numeric"
             maxLength={1}
             value={value}
@@ -119,17 +125,28 @@ const AuthOTPScreen = ({ route, navigation }) => {
             returnKeyType="next"
             onSubmitEditing={() => index < 5 && inputRefs.current[index + 1]?.focus()}
             blurOnSubmit={false}
+            autoFocus={index === 0}
           />
         ))}
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleConfirm} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Tiếp tục</Text>}
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
+        onPress={handleConfirm}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Tiếp tục</Text>
+        )}
       </TouchableOpacity>
 
       <Text style={styles.resendText}>
         {canResend ? (
-          <Text style={styles.resendLink} onPress={handleResend}>Gửi lại mã</Text>
+          <Text style={styles.resendLink} onPress={handleResend}>
+            Gửi lại mã
+          </Text>
         ) : (
           `Bạn có thể yêu cầu mã mới sau ${timeLeft}s`
         )}
@@ -146,21 +163,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8F8F8", padding: 20 },
   header: { flexDirection: "row", alignItems: "center", marginBottom: 30, marginTop: 20 },
   backButton: { marginRight: 10, padding: 5 },
-  backText: { fontSize: 35 },
-  headerTitle: { fontSize: 18, fontWeight: "600" },
+  backText: { fontSize: 35, color: "#333" },
+  headerTitle: { fontSize: 18, fontWeight: "600", color: "#333" },
   title: { fontSize: 20, fontWeight: "bold", marginBottom: 10, color: "#333" },
-  subtitle: { fontSize: 14, color: "#666", marginBottom: 30 },
+  subtitle: { fontSize: 14, color: "#666", marginBottom: 30, lineHeight: 20 },
+  bold: { fontWeight: "bold", color: "#000" },
   otpContainer: { flexDirection: "row", justifyContent: "space-between", marginBottom: 30 },
   otpInput: {
     width: 50, height: 50, borderWidth: 1, borderColor: "#DDD",
     borderRadius: 8, textAlign: "center", fontSize: 20, backgroundColor: "#fff"
   },
+  otpInputFilled: {
+    borderColor: "#FBB040",
+    backgroundColor: "#FFF8E1"
+  },
   button: {
     backgroundColor: "#FBB040", padding: 17, borderRadius: 10,
     alignItems: "center", marginTop: 10
   },
+  buttonDisabled: {
+    backgroundColor: "#ccc"
+  },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   resendText: { textAlign: "center", fontSize: 14, color: "#444", marginTop: 20 },
   resendLink: { color: "#F05A28", fontWeight: "bold" },
-  errorText: { color: "red", marginTop: 10, textAlign: "center" }
+  errorText: { color: "red", marginTop: 10, textAlign: "center", fontSize: 14 }
 });

@@ -333,11 +333,6 @@ export default function TenantsManagerScreen() {
             onPress={() => setTab("approved")}
           />
           <TabButton
-            label={`Đang cho thuê${counts.renting ? ` (${counts.renting})` : ""}`}
-            active={tab === "renting"}
-            onPress={() => setTab("renting")}
-          />
-          <TabButton
             label={`Đang lưu trú${counts.staying ? ` (${counts.staying})` : ""}`}
             active={tab === "staying"}
             onPress={() => setTab("staying")}

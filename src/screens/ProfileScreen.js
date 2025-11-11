@@ -79,7 +79,7 @@ export default function ProfileScreen() {
 
       {/* Menu */}
       <View style={{ marginHorizontal: 16, marginTop: 16 }}>
-        <MenuItem icon="key-outline" label="Đổi mật khẩu" onPress={() => nav.navigate("ResetPasswordScreen")} />
+        <MenuItem icon="key-outline" label="Đổi mật khẩu" onPress={() => nav.navigate("ChangePassword")} />
 
         {role === "tenant" && (
           <>
