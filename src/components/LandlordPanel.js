@@ -65,13 +65,13 @@ export default function LandlordPanel({
       iconLib: "mc",
       onPress: () => navigation.navigate("LandlordInvoiceHistory"),
     },
-    // {
-    //   key: "manage-contracts",
-    //   label: "Quản lý hợp đồng",
-    //   icon: "file-document-outline",
-    //   iconLib: "mc",
-    //   onPress: () => navigation.navigate("ContractsManager"),
-    // },
+    {
+      key: "manage-contracts",
+      label: "Doanh thu",
+      icon: "chart-bar",
+      iconLib: "mc",
+      onPress: () => navigation.navigate("LandlordRevenueStats"),
+    },
     // {
     //   key: "create-contract",
     //   label: "Tạo hợp đồng",
