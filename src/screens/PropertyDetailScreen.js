@@ -2150,9 +2150,9 @@ const PropertyDetailScreen = ({ route, navigation }) => {
                                 style={styles.landlordContactRow}
                                 onPress={() => Linking.openURL(`tel:${landlordPhoneNumber}`)}
                             >
-                                <Text style={styles.landlordContactText}>
+                                {/* <Text style={styles.landlordContactText}>
                                     Gọi {landlordPhoneNumber}
-                                </Text>
+                                </Text> */}
                             </TouchableOpacity>
                         ) : null}
                         <View style={styles.landlordStatsRow}>

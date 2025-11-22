@@ -251,6 +251,37 @@ function hexToRgba(hex, alpha = 0.16) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function toStartOfDay(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function sortBookingsByProximity(bookings, getDate) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  return [...bookings].sort((a, b) => {
+    const dateA = toStartOfDay(getDate(a));
+    const dateB = toStartOfDay(getDate(b));
+
+    const timeA = dateA ? dateA.getTime() : Infinity;
+    const timeB = dateB ? dateB.getTime() : Infinity;
+
+    const deltaA = timeA - todayMs;
+    const deltaB = timeB - todayMs;
+
+    const scoreA = deltaA >= 0 ? deltaA : Math.abs(deltaA) + 1e12;
+    const scoreB = deltaB >= 0 ? deltaB : Math.abs(deltaB) + 1e12;
+
+    if (scoreA !== scoreB) return scoreA - scoreB;
+    return timeA - timeB;
+  });
+}
+
 export default function MyBookingsScreen() {
   useHideTabBar();
   const navigation = useNavigation();
@@ -588,9 +619,19 @@ export default function MyBookingsScreen() {
   const listByTab = useMemo(() => {
     const tabMeta = BOOKING_TABS.find((t) => t.key === activeTab);
     if (!tabMeta) return [];
-    return bookings.filter((booking) =>
+    const filtered = bookings.filter((booking) =>
       tabMeta.statuses.includes(booking.bookingStatus)
     );
+
+    if (activeTab === "approved") {
+      return sortBookingsByProximity(filtered, (booking) => booking.startDate);
+    }
+
+    if (activeTab === "checkin") {
+      return sortBookingsByProximity(filtered, (booking) => booking.endDate);
+    }
+
+    return filtered;
   }, [bookings, activeTab]);
 
   const filteredBookings = useMemo(() => {
