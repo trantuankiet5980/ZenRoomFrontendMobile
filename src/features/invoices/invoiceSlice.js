@@ -10,6 +10,48 @@ import {
   fetchLandlordYearlyRevenue,
 } from "./invoiceThunks";
 
+const emptyRevenueBucket = () => ({ summary: null, breakdown: [] });
+
+const normalizeRevenuePayload = (payload) => {
+  if (!payload) return emptyRevenueBucket();
+
+  if (Array.isArray(payload)) {
+    const totalLandlordReceivable = payload.reduce(
+      (sum, item) => sum + (Number(item.netRevenue || item.landlordReceivable || 0) || 0),
+      0
+    );
+    const totalPlatformFee = payload.reduce(
+      (sum, item) => sum + (Number(item.platformFee || 0) || 0),
+      0
+    );
+
+    return {
+      summary: { totalLandlordReceivable, totalPlatformFee },
+      breakdown: payload,
+    };
+  }
+
+  const breakdown =
+    payload.dailyBreakdown?.length
+      ? payload.dailyBreakdown
+      : payload.monthlyBreakdown?.length
+        ? payload.monthlyBreakdown
+        : payload.yearlyBreakdown?.length
+          ? payload.yearlyBreakdown
+          : payload.bookings ?? [];
+
+  const summary = {
+    totalLandlordReceivable: Number(payload.totalLandlordReceivable || payload.totalNetRevenue || 0) || 0,
+    totalPlatformFee: Number(payload.totalPlatformFee || 0) || 0,
+    period: payload.period,
+    year: payload.year,
+    month: payload.month,
+    day: payload.day,
+  };
+
+  return { summary, breakdown };
+};
+
 const initialState = {
   // Hóa đơn hiện tại (theo booking)
   currentInvoice: null,
@@ -35,9 +77,9 @@ const initialState = {
 
   // Thống kê doanh thu (mới thêm)
   revenueStats: {
-    daily: [],
-    monthly: [],
-    yearly: [],
+    daily: emptyRevenueBucket(),
+    monthly: emptyRevenueBucket(),
+    yearly: emptyRevenueBucket(),
   },
 
   // Trạng thái chung
@@ -60,7 +102,11 @@ const invoiceSlice = createSlice({
       state.pagination = { page: 0, size: 20, totalElements: 0, totalPages: 0 };
     },
     clearRevenueStats(state) {
-      state.revenueStats = { daily: [], monthly: [], yearly: [] };
+      state.revenueStats = {
+        daily: emptyRevenueBucket(),
+        monthly: emptyRevenueBucket(),
+        yearly: emptyRevenueBucket(),
+      };
     },
   },
   extraReducers: (builder) => {
@@ -162,48 +208,48 @@ const invoiceSlice = createSlice({
       // === THỐNG KÊ DOANH THU THEO NGÀY ===
       .addCase(fetchLandlordDailyRevenue.pending, (state) => {
         state.loading = true;
-        state.revenueStats.daily = [];
+        state.revenueStats.daily = emptyRevenueBucket();
         state.error = null;
       })
       .addCase(fetchLandlordDailyRevenue.fulfilled, (state, action) => {
         state.loading = false;
-        state.revenueStats.daily = action.payload;
+        state.revenueStats.daily = normalizeRevenuePayload(action.payload);
       })
       .addCase(fetchLandlordDailyRevenue.rejected, (state, action) => {
         state.loading = false;
-        state.revenueStats.daily = [];
+        state.revenueStats.daily = emptyRevenueBucket();
         state.error = action.payload;
       })
 
       // === THỐNG KÊ DOANH THU THEO THÁNG ===
       .addCase(fetchLandlordMonthlyRevenue.pending, (state) => {
         state.loading = true;
-        state.revenueStats.monthly = [];
+        state.revenueStats.monthly = emptyRevenueBucket();
         state.error = null;
       })
       .addCase(fetchLandlordMonthlyRevenue.fulfilled, (state, action) => {
         state.loading = false;
-        state.revenueStats.monthly = action.payload;
+        state.revenueStats.monthly = normalizeRevenuePayload(action.payload);
       })
       .addCase(fetchLandlordMonthlyRevenue.rejected, (state, action) => {
         state.loading = false;
-        state.revenueStats.monthly = [];
+        state.revenueStats.monthly = emptyRevenueBucket();
         state.error = action.payload;
       })
 
       // === THỐNG KÊ DOANH THU THEO NĂM ===
       .addCase(fetchLandlordYearlyRevenue.pending, (state) => {
         state.loading = true;
-        state.revenueStats.yearly = [];
+        state.revenueStats.yearly = emptyRevenueBucket();
         state.error = null;
       })
       .addCase(fetchLandlordYearlyRevenue.fulfilled, (state, action) => {
         state.loading = false;
-        state.revenueStats.yearly = action.payload;
+        state.revenueStats.yearly = normalizeRevenuePayload(action.payload);
       })
       .addCase(fetchLandlordYearlyRevenue.rejected, (state, action) => {
         state.loading = false;
-        state.revenueStats.yearly = [];
+        state.revenueStats.yearly = emptyRevenueBucket();
         state.error = action.payload;
       });
   },

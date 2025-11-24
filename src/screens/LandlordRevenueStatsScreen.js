@@ -12,10 +12,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
 import {
-    fetchLandlordDailyRevenue,
     fetchLandlordMonthlyRevenue,
     fetchLandlordYearlyRevenue,
 } from "../features/invoices/invoiceThunks";
@@ -32,7 +30,6 @@ const BLUE = "#3b82f6";
 const RED = "#ef4444";
 
 const TABS = [
-    { key: "daily", label: "Ngày", icon: "calendar-outline" },
     { key: "monthly", label: "Tháng", icon: "trending-up-outline" },
     { key: "yearly", label: "Năm", icon: "bar-chart-outline" },
 ];
@@ -42,19 +39,15 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
     const stats = useSelector(selectLandlordRevenueStats);
     const loading = useSelector(selectInvoiceLoading);
 
-    const [tab, setTab] = useState("daily");
+    const [tab, setTab] = useState("monthly");
     const [refreshing, setRefreshing] = useState(false);
     const [filters, setFilters] = useState({
-        from: null,
-        to: null,
         year: new Date().getFullYear(),
-        month: null,
+        month: new Date().getMonth() + 1,
     });
 
     const fetchData = useCallback(() => {
-        if (tab === "daily") {
-            return dispatch(fetchLandlordDailyRevenue({ from: filters.from, to: filters.to }));
-        } else if (tab === "monthly") {
+        if (tab === "monthly") {
             return dispatch(fetchLandlordMonthlyRevenue({ year: filters.year, month: filters.month }));
         } else if (tab === "yearly") {
             return dispatch(fetchLandlordYearlyRevenue({ year: filters.year }));
@@ -70,18 +63,32 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
         fetchData().finally(() => setRefreshing(false));
     };
 
-    const data = stats[tab] || [];
+    const currentStats = stats[tab] || {};
+    const data = (currentStats.breakdown || []).slice().sort((a, b) => {
+        // Sắp xếp giảm dần theo thời gian để hiển thị rõ các khoản trong tháng
+        const aDate = a.date || `${a.year || 0}-${String(a.month || 0).padStart(2, "0")}-01`;
+        const bDate = b.date || `${b.year || 0}-${String(b.month || 0).padStart(2, "0")}-01`;
+        return bDate.localeCompare(aDate);
+    });
 
     const formatCurrency = (v) =>
         new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 
     const formatX = (item) => {
-        if (tab === "daily") return item.date?.split("-").reverse().join("/") || "?";
-        if (tab === "monthly") return `Tháng ${item.month}/${item.year}`;
-        return String(item.year);
+        if (item.date) return item.date.split("-").reverse().join("/");
+        if (item.month && item.year) return `Tháng ${item.month}/${item.year}`;
+        if (item.year) return `Năm ${item.year}`;
+        return "-";
     };
 
-    const totalNet = data.reduce((sum, d) => sum + (d.netRevenue || 0), 0);
+    // Ưu tiên dùng tổng từ payload (summary) nếu có, fallback cộng từ breakdown
+    const totalReceivable =
+        currentStats.summary?.totalLandlordReceivable ??
+        data.reduce((sum, d) => sum + (d.netRevenue || d.landlordReceivable || 0), 0);
+
+    const totalPlatformFee =
+        currentStats.summary?.totalPlatformFee ??
+        data.reduce((sum, d) => sum + (d.platformFee || 0), 0);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f9fafb" }}>
@@ -170,7 +177,7 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
                         elevation: 2,
                     }}
                 >
-                    <Text style={{ color: MUTED, fontSize: 14 }}>Tổng doanh thu thực tế</Text>
+                    <Text style={{ color: MUTED, fontSize: 14 }}>Tổng doanh thu dự kiến</Text>
                     <Text
                         style={{
                             fontSize: 24,
@@ -179,7 +186,18 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
                             marginTop: 4,
                         }}
                     >
-                        {formatCurrency(totalNet)}
+                        {formatCurrency(totalReceivable)}
+                    </Text>
+                    <Text style={{ color: MUTED, fontSize: 13, marginTop: 6 }}>Phí nền tảng</Text>
+                    <Text
+                        style={{
+                            fontSize: 18,
+                            fontWeight: "700",
+                            color: BLUE,
+                            marginTop: 2,
+                        }}
+                    >
+                        {formatCurrency(totalPlatformFee)}
                     </Text>
                 </View>
 
@@ -207,15 +225,22 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
                                 <Text style={{ fontSize: 14, color: TEXT, fontWeight: "600" }}>
                                     {formatX(item)}
                                 </Text>
-                                <Text style={{ fontSize: 13, color: BLUE, marginTop: 4 }}>
-                                    Đã thanh toán: {formatCurrency(item.paidRevenue || 0)}
-                                </Text>
-                                <Text style={{ fontSize: 13, color: RED, marginTop: 2 }}>
-                                    Đã hoàn tiền: {formatCurrency(item.refundedAmount || 0)}
-                                </Text>
-                                <Text style={{ fontSize: 13, color: SUCCESS, marginTop: 2 }}>
-                                    Thực tế: {formatCurrency(item.netRevenue || 0)}
-                                </Text>
+                                {item.paidRevenue !== undefined || item.refundedAmount !== undefined ? (
+                                    <>
+                                        <Text style={{ fontSize: 13, color: SUCCESS, marginTop: 2 }}>
+                                            Tổng tiền: {formatCurrency(item.netRevenue || 0)}
+                                        </Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Text style={{ fontSize: 13, color: SUCCESS, marginTop: 4 }}>
+                                            Dự kiến nhận: {formatCurrency(item.landlordReceivable || item.netRevenue || 0)}
+                                        </Text>
+                                        <Text style={{ fontSize: 13, color: BLUE, marginTop: 2 }}>
+                                            Phí nền tảng: {formatCurrency(item.platformFee || 0)}
+                                        </Text>
+                                    </>
+                                )}
                             </View>
                         ))
                     )}
@@ -229,72 +254,8 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
 
 /* ===== Filter Bar ===== */
 function FilterBar({ tab, filters, setFilters }) {
-    const [showFromPicker, setShowFromPicker] = useState(false);
-    const [showToPicker, setShowToPicker] = useState(false);
     const [showMonthPicker, setShowMonthPicker] = useState(false);
     const [showYearPicker, setShowYearPicker] = useState(false);
-
-    const onChangeFrom = (event, selectedDate) => {
-        setShowFromPicker(false);
-        if (selectedDate) {
-            const formatted = selectedDate.toISOString().split("T")[0];
-            setFilters((prev) => ({ ...prev, from: formatted }));
-        }
-    };
-
-    const onChangeTo = (event, selectedDate) => {
-        setShowToPicker(false);
-        if (selectedDate) {
-            const formatted = selectedDate.toISOString().split("T")[0];
-            setFilters((prev) => ({ ...prev, to: formatted }));
-        }
-    };
-
-    // ==== TAB NGÀY ====
-    if (tab === "daily") {
-        return (
-            <View style={{ flexDirection: "row", gap: 10 }}>
-                {/* Từ ngày */}
-                <TouchableOpacity
-                    onPress={() => setShowFromPicker(true)}
-                    style={filterBtnStyle(filters.from)}
-                >
-                    <Text style={filterTextStyle(filters.from)}>
-                        {filters.from
-                            ? filters.from.split("-").reverse().join("/")
-                            : "Từ ngày"}
-                    </Text>
-                </TouchableOpacity>
-
-                {/* Đến ngày */}
-                <TouchableOpacity
-                    onPress={() => setShowToPicker(true)}
-                    style={filterBtnStyle(filters.to)}
-                >
-                    <Text style={filterTextStyle(filters.to)}>
-                        {filters.to ? filters.to.split("-").reverse().join("/") : "Đến ngày"}
-                    </Text>
-                </TouchableOpacity>
-
-                {showFromPicker && (
-                    <DateTimePicker
-                        value={filters.from ? new Date(filters.from) : new Date()}
-                        mode="date"
-                        display={Platform.OS === "ios" ? "spinner" : "default"}
-                        onChange={onChangeFrom}
-                    />
-                )}
-                {showToPicker && (
-                    <DateTimePicker
-                        value={filters.to ? new Date(filters.to) : new Date()}
-                        mode="date"
-                        display={Platform.OS === "ios" ? "spinner" : "default"}
-                        onChange={onChangeTo}
-                    />
-                )}
-            </View>
-        );
-    }
 
     // ==== TAB THÁNG ====
     if (tab === "monthly") {
@@ -326,16 +287,16 @@ function FilterBar({ tab, filters, setFilters }) {
                         <View style={{ backgroundColor: "#fff", borderRadius: 10, margin: 20 }}>
                             <Picker
                                 selectedValue={filters.year}
-                                onValueChange={(val) => setFilters((prev) => ({ ...prev, year: val }))}
+                                onValueChange={(val) => {
+                                    setFilters((prev) => ({ ...prev, year: val }));
+                                    setShowYearPicker(false);
+                                }}
                             >
                                 {Array.from({ length: 6 }, (_, i) => {
                                     const y = 2022 + i;
                                     return <Picker.Item label={`${y}`} value={y} key={y} />;
                                 })}
                             </Picker>
-                            <TouchableOpacity onPress={() => setShowYearPicker(false)}>
-                                <Text style={{ textAlign: "center", padding: 10, color: ORANGE }}>Đóng</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </Modal>
@@ -351,15 +312,15 @@ function FilterBar({ tab, filters, setFilters }) {
                         <View style={{ backgroundColor: "#fff", borderRadius: 10, margin: 20 }}>
                             <Picker
                                 selectedValue={filters.month}
-                                onValueChange={(val) => setFilters((prev) => ({ ...prev, month: val }))}
+                                onValueChange={(val) => {
+                                    setFilters((prev) => ({ ...prev, month: val }));
+                                    setShowMonthPicker(false);
+                                }}
                             >
                                 {Array.from({ length: 12 }, (_, i) => (
                                     <Picker.Item label={`Tháng ${i + 1}`} value={i + 1} key={i} />
                                 ))}
                             </Picker>
-                            <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
-                                <Text style={{ textAlign: "center", padding: 10, color: ORANGE }}>Đóng</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </Modal>
@@ -387,16 +348,16 @@ function FilterBar({ tab, filters, setFilters }) {
                     <View style={{ backgroundColor: "#fff", borderRadius: 10, margin: 20 }}>
                         <Picker
                             selectedValue={filters.year}
-                            onValueChange={(val) => setFilters((prev) => ({ ...prev, year: val }))}
+                            onValueChange={(val) => {
+                                setFilters((prev) => ({ ...prev, year: val }));
+                                setShowYearPicker(false);
+                            }}
                         >
                             {Array.from({ length: 6 }, (_, i) => {
                                 const y = 2022 + i;
                                 return <Picker.Item label={`${y}`} value={y} key={y} />;
                             })}
                         </Picker>
-                        <TouchableOpacity onPress={() => setShowYearPicker(false)}>
-                            <Text style={{ textAlign: "center", padding: 10, color: ORANGE }}>Đóng</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
