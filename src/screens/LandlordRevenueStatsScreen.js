@@ -70,18 +70,24 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
         fetchData().finally(() => setRefreshing(false));
     };
 
-    const data = stats[tab] || [];
+    const currentStats = stats[tab] || {};
+    const data = currentStats.breakdown || [];
+    const summary = currentStats.summary;
 
     const formatCurrency = (v) =>
         new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 
     const formatX = (item) => {
-        if (tab === "daily") return item.date?.split("-").reverse().join("/") || "?";
-        if (tab === "monthly") return `Tháng ${item.month}/${item.year}`;
-        return String(item.year);
+        if (item.date) return item.date.split("-").reverse().join("/");
+        if (item.month && item.year) return `Tháng ${item.month}/${item.year}`;
+        if (item.year) return `Năm ${item.year}`;
+        return "-";
     };
 
-    const totalNet = data.reduce((sum, d) => sum + (d.netRevenue || 0), 0);
+    const totalReceivable = summary?.totalLandlordReceivable ??
+        data.reduce((sum, d) => sum + (d.netRevenue || d.landlordReceivable || 0), 0);
+
+    const totalPlatformFee = summary?.totalPlatformFee ?? data.reduce((sum, d) => sum + (d.platformFee || 0), 0);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f9fafb" }}>
@@ -170,7 +176,7 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
                         elevation: 2,
                     }}
                 >
-                    <Text style={{ color: MUTED, fontSize: 14 }}>Tổng doanh thu thực tế</Text>
+                    <Text style={{ color: MUTED, fontSize: 14 }}>Tổng doanh thu dự kiến</Text>
                     <Text
                         style={{
                             fontSize: 24,
@@ -179,7 +185,18 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
                             marginTop: 4,
                         }}
                     >
-                        {formatCurrency(totalNet)}
+                        {formatCurrency(totalReceivable)}
+                    </Text>
+                    <Text style={{ color: MUTED, fontSize: 13, marginTop: 6 }}>Phí nền tảng</Text>
+                    <Text
+                        style={{
+                            fontSize: 18,
+                            fontWeight: "700",
+                            color: BLUE,
+                            marginTop: 2,
+                        }}
+                    >
+                        {formatCurrency(totalPlatformFee)}
                     </Text>
                 </View>
 
@@ -207,15 +224,22 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
                                 <Text style={{ fontSize: 14, color: TEXT, fontWeight: "600" }}>
                                     {formatX(item)}
                                 </Text>
-                                <Text style={{ fontSize: 13, color: BLUE, marginTop: 4 }}>
-                                    Đã thanh toán: {formatCurrency(item.paidRevenue || 0)}
-                                </Text>
-                                <Text style={{ fontSize: 13, color: RED, marginTop: 2 }}>
-                                    Đã hoàn tiền: {formatCurrency(item.refundedAmount || 0)}
-                                </Text>
-                                <Text style={{ fontSize: 13, color: SUCCESS, marginTop: 2 }}>
-                                    Thực tế: {formatCurrency(item.netRevenue || 0)}
-                                </Text>
+                                {item.paidRevenue !== undefined || item.refundedAmount !== undefined ? (
+                                    <>
+                                        <Text style={{ fontSize: 13, color: SUCCESS, marginTop: 2 }}>
+                                            Tổng tiền: {formatCurrency(item.netRevenue || 0)}
+                                        </Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Text style={{ fontSize: 13, color: SUCCESS, marginTop: 4 }}>
+                                            Dự kiến nhận: {formatCurrency(item.landlordReceivable || item.netRevenue || 0)}
+                                        </Text>
+                                        <Text style={{ fontSize: 13, color: BLUE, marginTop: 2 }}>
+                                            Phí nền tảng: {formatCurrency(item.platformFee || 0)}
+                                        </Text>
+                                    </>
+                                )}
                             </View>
                         ))
                     )}
