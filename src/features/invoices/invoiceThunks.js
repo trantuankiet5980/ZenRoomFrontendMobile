@@ -115,7 +115,10 @@ export const fetchLandlordMonthlyRevenue = createAsyncThunk(
       if (year) params.year = year;
       if (month) params.month = month;
 
-      const res = await axiosInstance.get("/invoices/stats/me/monthly", { params });
+      const res = await axiosInstance.get(
+        "/invoices/stats/me/revenue/projection",
+        { params }
+      );
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || "Không thể tải doanh thu theo tháng");

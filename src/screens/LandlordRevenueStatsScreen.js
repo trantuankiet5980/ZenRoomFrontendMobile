@@ -64,8 +64,12 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
     };
 
     const currentStats = stats[tab] || {};
-    const data = currentStats.breakdown || [];
-    const summary = currentStats.summary;
+    const data = (currentStats.breakdown || []).slice().sort((a, b) => {
+        // Sắp xếp giảm dần theo thời gian để hiển thị rõ các khoản trong tháng
+        const aDate = a.date || `${a.year || 0}-${String(a.month || 0).padStart(2, "0")}-01`;
+        const bDate = b.date || `${b.year || 0}-${String(b.month || 0).padStart(2, "0")}-01`;
+        return bDate.localeCompare(aDate);
+    });
 
     const formatCurrency = (v) =>
         new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
@@ -77,10 +81,14 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
         return "-";
     };
 
-    const totalReceivable = summary?.totalLandlordReceivable ??
+    // Ưu tiên dùng tổng từ payload (summary) nếu có, fallback cộng từ breakdown
+    const totalReceivable =
+        currentStats.summary?.totalLandlordReceivable ??
         data.reduce((sum, d) => sum + (d.netRevenue || d.landlordReceivable || 0), 0);
 
-    const totalPlatformFee = summary?.totalPlatformFee ?? data.reduce((sum, d) => sum + (d.platformFee || 0), 0);
+    const totalPlatformFee =
+        currentStats.summary?.totalPlatformFee ??
+        data.reduce((sum, d) => sum + (d.platformFee || 0), 0);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f9fafb" }}>
