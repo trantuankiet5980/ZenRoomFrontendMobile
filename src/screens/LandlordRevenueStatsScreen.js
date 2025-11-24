@@ -12,10 +12,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
 import {
-    fetchLandlordDailyRevenue,
     fetchLandlordMonthlyRevenue,
     fetchLandlordYearlyRevenue,
 } from "../features/invoices/invoiceThunks";
@@ -32,7 +30,6 @@ const BLUE = "#3b82f6";
 const RED = "#ef4444";
 
 const TABS = [
-    { key: "daily", label: "Ngày", icon: "calendar-outline" },
     { key: "monthly", label: "Tháng", icon: "trending-up-outline" },
     { key: "yearly", label: "Năm", icon: "bar-chart-outline" },
 ];
@@ -42,19 +39,15 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
     const stats = useSelector(selectLandlordRevenueStats);
     const loading = useSelector(selectInvoiceLoading);
 
-    const [tab, setTab] = useState("daily");
+    const [tab, setTab] = useState("monthly");
     const [refreshing, setRefreshing] = useState(false);
     const [filters, setFilters] = useState({
-        from: null,
-        to: null,
         year: new Date().getFullYear(),
-        month: null,
+        month: new Date().getMonth() + 1,
     });
 
     const fetchData = useCallback(() => {
-        if (tab === "daily") {
-            return dispatch(fetchLandlordDailyRevenue({ from: filters.from, to: filters.to }));
-        } else if (tab === "monthly") {
+        if (tab === "monthly") {
             return dispatch(fetchLandlordMonthlyRevenue({ year: filters.year, month: filters.month }));
         } else if (tab === "yearly") {
             return dispatch(fetchLandlordYearlyRevenue({ year: filters.year }));
@@ -253,72 +246,8 @@ export default function LandlordRevenueStatsScreen({ navigation }) {
 
 /* ===== Filter Bar ===== */
 function FilterBar({ tab, filters, setFilters }) {
-    const [showFromPicker, setShowFromPicker] = useState(false);
-    const [showToPicker, setShowToPicker] = useState(false);
     const [showMonthPicker, setShowMonthPicker] = useState(false);
     const [showYearPicker, setShowYearPicker] = useState(false);
-
-    const onChangeFrom = (event, selectedDate) => {
-        setShowFromPicker(false);
-        if (selectedDate) {
-            const formatted = selectedDate.toISOString().split("T")[0];
-            setFilters((prev) => ({ ...prev, from: formatted }));
-        }
-    };
-
-    const onChangeTo = (event, selectedDate) => {
-        setShowToPicker(false);
-        if (selectedDate) {
-            const formatted = selectedDate.toISOString().split("T")[0];
-            setFilters((prev) => ({ ...prev, to: formatted }));
-        }
-    };
-
-    // ==== TAB NGÀY ====
-    if (tab === "daily") {
-        return (
-            <View style={{ flexDirection: "row", gap: 10 }}>
-                {/* Từ ngày */}
-                <TouchableOpacity
-                    onPress={() => setShowFromPicker(true)}
-                    style={filterBtnStyle(filters.from)}
-                >
-                    <Text style={filterTextStyle(filters.from)}>
-                        {filters.from
-                            ? filters.from.split("-").reverse().join("/")
-                            : "Từ ngày"}
-                    </Text>
-                </TouchableOpacity>
-
-                {/* Đến ngày */}
-                <TouchableOpacity
-                    onPress={() => setShowToPicker(true)}
-                    style={filterBtnStyle(filters.to)}
-                >
-                    <Text style={filterTextStyle(filters.to)}>
-                        {filters.to ? filters.to.split("-").reverse().join("/") : "Đến ngày"}
-                    </Text>
-                </TouchableOpacity>
-
-                {showFromPicker && (
-                    <DateTimePicker
-                        value={filters.from ? new Date(filters.from) : new Date()}
-                        mode="date"
-                        display={Platform.OS === "ios" ? "spinner" : "default"}
-                        onChange={onChangeFrom}
-                    />
-                )}
-                {showToPicker && (
-                    <DateTimePicker
-                        value={filters.to ? new Date(filters.to) : new Date()}
-                        mode="date"
-                        display={Platform.OS === "ios" ? "spinner" : "default"}
-                        onChange={onChangeTo}
-                    />
-                )}
-            </View>
-        );
-    }
 
     // ==== TAB THÁNG ====
     if (tab === "monthly") {
@@ -350,16 +279,16 @@ function FilterBar({ tab, filters, setFilters }) {
                         <View style={{ backgroundColor: "#fff", borderRadius: 10, margin: 20 }}>
                             <Picker
                                 selectedValue={filters.year}
-                                onValueChange={(val) => setFilters((prev) => ({ ...prev, year: val }))}
+                                onValueChange={(val) => {
+                                    setFilters((prev) => ({ ...prev, year: val }));
+                                    setShowYearPicker(false);
+                                }}
                             >
                                 {Array.from({ length: 6 }, (_, i) => {
                                     const y = 2022 + i;
                                     return <Picker.Item label={`${y}`} value={y} key={y} />;
                                 })}
                             </Picker>
-                            <TouchableOpacity onPress={() => setShowYearPicker(false)}>
-                                <Text style={{ textAlign: "center", padding: 10, color: ORANGE }}>Đóng</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </Modal>
@@ -375,15 +304,15 @@ function FilterBar({ tab, filters, setFilters }) {
                         <View style={{ backgroundColor: "#fff", borderRadius: 10, margin: 20 }}>
                             <Picker
                                 selectedValue={filters.month}
-                                onValueChange={(val) => setFilters((prev) => ({ ...prev, month: val }))}
+                                onValueChange={(val) => {
+                                    setFilters((prev) => ({ ...prev, month: val }));
+                                    setShowMonthPicker(false);
+                                }}
                             >
                                 {Array.from({ length: 12 }, (_, i) => (
                                     <Picker.Item label={`Tháng ${i + 1}`} value={i + 1} key={i} />
                                 ))}
                             </Picker>
-                            <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
-                                <Text style={{ textAlign: "center", padding: 10, color: ORANGE }}>Đóng</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                 </Modal>
@@ -411,16 +340,16 @@ function FilterBar({ tab, filters, setFilters }) {
                     <View style={{ backgroundColor: "#fff", borderRadius: 10, margin: 20 }}>
                         <Picker
                             selectedValue={filters.year}
-                            onValueChange={(val) => setFilters((prev) => ({ ...prev, year: val }))}
+                            onValueChange={(val) => {
+                                setFilters((prev) => ({ ...prev, year: val }));
+                                setShowYearPicker(false);
+                            }}
                         >
                             {Array.from({ length: 6 }, (_, i) => {
                                 const y = 2022 + i;
                                 return <Picker.Item label={`${y}`} value={y} key={y} />;
                             })}
                         </Picker>
-                        <TouchableOpacity onPress={() => setShowYearPicker(false)}>
-                            <Text style={{ textAlign: "center", padding: 10, color: ORANGE }}>Đóng</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
