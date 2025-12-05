@@ -42,7 +42,12 @@ export default function LandlordWalletScreen({ navigation }) {
   const fetchWalletData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axiosInstance.get("/wallet");
+      const res = await axiosInstance.get("/wallet", {
+        params: {
+          month: filters.month,
+          year: filters.year,
+        },
+      });
       setWallet(res.data?.wallet ?? null);
       const sorted = (res.data?.transactions || []).slice().sort((a, b) => {
         const aDate = new Date(a.createdAt).getTime();
@@ -56,7 +61,7 @@ export default function LandlordWalletScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters.month, filters.year]);
 
   useEffect(() => {
     fetchWalletData();
@@ -87,10 +92,7 @@ export default function LandlordWalletScreen({ navigation }) {
     return "Giao dịch";
   };
 
-  const filteredTransactions = useMemo(() => {
-    // Hiển thị UI lọc, hiện tại chưa gọi API lọc nên chỉ trả về toàn bộ danh sách.
-    return transactions;
-  }, [transactions]);
+  const filteredTransactions = useMemo(() => transactions, [transactions]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f9fafb" }}>
