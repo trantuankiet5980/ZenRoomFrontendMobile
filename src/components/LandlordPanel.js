@@ -72,6 +72,13 @@ export default function LandlordPanel({
       iconLib: "mc",
       onPress: () => navigation.navigate("LandlordRevenueStats"),
     },
+    {
+      key: "wallet",
+      label: "Ví",
+      icon: "wallet-outline",
+      iconLib: "ion",
+      onPress: () => navigation.navigate("LandlordWallet"),
+    },
     // {
     //   key: "create-contract",
     //   label: "Tạo hợp đồng",
